@@ -1,0 +1,130 @@
+import { useState, type FormEvent } from 'react'
+import Alert from 'react-bootstrap/Alert'
+import Button from 'react-bootstrap/Button'
+import Card from 'react-bootstrap/Card'
+import Col from 'react-bootstrap/Col'
+import Container from 'react-bootstrap/Container'
+import Form from 'react-bootstrap/Form'
+import Row from 'react-bootstrap/Row'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
+import { useAuth } from '../../hooks/useAuth'
+import { getHomeForRole } from '../../utils/permissions'
+
+export default function RegisterPage() {
+  const { register } = useAuth()
+  const navigate = useNavigate()
+  const location = useLocation()
+  const returnPath = (location.state as { from?: unknown } | null)?.from
+  const [name, setName] = useState('')
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    setError(null)
+    if (password.length < 8) {
+      setError('Use at least 8 characters for your password.')
+      return
+    }
+    if (password !== confirmPassword) {
+      setError('The passwords do not match.')
+      return
+    }
+    setBusy(true)
+    try {
+      const session = await register(name, email, password)
+      navigate(
+        typeof returnPath === 'string' && returnPath.startsWith('/events/')
+          ? returnPath
+          : getHomeForRole(session.user.role),
+        { replace: true },
+      )
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'Unable to create your account.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <main className="auth-page">
+      <Container>
+        <Row className="justify-content-center">
+          <Col xl={7} lg={8}>
+            <Card className="auth-card border-0">
+              <Card.Body className="p-4 p-md-5">
+                <Link to="/events" className="auth-brand text-dark mb-5">
+                  <span className="brand-mark">C</span>
+                  Campus Events
+                </Link>
+                <p className="eyebrow mb-2">Student registration</p>
+                <h1 className="h2 mb-2">Create your account</h1>
+                <p className="text-secondary mb-4">
+                  New accounts start as Students. An Admin can promote your account to Organizer later.
+                </p>
+                {error && <Alert variant="danger">{error}</Alert>}
+                <Form onSubmit={(event) => void handleSubmit(event)}>
+                  <Form.Group className="mb-3" controlId="register-name">
+                    <Form.Label>Full name</Form.Label>
+                    <Form.Control
+                      required
+                      autoComplete="name"
+                      value={name}
+                      onChange={(event) => setName(event.target.value)}
+                    />
+                  </Form.Group>
+                  <Form.Group className="mb-3" controlId="register-email">
+                    <Form.Label>Email address</Form.Label>
+                    <Form.Control
+                      type="email"
+                      required
+                      autoComplete="email"
+                      value={email}
+                      onChange={(event) => setEmail(event.target.value)}
+                    />
+                  </Form.Group>
+                  <Row>
+                    <Col md={6}>
+                      <Form.Group className="mb-3" controlId="register-password">
+                        <Form.Label>Password</Form.Label>
+                        <Form.Control
+                          type="password"
+                          required
+                          minLength={8}
+                          autoComplete="new-password"
+                          value={password}
+                          onChange={(event) => setPassword(event.target.value)}
+                        />
+                      </Form.Group>
+                    </Col>
+                    <Col md={6}>
+                      <Form.Group className="mb-3" controlId="register-confirm-password">
+                        <Form.Label>Confirm password</Form.Label>
+                        <Form.Control
+                          type="password"
+                          required
+                          autoComplete="new-password"
+                          value={confirmPassword}
+                          onChange={(event) => setConfirmPassword(event.target.value)}
+                        />
+                      </Form.Group>
+                    </Col>
+                  </Row>
+                  <Button type="submit" size="lg" className="w-100 mt-2" disabled={busy}>
+                    {busy ? 'Creating account…' : 'Create student account'}
+                  </Button>
+                </Form>
+                <p className="text-center text-secondary mt-4 mb-0">
+                  Already have an account? <Link to="/login" state={location.state}>Sign in</Link>
+                </p>
+              </Card.Body>
+            </Card>
+          </Col>
+        </Row>
+      </Container>
+    </main>
+  )
+}

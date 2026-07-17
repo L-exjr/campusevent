@@ -1,0 +1,410 @@
+import type { EventManagementApi } from './EventManagementApi'
+import {
+  apiRequest,
+  clearStoredSession,
+  fetchAllPages,
+  readStoredSession,
+  writeStoredSession,
+} from './httpClient'
+import { readJwtSessionClaims } from './jwtSession'
+import type {
+  AuthSession,
+  EventFilters,
+  EventInput,
+  EventItem,
+  EventRegistrant,
+  EventReport,
+  OrganizerApplication,
+  OrganizerApplicationStatus,
+  OrganizerReport,
+  Role,
+  StudentRegistration,
+  User,
+} from '../types'
+
+interface ApiUser {
+  id: string
+  name: string
+  email: string
+  role: string
+  isActive: boolean
+  createdAt: string
+}
+
+interface ApiAuthResponse {
+  token: string
+  expiresAt: string
+  user: ApiUser
+}
+
+interface ApiEvent {
+  id: string
+  title: string
+  description: string
+  date: string
+  location: string
+  capacity: number
+  category: string
+  organizerId: string
+  organizerName: string
+  registrationCount: number
+  createdAt: string
+}
+
+interface ApiStudentRegistration {
+  registrationId: string
+  registeredAt: string
+  attended: boolean
+  event: ApiEvent
+}
+
+interface ApiRegistrant {
+  registrationId: string
+  studentId: string
+  studentName: string
+  studentEmail: string
+  registeredAt: string
+  attended: boolean
+}
+
+interface ApiOrganizerApplication {
+  id: string
+  userId: string
+  userName: string
+  userEmail: string
+  reason: string
+  status: string
+  rejectionReason: string | null
+  submittedAt: string
+  reviewedAt: string | null
+  reviewedByAdminId: string | null
+  reviewedByAdminName: string | null
+}
+
+interface ApiSummaryReport {
+  totalEvents: number
+  totalRegistrations: number
+  overallAttendanceRate: number
+}
+
+interface ApiEventReport {
+  eventId: string
+  eventTitle: string
+  registrationCount: number
+  attendanceCount: number
+  attendanceRate: number
+}
+
+interface ApiOrganizerReport {
+  organizerId: string
+  organizerName: string
+  eventCount: number
+  registrationCount: number
+}
+
+function mapRole(role: string): Role {
+  const normalized = role.toLowerCase()
+  if (normalized === 'student' || normalized === 'organizer' || normalized === 'admin') {
+    return normalized
+  }
+  throw new Error(`Unsupported user role: ${role}`)
+}
+
+function toApiRole(role: Exclude<Role, 'admin'>) {
+  return role === 'organizer' ? 'Organizer' : 'Student'
+}
+
+function mapUser(user: ApiUser): User {
+  return {
+    id: user.id,
+    name: user.name,
+    email: user.email,
+    role: mapRole(user.role),
+    active: user.isActive,
+    joinedAt: user.createdAt,
+  }
+}
+
+function mapApplicationStatus(status: string): OrganizerApplicationStatus {
+  const normalized = status.toLowerCase()
+  if (normalized === 'pending' || normalized === 'approved' || normalized === 'rejected') {
+    return normalized
+  }
+  throw new Error(`Unsupported organizer application status: ${status}`)
+}
+
+function mapOrganizerApplication(application: ApiOrganizerApplication): OrganizerApplication {
+  return {
+    ...application,
+    status: mapApplicationStatus(application.status),
+  }
+}
+
+function mapEvent(event: ApiEvent): EventItem {
+  return {
+    id: event.id,
+    title: event.title,
+    description: event.description,
+    date: event.date,
+    capacity: event.capacity,
+    category: event.category as EventItem['category'],
+    location: event.location,
+    organizerId: event.organizerId,
+    organizerName: event.organizerName,
+    createdAt: event.createdAt,
+    registeredCount: event.registrationCount,
+  }
+}
+
+function eventPayload(input: EventInput) {
+  return {
+    ...input,
+    date: new Date(input.date).toISOString(),
+  }
+}
+
+function dateRange(date: string) {
+  const start = new Date(`${date}T00:00:00`)
+  const end = new Date(`${date}T23:59:59.999`)
+  return { from: start.toISOString(), to: end.toISOString() }
+}
+
+function buildEventQuery(filters: EventFilters, upcomingOnly: boolean) {
+  const query = new URLSearchParams()
+  if (filters.search?.trim()) query.set('search', filters.search.trim())
+  if (filters.category) query.set('category', filters.category)
+  if (filters.date) {
+    const range = dateRange(filters.date)
+    query.set('from', range.from)
+    query.set('to', range.to)
+  } else if (upcomingOnly) {
+    query.set('from', new Date().toISOString())
+  }
+  return query.size ? `/events?${query}` : '/events'
+}
+
+function saveApiSession(response: ApiAuthResponse): AuthSession {
+  const user = mapUser(response.user)
+  const claims = readJwtSessionClaims(response.token)
+  if (claims.userId !== user.id || claims.role !== user.role) {
+    throw new Error('The session token does not match the signed-in user.')
+  }
+  if (!Number.isFinite(new Date(response.expiresAt).getTime())) {
+    throw new Error('The server returned an invalid session expiry.')
+  }
+  const session = { token: response.token, expiresAt: claims.expiresAt, user }
+  writeStoredSession({
+    token: response.token,
+    expiresAt: claims.expiresAt,
+    user: response.user,
+  })
+  return session
+}
+
+export const realApi: EventManagementApi = {
+  async login(email, password) {
+    const response = await apiRequest<ApiAuthResponse>('/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({ email, password }),
+    })
+    return saveApiSession(response)
+  },
+
+  async register(name, email, password) {
+    const response = await apiRequest<ApiAuthResponse>('/auth/register', {
+      method: 'POST',
+      body: JSON.stringify({ name, email, password }),
+    })
+    return saveApiSession(response)
+  },
+
+  async restoreSession() {
+    const stored = readStoredSession()
+    if (!stored) return null
+    try {
+      const claims = readJwtSessionClaims(stored.token)
+      const user = mapUser(stored.user as ApiUser)
+      if (claims.userId !== user.id || claims.role !== user.role) throw new Error()
+      return { token: stored.token, expiresAt: claims.expiresAt, user }
+    } catch {
+      clearStoredSession()
+      return null
+    }
+  },
+
+  async logout() {
+    clearStoredSession()
+  },
+
+  async getEvents(filters = {}) {
+    return (await fetchAllPages<ApiEvent>(buildEventQuery(filters, true))).map(mapEvent)
+  },
+
+  async getEvent(id) {
+    return mapEvent(await apiRequest<ApiEvent>(`/events/${id}`))
+  },
+
+  async registerForEvent(eventId) {
+    await apiRequest(`/events/${eventId}/register`, { method: 'POST' })
+  },
+
+  async getStudentRegistrations(studentId) {
+    const registrations = await apiRequest<ApiStudentRegistration[]>(
+      `/students/${studentId}/registrations`,
+    )
+    return registrations.map<StudentRegistration>((registration) => ({
+      registration: {
+        id: registration.registrationId,
+        eventId: registration.event.id,
+        studentId,
+        registeredAt: registration.registeredAt,
+        attended: registration.attended,
+      },
+      event: mapEvent(registration.event),
+    }))
+  },
+
+  async getMyOrganizerApplication() {
+    const application = await apiRequest<ApiOrganizerApplication | null>(
+      '/organizer-applications/mine',
+    )
+    return application ? mapOrganizerApplication(application) : null
+  },
+
+  async submitOrganizerApplication(reason) {
+    const application = await apiRequest<ApiOrganizerApplication>('/organizer-applications', {
+      method: 'POST',
+      body: JSON.stringify({ reason }),
+    })
+    return mapOrganizerApplication(application)
+  },
+
+  async getPendingOrganizerApplications() {
+    const applications = await fetchAllPages<ApiOrganizerApplication>(
+      '/organizer-applications?status=Pending',
+    )
+    return applications.map(mapOrganizerApplication)
+  },
+
+  async approveOrganizerApplication(id) {
+    const application = await apiRequest<ApiOrganizerApplication>(
+      `/organizer-applications/${id}/approve`,
+      { method: 'PUT' },
+    )
+    return mapOrganizerApplication(application)
+  },
+
+  async rejectOrganizerApplication(id, reason) {
+    const application = await apiRequest<ApiOrganizerApplication>(
+      `/organizer-applications/${id}/reject`,
+      {
+        method: 'PUT',
+        body: JSON.stringify({ reason: reason?.trim() || null }),
+      },
+    )
+    return mapOrganizerApplication(application)
+  },
+
+  async getOrganizerEvents() {
+    return (await fetchAllPages<ApiEvent>('/events/mine')).map(mapEvent)
+  },
+
+  async createEvent(input) {
+    return mapEvent(await apiRequest<ApiEvent>('/events', {
+      method: 'POST',
+      body: JSON.stringify(eventPayload(input)),
+    }))
+  },
+
+  async updateEvent(id, input) {
+    return mapEvent(await apiRequest<ApiEvent>(`/events/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(eventPayload(input)),
+    }))
+  },
+
+  async deleteEvent(id) {
+    await apiRequest(`/events/${id}`, { method: 'DELETE' })
+  },
+
+  async getEventRegistrants(eventId) {
+    const registrants = await apiRequest<ApiRegistrant[]>(`/events/${eventId}/registrants`)
+    return registrants.map<EventRegistrant>((registrant) => ({
+      registrationId: registrant.registrationId,
+      userId: registrant.studentId,
+      name: registrant.studentName,
+      email: registrant.studentEmail,
+      registeredAt: registrant.registeredAt,
+      attended: registrant.attended,
+    }))
+  },
+
+  async updateAttendance(eventId, attendance) {
+    await apiRequest(`/events/${eventId}/attendance`, {
+      method: 'PUT',
+      body: JSON.stringify({
+        registrations: Object.entries(attendance).map(([registrationId, attended]) => ({
+          registrationId,
+          attended,
+        })),
+      }),
+    })
+  },
+
+  async getUsers() {
+    return (await fetchAllPages<ApiUser>('/users')).map(mapUser)
+  },
+
+  async updateUserRole(id, role) {
+    await apiRequest(`/users/${id}/role`, {
+      method: 'PUT',
+      body: JSON.stringify({ role: toApiRole(role) }),
+    })
+  },
+
+  async updateUserStatus(id, active) {
+    if (active) throw new Error('Reactivating accounts is not supported by the current API.')
+    await apiRequest(`/users/${id}/deactivate`, { method: 'PUT' })
+  },
+
+  async getAllEvents() {
+    return (await fetchAllPages<ApiEvent>('/events')).map(mapEvent)
+  },
+
+  async getReports() {
+    const [summary, apiEvents, apiOrganizers, users] = await Promise.all([
+      apiRequest<ApiSummaryReport>('/reports/summary'),
+      fetchAllPages<ApiEvent>('/events'),
+      apiRequest<ApiOrganizerReport[]>('/reports/organizers'),
+      fetchAllPages<ApiUser>('/users'),
+    ])
+    const apiEventReports = await Promise.all(
+      apiEvents.map((event) =>
+        apiRequest<ApiEventReport>(`/reports/events/${event.id}`),
+      ),
+    )
+    const eventById = new Map(apiEvents.map((event) => [event.id, event]))
+    const events = apiEventReports.map<EventReport>((report) => ({
+      eventId: report.eventId,
+      title: report.eventTitle,
+      organizerName: eventById.get(report.eventId)?.organizerName ?? 'Unknown organizer',
+      registrations: report.registrationCount,
+      attended: report.attendanceCount,
+      attendanceRate: report.attendanceRate,
+    }))
+    const organizers = apiOrganizers.map<OrganizerReport>((organizer) => ({
+      organizerId: organizer.organizerId,
+      organizerName: organizer.organizerName,
+      events: organizer.eventCount,
+      registrations: organizer.registrationCount,
+    }))
+    return {
+      totalEvents: summary.totalEvents,
+      totalRegistrations: summary.totalRegistrations,
+      totalUsers: users.length,
+      attendanceRate: summary.overallAttendanceRate,
+      events,
+      organizers,
+    }
+  },
+}

@@ -1,0 +1,43 @@
+using System.ComponentModel.DataAnnotations;
+
+namespace EventManagement.Api.DTOs.Events;
+
+public sealed record EventUpsertRequest(
+    [param: Required, StringLength(200, MinimumLength = 3)] string Title,
+    [param: Required, StringLength(5000, MinimumLength = 10)] string Description,
+    DateTimeOffset Date,
+    [param: Required, StringLength(300)] string Location,
+    [param: Range(1, 100000)] int Capacity,
+    [param: Required, StringLength(100)] string Category);
+
+public sealed record EventResponse(
+    Guid Id,
+    string Title,
+    string Description,
+    DateTimeOffset Date,
+    string Location,
+    int Capacity,
+    string Category,
+    Guid OrganizerId,
+    string OrganizerName,
+    int RegistrationCount,
+    DateTimeOffset CreatedAt);
+
+public sealed record EventRegistrantResponse(
+    Guid RegistrationId,
+    Guid StudentId,
+    string StudentName,
+    string StudentEmail,
+    DateTimeOffset RegisteredAt,
+    bool Attended);
+
+public sealed record AttendanceUpdateItem(Guid RegistrationId, bool Attended);
+
+public sealed record BulkAttendanceRequest(
+    [param: Required, MinLength(1)] IReadOnlyList<AttendanceUpdateItem> Registrations);
+
+public sealed record StudentRegistrationResponse(
+    Guid RegistrationId,
+    DateTimeOffset RegisteredAt,
+    bool Attended,
+    EventResponse Event);
