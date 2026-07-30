@@ -44,3 +44,32 @@ To run only the fast unit tests:
 ```bash
 dotnet test EventManagement.Api.UnitTests/EventManagement.Api.UnitTests.csproj
 ```
+
+## Frontend tests
+
+The React suite uses Vitest, React Testing Library, `user-event`, jsdom, and MSW.
+Tests live in `src/tests/`, mirroring the corresponding `src/` component or page
+path. Run them from the repository root:
+
+```bash
+npm install
+npm test
+```
+
+For watch mode while developing:
+
+```bash
+npm run test:watch
+```
+
+The shared MSW server is defined in `src/tests/mocks/server.ts`, with reusable
+happy-path handlers in `src/tests/mocks/handlers.ts` and API-shaped fixtures in
+`src/tests/mocks/fixtures.ts`. Individual tests call `server.use(...)` to override
+only the endpoint or failure state relevant to that scenario. Unhandled network
+requests fail the test, ensuring page tests continue exercising the real API
+adapter instead of silently reaching a backend or manually stubbed `fetch`.
+
+Role-routing and navigation tests use `renderWithAuth` from
+`src/tests/testUtils.tsx` to inject a focused mocked `AuthContext`. Integration-style
+page tests combine that context with MSW so routing, request serialization,
+response mapping, and visible UI updates are exercised together.
