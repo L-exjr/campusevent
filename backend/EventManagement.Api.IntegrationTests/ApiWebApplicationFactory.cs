@@ -6,8 +6,7 @@ namespace EventManagement.Api.IntegrationTests;
 
 internal sealed class ApiWebApplicationFactory : WebApplicationFactory<Program>
 {
-    internal static readonly string JwtSigningKey =
-        Convert.ToBase64String(RandomNumberGenerator.GetBytes(64));
+    internal static readonly string JwtSigningKey = GetJwtSigningKey();
     private readonly Dictionary<string, string?> _originalEnvironment = [];
 
     public ApiWebApplicationFactory(string connectionString)
@@ -41,5 +40,16 @@ internal sealed class ApiWebApplicationFactory : WebApplicationFactory<Program>
     {
         _originalEnvironment[name] = Environment.GetEnvironmentVariable(name);
         Environment.SetEnvironmentVariable(name, value);
+    }
+
+    private static string GetJwtSigningKey()
+    {
+        var configuredKey = Environment.GetEnvironmentVariable("TEST_JWT_SIGNING_KEY");
+        if (string.IsNullOrWhiteSpace(configuredKey))
+            return Convert.ToBase64String(RandomNumberGenerator.GetBytes(64));
+        if (configuredKey.Length < 32)
+            throw new InvalidOperationException(
+                "TEST_JWT_SIGNING_KEY must contain at least 32 characters.");
+        return configuredKey;
     }
 }

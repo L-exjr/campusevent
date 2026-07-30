@@ -1,0 +1,240 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  backend-tests:
+    name: Backend tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    # Required repository Actions secrets (see CI.md):
+    # TEST_DB_PASSWORD, TEST_DB_CONNECTION_STRING, TEST_JWT_SIGNING_KEY.
+    # Mailtrap/Supabase credentials are deliberately not used by CI.
+    env:
+      EMS_TEST_POSTGRES: ${{ secrets.TEST_DB_CONNECTION_STRING }}
+      TEST_DB_PASSWORD: ${{ secrets.TEST_DB_PASSWORD }}
+      TEST_JWT_SIGNING_KEY: ${{ secrets.TEST_JWT_SIGNING_KEY }}
+      DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+      DOTNET_NOLOGO: "1"
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: ${{ secrets.TEST_DB_PASSWORD }}
+          POSTGRES_DB: event_management_tests
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d event_management_tests"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Validate test-only secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+          missing=()
+          [[ -n "${TEST_DB_PASSWORD:-}" ]] || missing+=(TEST_DB_PASSWORD)
+          [[ -n "${EMS_TEST_POSTGRES:-}" ]] || missing+=(TEST_DB_CONNECTION_STRING)
+          [[ -n "${TEST_JWT_SIGNING_KEY:-}" ]] || missing+=(TEST_JWT_SIGNING_KEY)
+          if (( ${#missing[@]} > 0 )); then
+            printf 'Missing required GitHub Actions secret: %s\n' "${missing[@]}" >&2
+            exit 1
+          fi
+          if [[ "$EMS_TEST_POSTGRES" != *"Database=event_management_tests"* ]]; then
+            echo "TEST_DB_CONNECTION_STRING must target the disposable event_management_tests database." >&2
+            exit 1
+          fi
+          if (( ${#TEST_JWT_SIGNING_KEY} < 32 )); then
+            echo "TEST_JWT_SIGNING_KEY must contain at least 32 characters." >&2
+            exit 1
+          fi
+
+      - name: Set up .NET 10
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Confirm PostgreSQL is ready
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in {1..30}; do
+            if pg_isready -h localhost -p 5432 -U postgres -d event_management_tests; then
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "PostgreSQL did not become ready within 30 seconds." >&2
+          exit 1
+
+      - name: Restore NuGet packages
+        run: dotnet restore backend/EventManagement.slnx
+
+      - name: Audit NuGet packages
+        shell: bash
+        run: |
+          set -euo pipefail
+          dotnet list backend/EventManagement.slnx package \
+            --vulnerable \
+            --include-transitive \
+            --format json > nuget-audit.json
+
+          jq -e '.version == 1 and (.projects | type == "array")' \
+            nuget-audit.json > /dev/null || {
+              echo "NuGet returned an invalid vulnerability report." >&2
+              cat nuget-audit.json
+              exit 1
+            }
+
+          findings="$(jq -r '
+            [
+              .. | objects
+              | select(
+                  (((.severity? // "") | ascii_downcase) == "high") or
+                  (((.severity? // "") | ascii_downcase) == "critical")
+                )
+              | "\(.severity): \(.id // .name // "package") \(.advisoryurl // .advisoryUrl // "no advisory URL")"
+            ]
+            | unique
+            | .[]
+          ' nuget-audit.json)"
+
+          if [[ -n "$findings" ]]; then
+            echo "High or critical NuGet vulnerabilities found:" >&2
+            echo "$findings" >&2
+            exit 1
+          fi
+          echo "No high or critical NuGet vulnerabilities found."
+
+      - name: Build backend
+        run: dotnet build backend/EventManagement.slnx --configuration Release --no-restore
+
+      - name: Run backend unit and integration tests
+        run: >-
+          dotnet test backend/EventManagement.slnx
+          --configuration Release
+          --no-build
+          --logger "console;verbosity=normal"
+
+  frontend-tests:
+    name: Frontend tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set up Node.js 24
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Audit npm packages
+        shell: bash
+        run: |
+          set -euo pipefail
+          accepted_advisory="https://github.com/advisories/GHSA-qwww-vcr4-c8h2"
+
+          set +e
+          npm audit --json > npm-audit.json
+          audit_exit=$?
+          set -e
+
+          jq -e '
+            .auditReportVersion == 2 and
+            (.vulnerabilities | type == "object") and
+            (.metadata.vulnerabilities | type == "object") and
+            (has("error") | not)
+          ' npm-audit.json > /dev/null || {
+            echo "npm returned an invalid vulnerability report." >&2
+            cat npm-audit.json
+            exit 1
+          }
+
+          if (( audit_exit != 0 && audit_exit != 1 )); then
+            echo "npm audit exited unexpectedly with code $audit_exit." >&2
+            exit "$audit_exit"
+          fi
+
+          advisory_count="$(jq '[
+            .vulnerabilities[]?.via[]?
+            | select(type == "object")
+            | select(
+                ((.severity | ascii_downcase) == "high") or
+                ((.severity | ascii_downcase) == "critical")
+              )
+          ] | length' npm-audit.json)"
+          reported_count="$(jq '
+            (.metadata.vulnerabilities.high // 0) +
+            (.metadata.vulnerabilities.critical // 0)
+          ' npm-audit.json)"
+
+          if (( reported_count > 0 && advisory_count == 0 )); then
+            echo "npm reported high/critical findings without advisory details; failing closed." >&2
+            cat npm-audit.json
+            exit 1
+          fi
+
+          new_findings="$(jq -r --arg accepted "$accepted_advisory" '
+            [
+              .vulnerabilities[]?.via[]?
+              | select(type == "object")
+              | select(
+                  ((.severity | ascii_downcase) == "high") or
+                  ((.severity | ascii_downcase) == "critical")
+                )
+              | select(
+                  (.url != $accepted) or
+                  ((.severity | ascii_downcase) != "high")
+                )
+              | "\(.severity): \(.name): \(.title) (\(.url // "no advisory URL"))"
+            ]
+            | unique
+            | .[]
+          ' npm-audit.json)"
+
+          if [[ -n "$new_findings" ]]; then
+            echo "New high or critical npm vulnerabilities found:" >&2
+            echo "$new_findings" >&2
+            exit 1
+          fi
+
+          if (( reported_count > 0 )); then
+            echo "Only the reviewed React Router RSC advisory is present; see DEV_SETUP.md."
+          elif (( audit_exit != 0 )); then
+            echo "npm audit exited with code $audit_exit without a reportable vulnerability." >&2
+            exit "$audit_exit"
+          else
+            echo "No high or critical npm vulnerabilities found."
+          fi
+
+      - name: Lint frontend
+        run: npm run lint
+
+      - name: Run frontend tests
+        run: npm test
+
+      - name: Build frontend
+        run: npm run build

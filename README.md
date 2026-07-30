@@ -1,5 +1,7 @@
 # Campus Events
 
+[![CI](https://github.com/L-exjr/campusevent/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/L-exjr/campusevent/actions/workflows/ci.yml)
+
 A role-based Event Management System frontend built with React, TypeScript, Vite, React-Bootstrap, and React Router.
 
 The repository now also includes the [.NET 10/PostgreSQL backend API](backend/README.md) under `backend/EventManagement.Api`.
