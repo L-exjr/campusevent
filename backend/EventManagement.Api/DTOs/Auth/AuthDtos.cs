@@ -18,7 +18,8 @@ public sealed record UserResponse(
     string Email,
     UserRole Role,
     bool IsActive,
-    DateTimeOffset CreatedAt);
+    DateTimeOffset CreatedAt,
+    string? ImageUrl);
 
 public sealed record AuthResponse(
     string Token,

@@ -71,7 +71,11 @@ export function getHomeForRole(role: Role) {
 }
 
 export function getNavigationForRole(role: Role) {
-  return [{ label: 'Explore events', to: '/events' }, ...ROLE_NAVIGATION[role]]
+  return [
+    { label: 'Explore events', to: '/events' },
+    ...ROLE_NAVIGATION[role],
+    { label: 'Profile', to: '/profile' },
+  ]
 }
 
 export function canManageUserAccount(role: Role) {

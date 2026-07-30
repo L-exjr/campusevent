@@ -23,6 +23,7 @@ export function authValue(
     login: vi.fn(),
     register: vi.fn(),
     logout: vi.fn().mockResolvedValue(undefined),
+    updateProfileImage: vi.fn(),
     ...overrides,
   }
 }

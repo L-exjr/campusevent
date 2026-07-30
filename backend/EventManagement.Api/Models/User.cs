@@ -8,6 +8,7 @@ public sealed class User
     public required string PasswordHash { get; set; }
     public UserRole Role { get; set; } = UserRole.Student;
     public bool IsActive { get; set; } = true;
+    public string? ImageUrl { get; set; }
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
 
     public ICollection<EventEntity> OrganizedEvents { get; set; } = [];

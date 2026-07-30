@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react'
+import { useEffect, useState, type ChangeEvent, type FormEvent } from 'react'
 import Alert from 'react-bootstrap/Alert'
 import Button from 'react-bootstrap/Button'
 import Col from 'react-bootstrap/Col'
@@ -7,6 +7,12 @@ import Row from 'react-bootstrap/Row'
 import type { EventInput, EventItem } from '../../types'
 import { EVENT_CATEGORIES } from '../../types'
 import { toDateTimeLocal } from '../../utils/formatters'
+import {
+  DEFAULT_EVENT_IMAGE,
+  IMAGE_ACCEPT,
+  uploadImage,
+  validateImageFile,
+} from '../../api/supabaseStorage'
 
 interface EventFormProps {
   event?: EventItem | null
@@ -26,6 +32,7 @@ function initialValues(event?: EventItem | null): EventInput {
         capacity: event.capacity,
         category: event.category,
         location: event.location,
+        imageUrl: event.imageUrl,
       }
     : {
         title: '',
@@ -34,6 +41,7 @@ function initialValues(event?: EventItem | null): EventInput {
         capacity: 50,
         category: 'Academic',
         location: '',
+        imageUrl: null,
       }
 }
 
@@ -47,9 +55,36 @@ export default function EventForm({
 }: EventFormProps) {
   const [values, setValues] = useState<EventInput>(() => initialValues(event))
   const [validated, setValidated] = useState(false)
+  const [imageFile, setImageFile] = useState<File | null>(null)
+  const [imagePreview, setImagePreview] = useState(event?.imageUrl ?? DEFAULT_EVENT_IMAGE)
+  const [imageError, setImageError] = useState<string | null>(null)
+  const [uploading, setUploading] = useState(false)
   const [minimumDate] = useState(() =>
     toDateTimeLocal(new Date(Date.now() + 5 * 60_000).toISOString()),
   )
+
+  useEffect(() => () => {
+    if (imagePreview.startsWith('blob:')) URL.revokeObjectURL(imagePreview)
+  }, [imagePreview])
+
+  const handleImageChange = (change: ChangeEvent<HTMLInputElement>) => {
+    const file = change.target.files?.[0]
+    setImageError(null)
+    if (!file) {
+      setImageFile(null)
+      setImagePreview(values.imageUrl ?? DEFAULT_EVENT_IMAGE)
+      return
+    }
+    try {
+      validateImageFile(file)
+      setImageFile(file)
+      setImagePreview(URL.createObjectURL(file))
+    } catch (caught) {
+      change.target.value = ''
+      setImageFile(null)
+      setImageError(caught instanceof Error ? caught.message : 'Choose a valid image.')
+    }
+  }
 
   const handleSubmit = async (submission: FormEvent<HTMLFormElement>) => {
     submission.preventDefault()
@@ -69,13 +104,46 @@ export default function EventForm({
       setValidated(true)
       return
     }
-    await onSubmit(normalizedValues)
+    setUploading(true)
+    setImageError(null)
+    try {
+      const imageUrl = imageFile
+        ? await uploadImage(imageFile, 'event-images')
+        : normalizedValues.imageUrl
+      await onSubmit({ ...normalizedValues, imageUrl })
+    } catch (caught) {
+      setImageError(caught instanceof Error ? caught.message : 'The image could not be uploaded.')
+    } finally {
+      setUploading(false)
+    }
   }
 
   return (
     <Form noValidate validated={validated} onSubmit={(submission) => void handleSubmit(submission)}>
-      {error && <Alert variant="danger">{error}</Alert>}
+      {(error || imageError) && <Alert variant="danger">{error ?? imageError}</Alert>}
       <Row className="g-3">
+        <Col xs={12}>
+          <Form.Group controlId="event-image">
+            <Form.Label>Cover image</Form.Label>
+            <div className="d-flex flex-column flex-md-row gap-3 align-items-md-center">
+              <img
+                src={imagePreview}
+                alt="Event cover preview"
+                className="rounded border object-fit-cover"
+                style={{ width: 220, aspectRatio: '16 / 9' }}
+              />
+              <div className="flex-grow-1">
+                <Form.Control
+                  type="file"
+                  accept={IMAGE_ACCEPT}
+                  onChange={handleImageChange}
+                  disabled={busy || uploading}
+                />
+                <Form.Text>Optional. JPG, PNG, or WebP; maximum 5 MB.</Form.Text>
+              </div>
+            </div>
+          </Form.Group>
+        </Col>
         <Col xs={12}>
           <Form.Group controlId="event-title">
             <Form.Label>Event title</Form.Label>
@@ -175,11 +243,11 @@ export default function EventForm({
         </Col>
       </Row>
       <div className="d-flex justify-content-end gap-2 mt-4">
-        <Button variant="light" onClick={onCancel} disabled={busy}>
+        <Button variant="light" onClick={onCancel} disabled={busy || uploading}>
           Cancel
         </Button>
-        <Button type="submit" disabled={busy}>
-          {busy ? 'Saving…' : submitLabel}
+        <Button type="submit" disabled={busy || uploading}>
+          {uploading ? 'Uploading image…' : busy ? 'Saving…' : submitLabel}
         </Button>
       </div>
     </Form>

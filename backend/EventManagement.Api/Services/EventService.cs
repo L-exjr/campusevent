@@ -140,6 +140,7 @@ public sealed class EventService(
             Location = input.Location,
             Capacity = input.Capacity,
             Category = input.Category,
+            ImageUrl = input.ImageUrl,
             OrganizerId = actorId,
             Organizer = organizer
         };
@@ -175,6 +176,7 @@ public sealed class EventService(
         eventEntity.Location = input.Location;
         eventEntity.Capacity = input.Capacity;
         eventEntity.Category = input.Category;
+        eventEntity.ImageUrl = input.ImageUrl;
         await dbContext.SaveChangesAsync(cancellationToken);
         return eventEntity.ToResponse(registrationCount);
     }
@@ -332,7 +334,8 @@ public sealed class EventService(
                     registration.Event.OrganizerId,
                     registration.Event.Organizer.Name,
                     registration.Event.Registrations.Count,
-                    registration.Event.CreatedAt)))
+                    registration.Event.CreatedAt,
+                    registration.Event.ImageUrl)))
             .ToListAsync(cancellationToken);
     }
 
@@ -348,7 +351,8 @@ public sealed class EventService(
             eventEntity.OrganizerId,
             eventEntity.Organizer.Name,
             eventEntity.Registrations.Count,
-            eventEntity.CreatedAt));
+            eventEntity.CreatedAt,
+            eventEntity.ImageUrl));
 
     private static async Task<PaginatedResponse<EventResponse>> PaginateEventsAsync(
         IQueryable<EventEntity> query,
@@ -394,7 +398,8 @@ public sealed class EventService(
             request.Date,
             location,
             request.Capacity,
-            category);
+            category,
+            string.IsNullOrWhiteSpace(request.ImageUrl) ? null : request.ImageUrl.Trim());
     }
 
     private readonly record struct NormalizedEventInput(
@@ -403,5 +408,6 @@ public sealed class EventService(
         DateTimeOffset Date,
         string Location,
         int Capacity,
-        string Category);
+        string Category,
+        string? ImageUrl);
 }

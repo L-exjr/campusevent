@@ -48,6 +48,7 @@ export const handlers = [
       role: 'Student',
       isActive: true,
       createdAt: users.student.joinedAt,
+      imageUrl: users.student.imageUrl,
     },
   ]))),
 ]

@@ -22,6 +22,11 @@ public interface IUserService
         UserRole role,
         Guid adminId,
         CancellationToken cancellationToken);
+    Task<UserResponse> UpdateProfileAsync(
+        Guid userId,
+        Guid actorId,
+        string? imageUrl,
+        CancellationToken cancellationToken);
     Task DeactivateAsync(Guid userId, Guid adminId, CancellationToken cancellationToken);
 }
 
@@ -89,6 +94,24 @@ public sealed class UserService(AppDbContext dbContext) : IUserService
                 application.RejectionReason = null;
             }
         }
+        await dbContext.SaveChangesAsync(cancellationToken);
+        return user.ToResponse();
+    }
+
+    public async Task<UserResponse> UpdateProfileAsync(
+        Guid userId,
+        Guid actorId,
+        string? imageUrl,
+        CancellationToken cancellationToken)
+    {
+        if (userId != actorId)
+            throw new ApiException(StatusCodes.Status403Forbidden, "You may only update your own profile.");
+        var user = await dbContext.Users.SingleOrDefaultAsync(
+            item => item.Id == userId,
+            cancellationToken)
+            ?? throw new ApiException(StatusCodes.Status404NotFound, "User account not found.");
+
+        user.ImageUrl = string.IsNullOrWhiteSpace(imageUrl) ? null : imageUrl.Trim();
         await dbContext.SaveChangesAsync(cancellationToken);
         return user.ToResponse();
     }

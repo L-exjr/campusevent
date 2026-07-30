@@ -123,6 +123,13 @@ app.UseMiddleware<ActiveUserMiddleware>();
 app.UseAuthorization();
 app.MapControllers();
 
+if (app.Environment.IsDevelopment())
+{
+    await DbInitializer.SeedDevelopmentUsersAsync(
+        app.Services,
+        app.Environment,
+        app.Logger);
+}
 await DbInitializer.SeedAdminAsync(app.Services, app.Configuration);
 
 app.Run();

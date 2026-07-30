@@ -19,6 +19,7 @@ import EventsPage from './pages/student/EventsPage'
 import MyRegistrationsPage from './pages/student/MyRegistrationsPage'
 import OrganizerApplicationPage from './pages/student/OrganizerApplicationPage'
 import StudentDashboardPage from './pages/student/StudentDashboardPage'
+import ProfilePage from './pages/profile/ProfilePage'
 import { ROUTE_ROLES } from './utils/permissions'
 
 export default function App() {
@@ -36,6 +37,7 @@ export default function App() {
 
       <Route element={<ProtectedRoute allowedRoles={ROUTE_ROLES.authenticated} />}>
         <Route element={<AppLayout />}>
+          <Route path="/profile" element={<ProfilePage />} />
           <Route element={<ProtectedRoute allowedRoles={ROUTE_ROLES.student} />}>
             <Route path="/student" element={<StudentDashboardPage />} />
             <Route path="/student/events" element={<Navigate to="/events" replace />} />

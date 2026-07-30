@@ -16,6 +16,7 @@ export interface User {
   role: Role
   active: boolean
   joinedAt: string
+  imageUrl: string | null
 }
 
 export interface EventItem {
@@ -30,6 +31,7 @@ export interface EventItem {
   organizerName: string
   createdAt: string
   registeredCount: number
+  imageUrl: string | null
 }
 
 export interface EventInput {
@@ -39,6 +41,7 @@ export interface EventInput {
   capacity: number
   category: EventCategory
   location: string
+  imageUrl: string | null
 }
 
 export interface EventFilters {

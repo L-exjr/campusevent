@@ -14,6 +14,7 @@ import LinkButton from '../../components/shared/LinkButton'
 import { useApiResource } from '../../hooks/useApiResource'
 import { useAuth } from '../../hooks/useAuth'
 import { formatDate, formatTime } from '../../utils/formatters'
+import { DEFAULT_EVENT_IMAGE } from '../../api/supabaseStorage'
 
 export default function EventDetailsPage() {
   const { id = '' } = useParams()
@@ -86,6 +87,13 @@ export default function EventDetailsPage() {
       <Row className="g-4">
         <Col lg={8}>
           <Card className="detail-card border-0 h-100">
+            <Card.Img
+              variant="top"
+              src={data.event.imageUrl ?? DEFAULT_EVENT_IMAGE}
+              alt={`${data.event.title} cover`}
+              className="object-fit-cover"
+              style={{ maxHeight: 420 }}
+            />
             <Card.Body className="p-4 p-lg-5">
               <Badge bg="light" text="dark" className="category-badge mb-4">
                 {data.event.category}

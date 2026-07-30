@@ -8,6 +8,7 @@ export const users: Record<User['role'], User> = {
     role: 'student',
     active: true,
     joinedAt: '2026-01-01T12:00:00Z',
+    imageUrl: null,
   },
   organizer: {
     id: 'organizer-1',
@@ -16,6 +17,7 @@ export const users: Record<User['role'], User> = {
     role: 'organizer',
     active: true,
     joinedAt: '2026-01-01T12:00:00Z',
+    imageUrl: null,
   },
   admin: {
     id: 'admin-1',
@@ -24,6 +26,7 @@ export const users: Record<User['role'], User> = {
     role: 'admin',
     active: true,
     joinedAt: '2026-01-01T12:00:00Z',
+    imageUrl: null,
   },
 }
 
@@ -39,6 +42,7 @@ export const event: EventItem = {
   organizerName: users.organizer.name,
   createdAt: '2026-07-01T12:00:00Z',
   registeredCount: 1,
+  imageUrl: null,
 }
 
 export function apiEvent(overrides: Partial<EventItem> = {}) {
@@ -55,6 +59,7 @@ export function apiEvent(overrides: Partial<EventItem> = {}) {
     organizerName: item.organizerName,
     createdAt: item.createdAt,
     registrationCount: item.registeredCount,
+    imageUrl: item.imageUrl,
   }
 }
 

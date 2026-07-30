@@ -13,7 +13,8 @@ public static class DtoMappings
         user.Email,
         user.Role,
         user.IsActive,
-        user.CreatedAt);
+        user.CreatedAt,
+        user.ImageUrl);
 
     public static OrganizerApplicationResponse ToResponse(this OrganizerApplication application) => new(
         application.Id,
@@ -39,5 +40,6 @@ public static class DtoMappings
         eventEntity.OrganizerId,
         eventEntity.Organizer.Name,
         registrationCount,
-        eventEntity.CreatedAt);
+        eventEntity.CreatedAt,
+        eventEntity.ImageUrl);
 }

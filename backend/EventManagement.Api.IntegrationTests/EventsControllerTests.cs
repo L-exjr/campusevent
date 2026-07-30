@@ -6,6 +6,34 @@ namespace EventManagement.Api.IntegrationTests;
 public sealed class EventsControllerTests(ApiIntegrationFixture fixture)
     : IntegrationTestBase(fixture), IClassFixture<ApiIntegrationFixture>
 {
+    [Fact]
+    public async Task Event_cover_image_URL_round_trips_through_create_and_read()
+    {
+        await ResetAsync();
+        var organizer = await CreateActorAsync("image-organizer@example.test", "Organizer");
+        using var client = CreateAuthenticatedClient(organizer.Token);
+        const string imageUrl = "https://project.supabase.co/storage/v1/object/public/event-images/cover.webp";
+        var payload = new
+        {
+            title = "Event with cover",
+            description = "An event with a persisted public cover image URL.",
+            date = DateTimeOffset.UtcNow.AddDays(7),
+            location = "Image Hall",
+            capacity = 20,
+            category = "Technology",
+            imageUrl
+        };
+
+        using var created = await client.PostAsJsonAsync("/api/events", payload);
+        Assert.Equal(HttpStatusCode.Created, created.StatusCode);
+        var eventId = (await ReadJsonAsync(created)).GetProperty("id").GetGuid();
+        using var publicClient = Fixture.CreateClient();
+        using var fetched = await publicClient.GetAsync($"/api/events/{eventId}");
+
+        fetched.EnsureSuccessStatusCode();
+        Assert.Equal(imageUrl, (await ReadJsonAsync(fetched)).GetProperty("imageUrl").GetString());
+    }
+
     [Theory]
     [InlineData("update")]
     [InlineData("delete")]

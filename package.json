@@ -9,14 +9,16 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "supabase:smoke": "node --env-file=.env scripts/supabase-smoke.mjs"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.111.0",
     "bootstrap": "^5.3.8",
     "react": "^19.2.7",
     "react-bootstrap": "^2.10.10",
     "react-dom": "^19.2.7",
-    "react-router-dom": "^7.11.0"
+    "react-router-dom": "^7.18.2"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

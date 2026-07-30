@@ -7,6 +7,7 @@ import { useAuth } from '../../hooks/useAuth'
 import { getInitials } from '../../utils/formatters'
 import { getNavigationForRole, ROLE_LABELS } from '../../utils/permissions'
 import LinkButton from '../shared/LinkButton'
+import { DEFAULT_PROFILE_IMAGE } from '../../api/supabaseStorage'
 
 export default function AppNavbar() {
   const { user, logout } = useAuth()
@@ -40,9 +41,21 @@ export default function AppNavbar() {
           </Nav>
           {user && (
             <div className="navbar-user d-flex align-items-center gap-3 mt-3 mt-lg-0">
-              <div className="avatar" aria-hidden="true">
-                {getInitials(user.name)}
-              </div>
+              {user.imageUrl ? (
+                <img
+                  src={user.imageUrl}
+                  alt={`${user.name} profile`}
+                  className="avatar object-fit-cover"
+                />
+              ) : (
+                <div
+                  className="avatar"
+                  aria-label={`${user.name} profile placeholder`}
+                  style={{ backgroundImage: `url(${DEFAULT_PROFILE_IMAGE})`, backgroundSize: 'cover' }}
+                >
+                  <span className="visually-hidden">{getInitials(user.name)}</span>
+                </div>
+              )}
               <div className="lh-sm me-auto">
                 <div className="fw-semibold small">{user.name}</div>
                 <Badge bg="light" text="dark" className="role-badge mt-1">

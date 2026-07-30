@@ -34,6 +34,7 @@ export interface EventManagementApi {
   getUsers(): Promise<User[]>
   updateUserRole(id: string, role: Exclude<Role, 'admin'>): Promise<void>
   updateUserStatus(id: string, active: boolean): Promise<void>
+  updateProfile(id: string, imageUrl: string | null): Promise<User>
   getAllEvents(): Promise<EventItem[]>
   getReports(): Promise<ReportsData>
 }

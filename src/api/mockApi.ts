@@ -14,8 +14,8 @@ import type {
 import { EVENT_CATEGORIES } from '../types'
 import type { EventManagementApi } from './EventManagementApi'
 
-type StoredEvent = Omit<EventItem, 'registeredCount'>
-type StoredUser = User & { password: string }
+type StoredEvent = Omit<EventItem, 'registeredCount' | 'imageUrl'> & { imageUrl?: string | null }
+type StoredUser = Omit<User, 'imageUrl'> & { imageUrl?: string | null; password: string }
 
 interface MockDatabase {
   users: StoredUser[]
@@ -249,6 +249,8 @@ function getDatabase() {
   if (saved) {
     const database = JSON.parse(saved) as MockDatabase
     database.organizerApplications ??= []
+    database.users.forEach((user) => { user.imageUrl ??= null })
+    database.events.forEach((event) => { event.imageUrl ??= null })
 
     const userEmails = database.users.map((user) => migrateEmailDomain(user.email))
     const applicationEmails = database.organizerApplications.map((application) =>
@@ -289,12 +291,14 @@ function publicUser(user: StoredUser): User {
     role: user.role,
     active: user.active,
     joinedAt: user.joinedAt,
+    imageUrl: user.imageUrl ?? null,
   }
 }
 
 function eventWithCount(database: MockDatabase, event: StoredEvent): EventItem {
   return {
     ...event,
+    imageUrl: event.imageUrl ?? null,
     registeredCount: database.registrations.filter(
       (registration) => registration.eventId === event.id,
     ).length,
@@ -342,6 +346,7 @@ function normalizeEventInput(input: EventInput, requireFutureDate: boolean): Eve
     capacity: input.capacity,
     category,
     location,
+    imageUrl: input.imageUrl ?? null,
   }
 }
 
@@ -753,6 +758,16 @@ export const mockApi: EventManagementApi = {
     if (user.role === 'admin') throw new Error('Admin accounts cannot be deactivated here.')
     user.active = active
     saveDatabase(database)
+  },
+
+  async updateProfile(id: string, imageUrl: string | null): Promise<User> {
+    await pause()
+    const database = getDatabase()
+    const currentUser = getCurrentUser(database)
+    if (currentUser.id !== id) throw new Error('You may only update your own profile.')
+    currentUser.imageUrl = imageUrl
+    saveDatabase(database)
+    return publicUser(currentUser)
   },
 
   // TODO: replace with GET /api/admin/events.

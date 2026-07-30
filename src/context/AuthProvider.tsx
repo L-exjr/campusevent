@@ -79,6 +79,12 @@ export default function AuthProvider({ children }: AuthProviderProps) {
         setToken(null)
         setExpiresAt(null)
       },
+      updateProfileImage: async (imageUrl) => {
+        if (!user) throw new Error('Authentication is required.')
+        const updated = await api.updateProfile(user.id, imageUrl)
+        setUser(updated)
+        return updated
+      },
     }),
     [loading, token, user],
   )

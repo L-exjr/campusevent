@@ -9,6 +9,7 @@ public sealed class EventEntity
     public required string Location { get; set; }
     public int Capacity { get; set; }
     public required string Category { get; set; }
+    public string? ImageUrl { get; set; }
     public Guid OrganizerId { get; set; }
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
 

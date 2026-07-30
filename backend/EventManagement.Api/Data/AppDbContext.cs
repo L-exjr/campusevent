@@ -18,6 +18,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
             entity.Property(user => user.Name).HasMaxLength(150).IsRequired();
             entity.Property(user => user.Email).HasMaxLength(320).IsRequired();
             entity.Property(user => user.PasswordHash).HasMaxLength(500).IsRequired();
+            entity.Property(user => user.ImageUrl).HasMaxLength(2048);
             entity.Property(user => user.Role).HasConversion<string>().HasMaxLength(30);
             entity.HasIndex(user => user.Email).IsUnique();
         });
@@ -49,6 +50,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
             entity.Property(eventEntity => eventEntity.Description).HasMaxLength(5000).IsRequired();
             entity.Property(eventEntity => eventEntity.Location).HasMaxLength(300).IsRequired();
             entity.Property(eventEntity => eventEntity.Category).HasMaxLength(100).IsRequired();
+            entity.Property(eventEntity => eventEntity.ImageUrl).HasMaxLength(2048);
             entity.HasIndex(eventEntity => eventEntity.Date);
             entity.HasIndex(eventEntity => eventEntity.Category);
             entity.HasOne(eventEntity => eventEntity.Organizer)

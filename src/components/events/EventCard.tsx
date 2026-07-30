@@ -4,6 +4,7 @@ import ProgressBar from 'react-bootstrap/ProgressBar'
 import type { EventItem } from '../../types'
 import { formatDate, formatTime } from '../../utils/formatters'
 import LinkButton from '../shared/LinkButton'
+import { DEFAULT_EVENT_IMAGE } from '../../api/supabaseStorage'
 
 interface EventCardProps {
   event: EventItem
@@ -15,6 +16,13 @@ export default function EventCard({ event }: EventCardProps) {
 
   return (
     <Card className="event-card h-100 border-0">
+      <Card.Img
+        variant="top"
+        src={event.imageUrl ?? DEFAULT_EVENT_IMAGE}
+        alt=""
+        className="object-fit-cover"
+        style={{ aspectRatio: '16 / 9' }}
+      />
       <Card.Body className="d-flex flex-column p-4">
         <div className="d-flex justify-content-between align-items-start gap-3 mb-4">
           <Badge bg="light" text="dark" className="category-badge">

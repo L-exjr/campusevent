@@ -83,7 +83,8 @@ public sealed class EventsControllerTests
         DateTimeOffset.UtcNow.AddDays(7),
         "Test Hall",
         10,
-        "Technology");
+        "Technology",
+        null);
 
     private static EventResponse Response(Guid eventId, Guid organizerId) => new(
         eventId,
@@ -96,5 +97,6 @@ public sealed class EventsControllerTests
         organizerId,
         "Organizer",
         0,
-        DateTimeOffset.UtcNow);
+        DateTimeOffset.UtcNow,
+        null);
 }

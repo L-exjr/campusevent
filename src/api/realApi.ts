@@ -29,6 +29,7 @@ interface ApiUser {
   role: string
   isActive: boolean
   createdAt: string
+  imageUrl: string | null
 }
 
 interface ApiAuthResponse {
@@ -49,6 +50,7 @@ interface ApiEvent {
   organizerName: string
   registrationCount: number
   createdAt: string
+  imageUrl: string | null
 }
 
 interface ApiStudentRegistration {
@@ -122,6 +124,7 @@ function mapUser(user: ApiUser): User {
     role: mapRole(user.role),
     active: user.isActive,
     joinedAt: user.createdAt,
+    imageUrl: user.imageUrl,
   }
 }
 
@@ -153,6 +156,7 @@ function mapEvent(event: ApiEvent): EventItem {
     organizerName: event.organizerName,
     createdAt: event.createdAt,
     registeredCount: event.registrationCount,
+    imageUrl: event.imageUrl,
   }
 }
 
@@ -365,6 +369,16 @@ export const realApi: EventManagementApi = {
   async updateUserStatus(id, active) {
     if (active) throw new Error('Reactivating accounts is not supported by the current API.')
     await apiRequest(`/users/${id}/deactivate`, { method: 'PUT' })
+  },
+
+  async updateProfile(id, imageUrl) {
+    const apiUser = await apiRequest<ApiUser>(`/users/${id}/profile`, {
+      method: 'PUT',
+      body: JSON.stringify({ imageUrl }),
+    })
+    const stored = readStoredSession()
+    if (stored) writeStoredSession({ ...stored, user: apiUser })
+    return mapUser(apiUser)
   },
 
   async getAllEvents() {

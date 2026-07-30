@@ -9,6 +9,7 @@ export interface AuthContextValue {
   login: (email: string, password: string) => Promise<AuthSession>
   register: (name: string, email: string, password: string) => Promise<AuthSession>
   logout: () => Promise<void>
+  updateProfileImage: (imageUrl: string | null) => Promise<User>
 }
 
 export const AuthContext = createContext<AuthContextValue | undefined>(undefined)
