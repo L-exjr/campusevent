@@ -18,8 +18,8 @@ public sealed class JwtTokenService(IConfiguration configuration) : IJwtTokenSer
 {
     public TokenResult Create(User user)
     {
-        var key = configuration["Jwt:Key"]
-            ?? throw new InvalidOperationException("Jwt:Key is required.");
+        var key = configuration["Jwt:SigningKey"]
+            ?? throw new InvalidOperationException("Jwt:SigningKey is required.");
         var issuer = configuration["Jwt:Issuer"] ?? "EventManagement.Api";
         var audience = configuration["Jwt:Audience"] ?? "EventManagement.Frontend";
         var expiryMinutes = Math.Clamp(configuration.GetValue("Jwt:ExpiryMinutes", 75), 60, 90);

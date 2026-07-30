@@ -24,9 +24,12 @@ if (string.IsNullOrWhiteSpace(connectionString))
 
 builder.Services.AddDbContext<AppDbContext>(options => options.UseNpgsql(connectionString));
 
-var jwtKey = builder.Configuration["Jwt:Key"];
-if (string.IsNullOrWhiteSpace(jwtKey) || jwtKey.Length < 32)
-    throw new InvalidOperationException("Jwt:Key must contain at least 32 characters.");
+// The signing key must come from .NET User Secrets in local development or
+// Jwt__SigningKey in the deployed environment; tracked settings contain no key.
+var jwtSigningKey = builder.Configuration["Jwt:SigningKey"];
+if (string.IsNullOrWhiteSpace(jwtSigningKey) || jwtSigningKey.Length < 32)
+    throw new InvalidOperationException(
+        "Jwt:SigningKey must be configured with at least 32 characters.");
 var jwtIssuer = builder.Configuration["Jwt:Issuer"] ?? "EventManagement.Api";
 var jwtAudience = builder.Configuration["Jwt:Audience"] ?? "EventManagement.Frontend";
 
@@ -43,7 +46,7 @@ builder.Services
             ValidateIssuerSigningKey = true,
             ValidIssuer = jwtIssuer,
             ValidAudience = jwtAudience,
-            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey)),
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSigningKey)),
             NameClaimType = JwtRegisteredClaimNames.Name,
             RoleClaimType = JwtClaimNames.Role,
             ClockSkew = TimeSpan.FromSeconds(30)
@@ -93,6 +96,7 @@ builder.Services.AddScoped<IJwtTokenService, JwtTokenService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IOrganizerApplicationService, OrganizerApplicationService>();
 builder.Services.AddScoped<IUserService, UserService>();
+builder.Services.AddScoped<IEventAuthorizationService, EventAuthorizationService>();
 builder.Services.AddScoped<IEventService, EventService>();
 builder.Services.AddScoped<IReportService, ReportService>();
 

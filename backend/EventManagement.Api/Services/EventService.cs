@@ -60,7 +60,9 @@ public interface IEventService
         CancellationToken cancellationToken);
 }
 
-public sealed class EventService(AppDbContext dbContext) : IEventService
+public sealed class EventService(
+    AppDbContext dbContext,
+    IEventAuthorizationService authorizationService) : IEventService
 {
     private static readonly string[] SupportedCategories =
         ["Academic", "Career", "Culture", "Sports", "Technology", "Wellness"];
@@ -158,7 +160,7 @@ public sealed class EventService(AppDbContext dbContext) : IEventService
             .Include(item => item.Organizer)
             .SingleOrDefaultAsync(item => item.Id == eventId, cancellationToken)
             ?? throw new ApiException(StatusCodes.Status404NotFound, "Event not found.");
-        EnsureCanManage(eventEntity, actorId, actorRole);
+        authorizationService.EnsureCanManage(eventEntity.OrganizerId, actorId, actorRole);
         var registrationCount = await dbContext.EventRegistrations.CountAsync(
             registration => registration.EventId == eventId,
             cancellationToken);
@@ -187,7 +189,7 @@ public sealed class EventService(AppDbContext dbContext) : IEventService
             item => item.Id == eventId,
             cancellationToken)
             ?? throw new ApiException(StatusCodes.Status404NotFound, "Event not found.");
-        EnsureCanManage(eventEntity, actorId, actorRole);
+        authorizationService.EnsureCanManage(eventEntity.OrganizerId, actorId, actorRole);
         dbContext.Events.Remove(eventEntity);
         await dbContext.SaveChangesAsync(cancellationToken);
     }
@@ -197,18 +199,20 @@ public sealed class EventService(AppDbContext dbContext) : IEventService
         Guid studentId,
         CancellationToken cancellationToken)
     {
-        await using var transaction = await dbContext.Database.BeginTransactionAsync(
-            IsolationLevel.Serializable,
-            cancellationToken);
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
         var student = await dbContext.Users.SingleOrDefaultAsync(
             user => user.Id == studentId,
             cancellationToken)
             ?? throw new ApiException(StatusCodes.Status404NotFound, "Student account not found.");
         if (student.Role != UserRole.Student)
             throw new ApiException(StatusCodes.Status403Forbidden, "Only Students can register for events.");
+        // Serialize registrations for this event. A unique student/event index prevents
+        // duplicates, while this row lock makes the capacity check and insert atomic.
         var eventEntity = await dbContext.Events
+            .FromSqlInterpolated(
+                $"SELECT * FROM \"Events\" WHERE \"Id\" = {eventId} FOR UPDATE")
             .Include(item => item.Organizer)
-            .SingleOrDefaultAsync(item => item.Id == eventId, cancellationToken)
+            .SingleOrDefaultAsync(cancellationToken)
             ?? throw new ApiException(StatusCodes.Status404NotFound, "Event not found.");
         if (eventEntity.Date <= DateTimeOffset.UtcNow)
             throw new ApiException(StatusCodes.Status409Conflict, "Registration has closed for this event.");
@@ -259,7 +263,7 @@ public sealed class EventService(AppDbContext dbContext) : IEventService
             item => item.Id == eventId,
             cancellationToken)
             ?? throw new ApiException(StatusCodes.Status404NotFound, "Event not found.");
-        EnsureCanManage(eventEntity, actorId, actorRole);
+        authorizationService.EnsureCanManage(eventEntity.OrganizerId, actorId, actorRole);
         return await dbContext.EventRegistrations.AsNoTracking()
             .Where(registration => registration.EventId == eventId)
             .OrderBy(registration => registration.Student.Name)
@@ -284,7 +288,7 @@ public sealed class EventService(AppDbContext dbContext) : IEventService
             item => item.Id == eventId,
             cancellationToken)
             ?? throw new ApiException(StatusCodes.Status404NotFound, "Event not found.");
-        EnsureCanManage(eventEntity, actorId, actorRole);
+        authorizationService.EnsureCanManage(eventEntity.OrganizerId, actorId, actorRole);
         var ids = request.Registrations.Select(item => item.RegistrationId).ToList();
         if (ids.Count != ids.Distinct().Count())
             throw new ApiException(StatusCodes.Status400BadRequest, "Each registration may appear only once.");
@@ -364,13 +368,6 @@ public sealed class EventService(AppDbContext dbContext) : IEventService
             pageSize,
             totalCount,
             Pagination.TotalPages(totalCount, pageSize));
-    }
-
-    private static void EnsureCanManage(EventEntity eventEntity, Guid actorId, UserRole actorRole)
-    {
-        if (actorRole == UserRole.Admin) return;
-        if (actorRole != UserRole.Organizer || eventEntity.OrganizerId != actorId)
-            throw new ApiException(StatusCodes.Status403Forbidden, "You may only manage your own events.");
     }
 
     private static NormalizedEventInput NormalizeRequest(EventUpsertRequest request)

@@ -26,7 +26,7 @@ Production secrets are not committed. Supply configuration through environment v
 
 ```bash
 export ConnectionStrings__DefaultConnection='Host=localhost;Port=5432;Database=event_management;Username=postgres;Password=your-password'
-export Jwt__Key='replace-with-at-least-32-random-characters'
+export Jwt__SigningKey='replace-with-a-new-random-signing-key'
 export Jwt__Issuer='EventManagement.Api'
 export Jwt__Audience='EventManagement.Frontend'
 export BootstrapAdmin__Email='admin@cevents.com'
@@ -34,9 +34,21 @@ export BootstrapAdmin__Password='a-strong-initial-password'
 export BootstrapAdmin__Name='System Administrator'
 ```
 
+For local development, keep the signing key out of tracked settings and store it
+with .NET User Secrets:
+
+```bash
+cd backend/EventManagement.Api
+dotnet user-secrets set "Jwt:SigningKey" "$(openssl rand -hex 64)" >/dev/null
+```
+
+See `../SECURITY.md` for rotation, deployment, and git-history cleanup guidance.
+
 The bootstrap Admin is created only when both bootstrap email and password are configured and no account already uses that email. Remove the bootstrap password from the environment after the first successful startup.
 
-For local development, `appsettings.Development.json` contains a passwordless local PostgreSQL example and a development-only JWT key. Do not reuse either in production.
+For local development, copy `appsettings.Development.example.json` if local
+non-secret overrides are needed. The real development signing key belongs in
+.NET User Secrets and the local `appsettings.Development.json` is ignored by git.
 
 ## Database and startup
 

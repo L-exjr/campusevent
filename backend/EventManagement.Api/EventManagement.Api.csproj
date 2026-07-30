@@ -4,6 +4,7 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <RootNamespace>EventManagement.Api</RootNamespace>
+    <UserSecretsId>event-management-api-local-development</UserSecretsId>
   </PropertyGroup>
 
   <ItemGroup>

@@ -20,6 +20,9 @@ dist-ssr
 **/obj/
 *.user
 
+# Local .NET development configuration (use the tracked example as a template).
+backend/EventManagement.Api/appsettings.Development.json
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

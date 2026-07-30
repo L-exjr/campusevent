@@ -1,3 +1,4 @@
+using System.Security.Cryptography;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 
@@ -5,8 +6,8 @@ namespace EventManagement.Api.IntegrationTests;
 
 internal sealed class ApiWebApplicationFactory : WebApplicationFactory<Program>
 {
-    internal const string JwtKey =
-        "integration-test-signing-key-with-at-least-32-characters";
+    internal static readonly string JwtSigningKey =
+        Convert.ToBase64String(RandomNumberGenerator.GetBytes(64));
     private readonly Dictionary<string, string?> _originalEnvironment = [];
 
     public ApiWebApplicationFactory(string connectionString)
@@ -15,7 +16,7 @@ internal sealed class ApiWebApplicationFactory : WebApplicationFactory<Program>
         SetEnvironment("ConnectionStrings__DefaultConnection", connectionString);
         SetEnvironment("Jwt__Issuer", "EventManagement.Api.IntegrationTests");
         SetEnvironment("Jwt__Audience", "EventManagement.Api.IntegrationTests.Client");
-        SetEnvironment("Jwt__Key", JwtKey);
+        SetEnvironment("Jwt__SigningKey", JwtSigningKey);
         SetEnvironment("Jwt__ExpiryMinutes", "75");
         SetEnvironment("BootstrapAdmin__Email", string.Empty);
         SetEnvironment("BootstrapAdmin__Password", string.Empty);
