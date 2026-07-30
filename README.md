@@ -65,4 +65,7 @@ npm run preview
 
 ## Out of scope
 
-Payments, certificates, QR attendance, and email notifications are intentionally not included in this version.
+Email notifications are implemented for event registration confirmations,
+Organizer application decisions, and upcoming-event reminders.
+
+Payments, certificates, QR attendance, and mobile app support remain out of scope.

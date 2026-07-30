@@ -196,4 +196,8 @@ EMS_TEST_POSTGRES='Host=localhost;Port=5432;Database=event_management_tests;User
 
 ## Out of scope
 
-Payments, certificates, QR-code attendance, email notifications, and refresh-token issuance are intentionally not implemented in this version.
+Email notifications are implemented for event registration confirmations,
+Organizer application decisions, and upcoming-event reminders.
+
+Payments, certificates, QR-code attendance, mobile app support, and refresh-token
+issuance remain out of scope.
