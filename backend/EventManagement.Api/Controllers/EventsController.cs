@@ -42,6 +42,14 @@ public sealed class EventsController(IEventService eventService) : ControllerBas
             pageSize,
             cancellationToken));
 
+    [Authorize(Roles = "Admin")]
+    [HttpGet("all")]
+    public async Task<ActionResult<PaginatedResponse<EventResponse>>> GetAll(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20,
+        CancellationToken cancellationToken = default) =>
+        Ok(await eventService.GetAllAsync(page, pageSize, cancellationToken));
+
     [AllowAnonymous]
     [HttpGet("{id:guid}")]
     public async Task<ActionResult<EventResponse>> GetById(

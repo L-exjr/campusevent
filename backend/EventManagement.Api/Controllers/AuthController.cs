@@ -25,4 +25,25 @@ public sealed class AuthController(IAuthService authService) : ControllerBase
         LoginRequest request,
         CancellationToken cancellationToken) =>
         Ok(await authService.LoginAsync(request, cancellationToken));
+
+    [AllowAnonymous]
+    [HttpPost("forgot-password")]
+    public async Task<ActionResult<MessageResponse>> ForgotPassword(
+        ForgotPasswordRequest request,
+        CancellationToken cancellationToken) =>
+        Ok(await authService.ForgotPasswordAsync(request, cancellationToken));
+
+    [AllowAnonymous]
+    [HttpPost("reset-password")]
+    public async Task<ActionResult<MessageResponse>> ResetPassword(
+        ResetPasswordRequest request,
+        CancellationToken cancellationToken) =>
+        Ok(await authService.ResetPasswordAsync(request, cancellationToken));
+
+    [AllowAnonymous]
+    [HttpPost("google")]
+    public async Task<ActionResult<AuthResponse>> GoogleLogin(
+        GoogleLoginRequest request,
+        CancellationToken cancellationToken) =>
+        Ok(await authService.GoogleLoginAsync(request, cancellationToken));
 }

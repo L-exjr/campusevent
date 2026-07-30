@@ -63,6 +63,49 @@ Treat SMTP credentials as compromised if exposed and rotate them in the provider
 immediately. Production credentials must never be copied into a local development
 profile; local development is Mailtrap sandbox-only.
 
+## Password reset tokens
+
+Password reset responses are identical for known and unknown email addresses to
+prevent account enumeration. Reset links contain a cryptographically random token;
+only its SHA-256 hash is stored. Tokens expire after 30 minutes, become invalid after
+one successful use, and requesting another link invalidates every prior unused token.
+Changing the password also preserves a linked Google identity, if present.
+
+`Frontend:BaseUrl` controls the non-secret origin used to build reset links. Keep it
+at `http://localhost:5173` locally and set `Frontend__BaseUrl` to the deployed HTTPS
+frontend URL in production.
+
+## Google sign-in configuration
+
+The frontend receives only the Google OAuth web client ID through
+`VITE_GOOGLE_CLIENT_ID`; a client ID identifies the app but is not a credential.
+The backend must be configured with the same audience:
+
+```bash
+cd backend/EventManagement.Api
+dotnet user-secrets set "Google:ClientId" "your-web-client-id.apps.googleusercontent.com"
+```
+
+In production use `Google__ClientId`. Google Identity Services returns an ID token,
+which the backend verifies for Google signature, issuer, expiry, verified email, and
+the configured audience before issuing the existing application JWT. The stable
+Google `sub` claim is persisted. A first Google login is matched to an existing
+normalized email so a local account is linked rather than duplicated.
+
+This ID-token flow does not use a Google client secret. If a client secret is created
+for a future authorization-code flow, store it only as `Google:ClientSecret` in User
+Secrets or `Google__ClientSecret` in the production secret manager. Never use a
+`VITE_*` variable for it or commit it.
+
+## Public booking-request abuse controls
+
+`POST /api/booking-requests` uses a fixed-window limit of **5 requests per source IP
+per hour**, with no queue. Excess requests receive HTTP 429. The form also includes
+an off-screen `website` honeypot: a filled value receives the same neutral HTTP 202
+response as a legitimate submission but is not stored. This avoids CAPTCHA tracking,
+keys, and user friction at the current scale. Revisit a privacy-reviewed CAPTCHA if
+targeted bot traffic starts bypassing the honeypot.
+
 ## Exposed-key history
 
 The former development key must be treated as compromised because removing it

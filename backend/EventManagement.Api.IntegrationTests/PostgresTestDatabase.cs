@@ -116,7 +116,28 @@ internal sealed class PostgresTestDatabase : IAsyncDisposable
 
         if (_serverProcess is { HasExited: false })
         {
-            _serverProcess.Kill(entireProcessTree: true);
+            var pgCtlPath = FindExecutable("pg_ctl");
+            if (pgCtlPath is not null && _dataDirectory is not null)
+            {
+                try
+                {
+                    // A graceful postmaster shutdown releases its System V shared-memory
+                    // segment. SIGKILL leaves stale segments on macOS and eventually makes
+                    // repeated integration-test runs unable to start another cluster.
+                    await RunToCompletionAsync(
+                        pgCtlPath,
+                        ["-D", _dataDirectory, "stop", "-m", "fast", "-w"],
+                        TimeSpan.FromSeconds(15));
+                }
+                catch when (!_serverProcess.HasExited)
+                {
+                    _serverProcess.Kill(entireProcessTree: true);
+                }
+            }
+            else
+            {
+                _serverProcess.Kill(entireProcessTree: true);
+            }
             await _serverProcess.WaitForExitAsync();
         }
         _serverProcess?.Dispose();

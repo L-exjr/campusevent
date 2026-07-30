@@ -9,6 +9,8 @@ import {
 import { readJwtSessionClaims } from './jwtSession'
 import type {
   AuthSession,
+  BookingRequest,
+  BookingRequestInput,
   EventFilters,
   EventInput,
   EventItem,
@@ -51,6 +53,7 @@ interface ApiEvent {
   registrationCount: number
   createdAt: string
   imageUrl: string | null
+  isPublished: boolean
 }
 
 interface ApiStudentRegistration {
@@ -157,6 +160,7 @@ function mapEvent(event: ApiEvent): EventItem {
     createdAt: event.createdAt,
     registeredCount: event.registrationCount,
     imageUrl: event.imageUrl,
+    isPublished: event.isPublished ?? true,
   }
 }
 
@@ -220,6 +224,26 @@ export const realApi: EventManagementApi = {
       body: JSON.stringify({ name, email, password }),
     })
     return saveApiSession(response)
+  },
+
+  async googleLogin(idToken) {
+    return saveApiSession(await apiRequest<ApiAuthResponse>('/auth/google', {
+      method: 'POST', body: JSON.stringify({ idToken }),
+    }))
+  },
+
+  async forgotPassword(email) {
+    const response = await apiRequest<{ message: string }>('/auth/forgot-password', {
+      method: 'POST', body: JSON.stringify({ email }),
+    })
+    return response.message
+  },
+
+  async resetPassword(token, newPassword) {
+    const response = await apiRequest<{ message: string }>('/auth/reset-password', {
+      method: 'POST', body: JSON.stringify({ token, newPassword }),
+    })
+    return response.message
   },
 
   async restoreSession() {
@@ -382,13 +406,13 @@ export const realApi: EventManagementApi = {
   },
 
   async getAllEvents() {
-    return (await fetchAllPages<ApiEvent>('/events')).map(mapEvent)
+    return (await fetchAllPages<ApiEvent>('/events/all')).map(mapEvent)
   },
 
   async getReports() {
     const [summary, apiEvents, apiOrganizers, users] = await Promise.all([
       apiRequest<ApiSummaryReport>('/reports/summary'),
-      fetchAllPages<ApiEvent>('/events'),
+      fetchAllPages<ApiEvent>('/events/all'),
       apiRequest<ApiOrganizerReport[]>('/reports/organizers'),
       fetchAllPages<ApiUser>('/users'),
     ])
@@ -420,5 +444,29 @@ export const realApi: EventManagementApi = {
       events,
       organizers,
     }
+  },
+
+  async submitBookingRequest(input: BookingRequestInput) {
+    const response = await apiRequest<{ message: string }>('/booking-requests', {
+      method: 'POST',
+      body: JSON.stringify({ ...input, proposedDate: new Date(input.proposedDate).toISOString() }),
+    })
+    return response.message
+  },
+
+  async getBookingRequests() {
+    const requests = await apiRequest<Array<Omit<BookingRequest, 'status'> & { status: string }>>('/booking-requests')
+    return requests.map((request) => ({
+      ...request,
+      status: `${request.status[0].toLowerCase()}${request.status.slice(1)}` as BookingRequest['status'],
+    }))
+  },
+
+  async assignBookingRequest(id, organizerId) {
+    const request = await apiRequest<Omit<BookingRequest, 'status'> & { status: string }>(
+      `/booking-requests/${id}/assign`,
+      { method: 'PUT', body: JSON.stringify({ organizerId }) },
+    )
+    return { ...request, status: `${request.status[0].toLowerCase()}${request.status.slice(1)}` as BookingRequest['status'] }
   },
 }

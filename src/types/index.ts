@@ -1,5 +1,8 @@
 export type Role = 'student' | 'organizer' | 'admin'
 export type OrganizerApplicationStatus = 'pending' | 'approved' | 'rejected'
+export type BookingRequestStatus =
+  | 'submitted' | 'underReview' | 'sentToOrganizer' | 'accepted'
+  | 'declined' | 'converted' | 'closed'
 
 export type EventCategory =
   | 'Academic'
@@ -32,6 +35,7 @@ export interface EventItem {
   createdAt: string
   registeredCount: number
   imageUrl: string | null
+  isPublished: boolean
 }
 
 export interface EventInput {
@@ -42,6 +46,33 @@ export interface EventInput {
   category: EventCategory
   location: string
   imageUrl: string | null
+  isPublished?: boolean
+}
+
+export interface BookingRequestInput {
+  organizationName: string
+  contactName: string
+  email: string
+  phone: string
+  eventType: string
+  proposedDate: string
+  alternativeDates?: string
+  flexibilityNote?: string
+  estimatedAttendance: number
+  preferredOrganizer?: string
+  description: string
+  website: string
+}
+
+export interface BookingRequest extends Omit<BookingRequestInput, 'website'> {
+  id: string
+  status: BookingRequestStatus
+  assignedOrganizerId: string | null
+  assignedOrganizerName: string | null
+  organizerResponseNote: string | null
+  draftEventId: string | null
+  submittedAt: string
+  updatedAt: string
 }
 
 export interface EventFilters {

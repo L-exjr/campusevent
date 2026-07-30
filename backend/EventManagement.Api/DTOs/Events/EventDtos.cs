@@ -9,7 +9,8 @@ public sealed record EventUpsertRequest(
     [param: Required, StringLength(300)] string Location,
     [param: Range(1, 100000)] int Capacity,
     [param: Required, StringLength(100)] string Category,
-    [param: Url, StringLength(2048)] string? ImageUrl);
+    [param: Url, StringLength(2048)] string? ImageUrl,
+    bool? IsPublished = null);
 
 public sealed record EventResponse(
     Guid Id,
@@ -23,7 +24,8 @@ public sealed record EventResponse(
     string OrganizerName,
     int RegistrationCount,
     DateTimeOffset CreatedAt,
-    string? ImageUrl);
+    string? ImageUrl,
+    bool IsPublished = true);
 
 public sealed record EventRegistrantResponse(
     Guid RegistrationId,

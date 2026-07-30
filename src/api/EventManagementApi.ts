@@ -1,5 +1,7 @@
 import type {
   AuthSession,
+  BookingRequest,
+  BookingRequestInput,
   EventFilters,
   EventInput,
   EventItem,
@@ -14,6 +16,9 @@ import type {
 export interface EventManagementApi {
   login(email: string, password: string): Promise<AuthSession>
   register(name: string, email: string, password: string): Promise<AuthSession>
+  googleLogin(idToken: string): Promise<AuthSession>
+  forgotPassword(email: string): Promise<string>
+  resetPassword(token: string, newPassword: string): Promise<string>
   restoreSession(): Promise<AuthSession | null>
   logout(): Promise<void>
   getEvents(filters?: EventFilters): Promise<EventItem[]>
@@ -37,4 +42,7 @@ export interface EventManagementApi {
   updateProfile(id: string, imageUrl: string | null): Promise<User>
   getAllEvents(): Promise<EventItem[]>
   getReports(): Promise<ReportsData>
+  submitBookingRequest(input: BookingRequestInput): Promise<string>
+  getBookingRequests(): Promise<BookingRequest[]>
+  assignBookingRequest(id: string, organizerId: string): Promise<BookingRequest>
 }

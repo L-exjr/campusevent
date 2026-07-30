@@ -22,6 +22,7 @@ export function authValue(
     isAuthenticated: Boolean(user),
     login: vi.fn(),
     register: vi.fn(),
+    googleLogin: vi.fn(),
     logout: vi.fn().mockResolvedValue(undefined),
     updateProfileImage: vi.fn(),
     ...overrides,

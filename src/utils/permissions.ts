@@ -55,6 +55,7 @@ const ROLE_NAVIGATION: Record<Role, NavigationItem[]> = {
     { label: 'Users', to: '/admin/users' },
     { label: 'Applications', to: '/admin/organizer-applications' },
     { label: 'All events', to: '/admin/events' },
+    { label: 'Booking requests', to: '/admin/booking-requests' },
   ],
 }
 
@@ -73,6 +74,7 @@ export function getHomeForRole(role: Role) {
 export function getNavigationForRole(role: Role) {
   return [
     { label: 'Explore events', to: '/events' },
+    { label: 'Request an Organizer', to: '/request-organizer' },
     ...ROLE_NAVIGATION[role],
     { label: 'Profile', to: '/profile' },
   ]

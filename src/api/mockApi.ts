@@ -1,5 +1,6 @@
 import type {
   AuthSession,
+  BookingRequest,
   EventFilters,
   EventInput,
   EventItem,
@@ -14,7 +15,10 @@ import type {
 import { EVENT_CATEGORIES } from '../types'
 import type { EventManagementApi } from './EventManagementApi'
 
-type StoredEvent = Omit<EventItem, 'registeredCount' | 'imageUrl'> & { imageUrl?: string | null }
+type StoredEvent = Omit<EventItem, 'registeredCount' | 'imageUrl' | 'isPublished'> & {
+  imageUrl?: string | null
+  isPublished?: boolean
+}
 type StoredUser = Omit<User, 'imageUrl'> & { imageUrl?: string | null; password: string }
 
 interface MockDatabase {
@@ -299,6 +303,7 @@ function eventWithCount(database: MockDatabase, event: StoredEvent): EventItem {
   return {
     ...event,
     imageUrl: event.imageUrl ?? null,
+    isPublished: event.isPublished ?? true,
     registeredCount: database.registrations.filter(
       (registration) => registration.eventId === event.id,
     ).length,
@@ -400,6 +405,20 @@ export const mockApi: EventManagementApi = {
     }
     window.localStorage.setItem(SESSION_KEY, JSON.stringify(session))
     return session
+  },
+
+  async googleLogin(): Promise<AuthSession> {
+    throw new Error('Google sign-in requires the real API configuration.')
+  },
+
+  async forgotPassword(): Promise<string> {
+    await pause()
+    return 'If an account exists for that email, a password reset link has been sent.'
+  },
+
+  async resetPassword(): Promise<string> {
+    await pause()
+    return 'Your password has been reset successfully.'
   },
 
   async restoreSession(): Promise<AuthSession | null> {
@@ -829,5 +848,19 @@ export const mockApi: EventManagementApi = {
       events,
       organizers,
     }
+  },
+
+  async submitBookingRequest(): Promise<string> {
+    await pause()
+    return 'Your organizer request has been received.'
+  },
+
+  async getBookingRequests(): Promise<BookingRequest[]> {
+    await pause()
+    return []
+  },
+
+  async assignBookingRequest(): Promise<BookingRequest> {
+    throw new Error('No mock booking request is available to assign.')
   },
 }

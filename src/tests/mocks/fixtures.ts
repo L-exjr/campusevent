@@ -43,6 +43,7 @@ export const event: EventItem = {
   createdAt: '2026-07-01T12:00:00Z',
   registeredCount: 1,
   imageUrl: null,
+  isPublished: true,
 }
 
 export function apiEvent(overrides: Partial<EventItem> = {}) {

@@ -6,6 +6,7 @@ const apiUrl = 'http://localhost:5080/api'
 export const handlers = [
   http.get(`${apiUrl}/events`, () => HttpResponse.json(paginated([apiEvent()]))),
   http.get(`${apiUrl}/events/mine`, () => HttpResponse.json(paginated([apiEvent()]))),
+  http.get(`${apiUrl}/events/all`, () => HttpResponse.json(paginated([apiEvent()]))),
   http.get(`${apiUrl}/events/:id`, () => HttpResponse.json(apiEvent())),
   http.get(`${apiUrl}/students/:id/registrations`, () => HttpResponse.json([])),
   http.get(`${apiUrl}/organizer-applications/mine`, () => HttpResponse.json(null)),

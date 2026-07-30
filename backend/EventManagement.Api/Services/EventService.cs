@@ -24,6 +24,10 @@ public interface IEventService
         int page,
         int pageSize,
         CancellationToken cancellationToken);
+    Task<PaginatedResponse<EventResponse>> GetAllAsync(
+        int page,
+        int pageSize,
+        CancellationToken cancellationToken);
     Task<EventResponse> GetByIdAsync(Guid eventId, CancellationToken cancellationToken);
     Task<EventResponse> CreateAsync(
         Guid actorId,
@@ -80,7 +84,7 @@ public sealed class EventService(
     {
         if (from.HasValue && to.HasValue && from > to)
             throw new ApiException(StatusCodes.Status400BadRequest, "The from date must be before the to date.");
-        var query = dbContext.Events.AsNoTracking().AsQueryable();
+        var query = dbContext.Events.AsNoTracking().Where(eventEntity => eventEntity.IsPublished);
         if (!string.IsNullOrWhiteSpace(search))
         {
             var term = search.Trim().ToLowerInvariant();
@@ -110,12 +114,22 @@ public sealed class EventService(
             pageSize,
             cancellationToken);
 
+    public Task<PaginatedResponse<EventResponse>> GetAllAsync(
+        int page,
+        int pageSize,
+        CancellationToken cancellationToken) =>
+        PaginateEventsAsync(
+            dbContext.Events.AsNoTracking(),
+            page,
+            pageSize,
+            cancellationToken);
+
     public async Task<EventResponse> GetByIdAsync(
         Guid eventId,
         CancellationToken cancellationToken)
     {
         return await ProjectEvents(
-                dbContext.Events.AsNoTracking().Where(eventEntity => eventEntity.Id == eventId))
+                dbContext.Events.AsNoTracking().Where(eventEntity => eventEntity.Id == eventId && eventEntity.IsPublished))
             .SingleOrDefaultAsync(cancellationToken)
             ?? throw new ApiException(StatusCodes.Status404NotFound, "Event not found.");
     }
@@ -144,7 +158,8 @@ public sealed class EventService(
             Category = input.Category,
             ImageUrl = input.ImageUrl,
             OrganizerId = actorId,
-            Organizer = organizer
+            Organizer = organizer,
+            IsPublished = request.IsPublished ?? true
         };
         dbContext.Events.Add(eventEntity);
         await dbContext.SaveChangesAsync(cancellationToken);
@@ -179,6 +194,18 @@ public sealed class EventService(
         eventEntity.Capacity = input.Capacity;
         eventEntity.Category = input.Category;
         eventEntity.ImageUrl = input.ImageUrl;
+        eventEntity.IsPublished = request.IsPublished ?? eventEntity.IsPublished;
+        if (eventEntity.IsPublished)
+        {
+            var bookingRequest = await dbContext.BookingRequests.SingleOrDefaultAsync(
+                item => item.DraftEventId == eventEntity.Id && item.Status == BookingRequestStatus.Accepted,
+                cancellationToken);
+            if (bookingRequest is not null)
+            {
+                bookingRequest.Status = BookingRequestStatus.Converted;
+                bookingRequest.UpdatedAt = DateTimeOffset.UtcNow;
+            }
+        }
         await dbContext.SaveChangesAsync(cancellationToken);
         return eventEntity.ToResponse(registrationCount);
     }
@@ -220,6 +247,8 @@ public sealed class EventService(
             ?? throw new ApiException(StatusCodes.Status404NotFound, "Event not found.");
         if (eventEntity.Date <= DateTimeOffset.UtcNow)
             throw new ApiException(StatusCodes.Status409Conflict, "Registration has closed for this event.");
+        if (!eventEntity.IsPublished)
+            throw new ApiException(StatusCodes.Status404NotFound, "Event not found.");
         if (await dbContext.EventRegistrations.AnyAsync(
             registration => registration.EventId == eventId && registration.StudentId == studentId,
             cancellationToken))
@@ -363,7 +392,8 @@ public sealed class EventService(
                     registration.Event.Organizer.Name,
                     registration.Event.Registrations.Count,
                     registration.Event.CreatedAt,
-                    registration.Event.ImageUrl)))
+                    registration.Event.ImageUrl,
+                    registration.Event.IsPublished)))
             .ToListAsync(cancellationToken);
     }
 
@@ -380,7 +410,8 @@ public sealed class EventService(
             eventEntity.Organizer.Name,
             eventEntity.Registrations.Count,
             eventEntity.CreatedAt,
-            eventEntity.ImageUrl));
+            eventEntity.ImageUrl,
+            eventEntity.IsPublished));
 
     private static async Task<PaginatedResponse<EventResponse>> PaginateEventsAsync(
         IQueryable<EventEntity> query,

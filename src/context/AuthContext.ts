@@ -8,6 +8,7 @@ export interface AuthContextValue {
   isAuthenticated: boolean
   login: (email: string, password: string) => Promise<AuthSession>
   register: (name: string, email: string, password: string) => Promise<AuthSession>
+  googleLogin: (idToken: string) => Promise<AuthSession>
   logout: () => Promise<void>
   updateProfileImage: (imageUrl: string | null) => Promise<User>
 }

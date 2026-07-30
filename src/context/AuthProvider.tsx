@@ -73,6 +73,13 @@ export default function AuthProvider({ children }: AuthProviderProps) {
         setExpiresAt(session.expiresAt)
         return session
       },
+      googleLogin: async (idToken) => {
+        const session = await api.googleLogin(idToken)
+        setUser(session.user)
+        setToken(session.token)
+        setExpiresAt(session.expiresAt)
+        return session
+      },
       logout: async () => {
         await api.logout()
         setUser(null)

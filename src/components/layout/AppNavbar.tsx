@@ -14,7 +14,7 @@ export default function AppNavbar() {
   const navigate = useNavigate()
   const navigation = user
     ? getNavigationForRole(user.role)
-    : [{ label: 'Explore events', to: '/events' }]
+    : [{ label: 'Explore events', to: '/events' }, { label: 'Request an Organizer', to: '/request-organizer' }]
 
   const handleLogout = async () => {
     await logout()

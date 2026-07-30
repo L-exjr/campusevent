@@ -7,6 +7,20 @@ public sealed class EventsControllerTests(ApiIntegrationFixture fixture)
     : IntegrationTestBase(fixture), IClassFixture<ApiIntegrationFixture>
 {
     [Fact]
+    public async Task Non_admin_cannot_list_unpublished_events()
+    {
+        await ResetAsync();
+        var student = await RegisterStudentAsync("draft-list-student@example.test");
+        using var anonymousClient = Fixture.CreateClient();
+        using var anonymous = await anonymousClient.GetAsync("/api/events/all");
+        using var studentClient = CreateAuthenticatedClient(student.Token);
+        using var studentResponse = await studentClient.GetAsync("/api/events/all");
+
+        Assert.Equal(HttpStatusCode.Unauthorized, anonymous.StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, studentResponse.StatusCode);
+    }
+
+    [Fact]
     public async Task Event_cover_image_URL_round_trips_through_create_and_read()
     {
         await ResetAsync();

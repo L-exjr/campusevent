@@ -61,6 +61,30 @@ The reminder worker checks hourly by default and sends once when a registered
 event is within 24 hours. The non-secret cadence can be changed with
 `Email:Reminders:LeadTimeHours` and `Email:Reminders:CheckIntervalMinutes`.
 
+## Google sign-in
+
+1. In [Google Cloud Console](https://console.cloud.google.com/apis/credentials),
+   create or select a development project and configure its OAuth consent screen.
+2. Create an **OAuth client ID** with application type **Web application**.
+3. Add `http://localhost:5173` under **Authorized JavaScript origins**. This app uses
+   the Google Identity Services JavaScript callback and does not need a redirect URI.
+4. Put the web client ID in the frontend's ignored `.env`:
+
+   ```dotenv
+   VITE_GOOGLE_CLIENT_ID=your-web-client-id.apps.googleusercontent.com
+   ```
+
+5. Configure the same audience for backend verification from
+   `backend/EventManagement.Api`:
+
+   ```bash
+   dotnet user-secrets set "Google:ClientId" "your-web-client-id.apps.googleusercontent.com"
+   ```
+
+Restart Vite after changing `.env`. Do not put a Google client secret in the
+frontend. The current ID-token flow does not need one; see [SECURITY.md](SECURITY.md#google-sign-in-configuration)
+for the storage rule if a future server-side authorization-code flow introduces it.
+
 ## npm audit resolution
 
 The initial `npm audit` reported two high findings. They were two dependency

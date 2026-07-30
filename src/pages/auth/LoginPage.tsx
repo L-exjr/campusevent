@@ -11,6 +11,8 @@ import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../hooks/useAuth'
 import { getHomeForRole } from '../../utils/permissions'
 import { usingMockApi } from '../../api'
+import PasswordInput from '../../components/auth/PasswordInput'
+import GoogleSignInButton from '../../components/auth/GoogleSignInButton'
 
 const DEMO_ACCOUNTS = [
   { role: 'Student', email: 'student@cevents.com' },
@@ -19,7 +21,7 @@ const DEMO_ACCOUNTS = [
 ]
 
 export default function LoginPage() {
-  const { login } = useAuth()
+  const { login, googleLogin } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
   const returnPath = (location.state as { from?: unknown } | null)?.from
@@ -53,6 +55,16 @@ export default function LoginPage() {
     setEmail(accountEmail)
     setPassword('demo123')
     setError(null)
+  }
+
+  const handleGoogleCredential = async (credential: string) => {
+    setBusy(true); setError(null)
+    try {
+      const session = await googleLogin(credential)
+      navigate(getHomeForRole(session.user.role), { replace: true })
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'Google sign-in failed.')
+    } finally { setBusy(false) }
   }
 
   return (
@@ -103,19 +115,15 @@ export default function LoginPage() {
                     />
                   </Form.Group>
                   <Form.Group className="mb-4" controlId="login-password">
-                    <Form.Label>Password</Form.Label>
-                    <Form.Control
-                      type="password"
-                      required
-                      autoComplete="current-password"
-                      value={password}
-                      onChange={(event) => setPassword(event.target.value)}
-                    />
+                    <div className="d-flex justify-content-between"><Form.Label htmlFor="login-password">Password</Form.Label></div>
+                    <PasswordInput id="login-password" autoComplete="current-password" value={password} onChange={setPassword} />
+                    <Link to="/forgot-password">Forgot password?</Link>
                   </Form.Group>
                   <Button type="submit" size="lg" className="w-100" disabled={busy}>
                     {busy ? 'Signing in…' : 'Sign in'}
                   </Button>
                 </Form>
+                {!usingMockApi && <><div className="auth-divider"><span>or</span></div><GoogleSignInButton onCredential={(credential) => void handleGoogleCredential(credential)} onUnavailable={setError} /></>}
                 {usingMockApi && (
                   <>
                     <div className="auth-divider"><span>Demo access</span></div>

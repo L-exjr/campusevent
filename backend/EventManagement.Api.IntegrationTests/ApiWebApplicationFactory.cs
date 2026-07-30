@@ -1,6 +1,10 @@
 using System.Security.Cryptography;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
+using EventManagement.Api.Services;
+using Microsoft.AspNetCore.TestHost;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace EventManagement.Api.IntegrationTests;
 
@@ -24,6 +28,11 @@ internal sealed class ApiWebApplicationFactory : WebApplicationFactory<Program>
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment("Testing");
+        builder.ConfigureTestServices(services =>
+        {
+            services.RemoveAll<IGoogleTokenValidator>();
+            services.AddSingleton<IGoogleTokenValidator, TestGoogleTokenValidator>();
+        });
     }
 
     protected override void Dispose(bool disposing)
@@ -51,5 +60,17 @@ internal sealed class ApiWebApplicationFactory : WebApplicationFactory<Program>
             throw new InvalidOperationException(
                 "TEST_JWT_SIGNING_KEY must contain at least 32 characters.");
         return configuredKey;
+    }
+}
+
+internal sealed class TestGoogleTokenValidator : IGoogleTokenValidator
+{
+    public Task<GoogleIdentity> ValidateAsync(string idToken, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var parts = idToken.Split('|');
+        if (parts is not [var subject, var email, var name])
+            throw new EventManagement.Api.Infrastructure.ApiException(401, "Invalid Google test token.");
+        return Task.FromResult(new GoogleIdentity(subject, email, name, null));
     }
 }

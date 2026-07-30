@@ -9,6 +9,7 @@ import Row from 'react-bootstrap/Row'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../hooks/useAuth'
 import { getHomeForRole } from '../../utils/permissions'
+import PasswordInput from '../../components/auth/PasswordInput'
 
 export default function RegisterPage() {
   const { register } = useAuth()
@@ -89,27 +90,14 @@ export default function RegisterPage() {
                   <Row>
                     <Col md={6}>
                       <Form.Group className="mb-3" controlId="register-password">
-                        <Form.Label>Password</Form.Label>
-                        <Form.Control
-                          type="password"
-                          required
-                          minLength={8}
-                          autoComplete="new-password"
-                          value={password}
-                          onChange={(event) => setPassword(event.target.value)}
-                        />
+                        <Form.Label htmlFor="register-password">Password</Form.Label>
+                        <PasswordInput id="register-password" minLength={8} autoComplete="new-password" value={password} onChange={setPassword} />
                       </Form.Group>
                     </Col>
                     <Col md={6}>
                       <Form.Group className="mb-3" controlId="register-confirm-password">
-                        <Form.Label>Confirm password</Form.Label>
-                        <Form.Control
-                          type="password"
-                          required
-                          autoComplete="new-password"
-                          value={confirmPassword}
-                          onChange={(event) => setConfirmPassword(event.target.value)}
-                        />
+                        <Form.Label htmlFor="register-confirm-password">Confirm password</Form.Label>
+                        <PasswordInput id="register-confirm-password" autoComplete="new-password" value={confirmPassword} onChange={setConfirmPassword} />
                       </Form.Group>
                     </Col>
                   </Row>

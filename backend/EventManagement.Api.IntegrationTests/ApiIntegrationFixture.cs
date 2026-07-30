@@ -2,6 +2,8 @@ using EventManagement.Api.Data;
 using EventManagement.Api.Models;
 using EventManagement.Api.Services;
 using Microsoft.EntityFrameworkCore;
+using System.Security.Cryptography;
+using System.Text;
 
 namespace EventManagement.Api.IntegrationTests;
 
@@ -43,6 +45,8 @@ public sealed class ApiIntegrationFixture : IAsyncLifetime
             TRUNCATE TABLE
                 "EventRegistrations",
                 "OrganizerApplications",
+                "PasswordResetTokens",
+                "BookingRequests",
                 "Events",
                 "Users"
             CASCADE;
@@ -72,6 +76,39 @@ public sealed class ApiIntegrationFixture : IAsyncLifetime
         await using var dbContext = CreateDbContext();
         return await dbContext.OrganizerApplications.CountAsync(application =>
             application.UserId == userId && application.Status == ApplicationStatus.Pending);
+    }
+
+    public async Task<int> CountUsersByEmailAsync(string email)
+    {
+        await using var dbContext = CreateDbContext();
+        return await dbContext.Users.CountAsync(user => user.Email == email);
+    }
+
+    public async Task<int> CountBookingRequestsAsync()
+    {
+        await using var dbContext = CreateDbContext();
+        return await dbContext.BookingRequests.CountAsync();
+    }
+
+    public async Task<string> CreateResetTokenAsync(Guid userId, DateTimeOffset expiresAt)
+    {
+        const string rawToken = "integration-reset-token";
+        await using var dbContext = CreateDbContext();
+        dbContext.PasswordResetTokens.Add(new PasswordResetToken
+        {
+            UserId = userId,
+            TokenHash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(rawToken))).ToLowerInvariant(),
+            ExpiresAt = expiresAt
+        });
+        await dbContext.SaveChangesAsync();
+        return rawToken;
+    }
+
+    public async Task<(bool IsPublished, Guid OrganizerId)> GetEventStateAsync(Guid eventId)
+    {
+        await using var dbContext = CreateDbContext();
+        var item = await dbContext.Events.SingleAsync(eventEntity => eventEntity.Id == eventId);
+        return (item.IsPublished, item.OrganizerId);
     }
 
     private AppDbContext CreateDbContext()

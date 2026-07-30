@@ -11,8 +11,10 @@ public sealed class EventEntity
     public required string Category { get; set; }
     public string? ImageUrl { get; set; }
     public Guid OrganizerId { get; set; }
+    public bool IsPublished { get; set; } = true;
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
 
     public User Organizer { get; set; } = null!;
     public ICollection<EventRegistration> Registrations { get; set; } = [];
+    public BookingRequest? SourceBookingRequest { get; set; }
 }

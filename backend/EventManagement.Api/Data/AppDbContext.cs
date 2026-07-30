@@ -9,6 +9,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
     public DbSet<OrganizerApplication> OrganizerApplications => Set<OrganizerApplication>();
     public DbSet<EventEntity> Events => Set<EventEntity>();
     public DbSet<EventRegistration> EventRegistrations => Set<EventRegistration>();
+    public DbSet<PasswordResetToken> PasswordResetTokens => Set<PasswordResetToken>();
+    public DbSet<BookingRequest> BookingRequests => Set<BookingRequest>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -17,10 +19,13 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
             entity.HasKey(user => user.Id);
             entity.Property(user => user.Name).HasMaxLength(150).IsRequired();
             entity.Property(user => user.Email).HasMaxLength(320).IsRequired();
-            entity.Property(user => user.PasswordHash).HasMaxLength(500).IsRequired();
+            entity.Property(user => user.PasswordHash).HasMaxLength(500);
+            entity.Property(user => user.AuthProvider).HasConversion<string>().HasMaxLength(30);
+            entity.Property(user => user.GoogleSubject).HasMaxLength(255);
             entity.Property(user => user.ImageUrl).HasMaxLength(2048);
             entity.Property(user => user.Role).HasConversion<string>().HasMaxLength(30);
             entity.HasIndex(user => user.Email).IsUnique();
+            entity.HasIndex(user => user.GoogleSubject).IsUnique();
         });
 
         modelBuilder.Entity<OrganizerApplication>(entity =>
@@ -71,6 +76,44 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
                 .WithMany(user => user.Registrations)
                 .HasForeignKey(registration => registration.StudentId)
                 .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<PasswordResetToken>(entity =>
+        {
+            entity.HasKey(token => token.Id);
+            entity.Property(token => token.TokenHash).HasMaxLength(64).IsRequired();
+            entity.HasIndex(token => token.TokenHash).IsUnique();
+            entity.HasIndex(token => new { token.UserId, token.ExpiresAt });
+            entity.HasOne(token => token.User)
+                .WithMany(user => user.PasswordResetTokens)
+                .HasForeignKey(token => token.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<BookingRequest>(entity =>
+        {
+            entity.HasKey(request => request.Id);
+            entity.Property(request => request.OrganizationName).HasMaxLength(200).IsRequired();
+            entity.Property(request => request.ContactName).HasMaxLength(150).IsRequired();
+            entity.Property(request => request.Email).HasMaxLength(320).IsRequired();
+            entity.Property(request => request.Phone).HasMaxLength(50).IsRequired();
+            entity.Property(request => request.EventType).HasMaxLength(150).IsRequired();
+            entity.Property(request => request.AlternativeDates).HasMaxLength(500);
+            entity.Property(request => request.FlexibilityNote).HasMaxLength(1000);
+            entity.Property(request => request.PreferredOrganizer).HasMaxLength(200);
+            entity.Property(request => request.Description).HasMaxLength(5000).IsRequired();
+            entity.Property(request => request.OrganizerResponseNote).HasMaxLength(1000);
+            entity.Property(request => request.Status).HasConversion<string>().HasMaxLength(30);
+            entity.HasIndex(request => request.Status);
+            entity.HasIndex(request => request.SubmittedAt);
+            entity.HasOne(request => request.AssignedOrganizer)
+                .WithMany(user => user.AssignedBookingRequests)
+                .HasForeignKey(request => request.AssignedOrganizerId)
+                .OnDelete(DeleteBehavior.SetNull);
+            entity.HasOne(request => request.DraftEvent)
+                .WithOne(eventEntity => eventEntity.SourceBookingRequest)
+                .HasForeignKey<BookingRequest>(request => request.DraftEventId)
+                .OnDelete(DeleteBehavior.SetNull);
         });
     }
 }

@@ -41,5 +41,6 @@ public static class DtoMappings
         eventEntity.Organizer.Name,
         registrationCount,
         eventEntity.CreatedAt,
-        eventEntity.ImageUrl);
+        eventEntity.ImageUrl,
+        eventEntity.IsPublished);
 }

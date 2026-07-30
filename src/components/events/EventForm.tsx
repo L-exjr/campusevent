@@ -33,6 +33,7 @@ function initialValues(event?: EventItem | null): EventInput {
         category: event.category,
         location: event.location,
         imageUrl: event.imageUrl,
+        isPublished: event.isPublished,
       }
     : {
         title: '',
@@ -42,6 +43,7 @@ function initialValues(event?: EventItem | null): EventInput {
         category: 'Academic',
         location: '',
         imageUrl: null,
+        isPublished: true,
       }
 }
 
@@ -240,6 +242,16 @@ export default function EventForm({
             />
             <Form.Control.Feedback type="invalid">Use at least 1.</Form.Control.Feedback>
           </Form.Group>
+        </Col>
+        <Col xs={12}>
+          <Form.Check
+            id="event-published"
+            type="switch"
+            label="Publish this event so Students can find and register for it"
+            checked={values.isPublished ?? true}
+            onChange={(eventValue) => setValues({ ...values, isPublished: eventValue.target.checked })}
+          />
+          {event && !event.isPublished && <Form.Text>This event is currently a private draft.</Form.Text>}
         </Col>
       </Row>
       <div className="d-flex justify-content-end gap-2 mt-4">

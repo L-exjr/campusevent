@@ -8,6 +8,10 @@ import AdminOrganizerApplicationsPage from './pages/admin/AdminOrganizerApplicat
 import AdminUsersPage from './pages/admin/AdminUsersPage'
 import LoginPage from './pages/auth/LoginPage'
 import RegisterPage from './pages/auth/RegisterPage'
+import ForgotPassword from './pages/auth/ForgotPassword'
+import ResetPassword from './pages/auth/ResetPassword'
+import BookingRequestForm from './pages/BookingRequestForm'
+import AdminBookingQueue from './pages/admin/AdminBookingQueue'
 import NotFoundPage from './pages/errors/NotFoundPage'
 import UnauthorizedPage from './pages/errors/UnauthorizedPage'
 import AttendancePage from './pages/organizer/AttendancePage'
@@ -28,11 +32,14 @@ export default function App() {
       <Route element={<AppLayout />}>
         <Route path="/events" element={<EventsPage />} />
         <Route path="/events/:id" element={<EventDetailsPage />} />
+        <Route path="/request-organizer" element={<BookingRequestForm />} />
       </Route>
 
       <Route element={<GuestRoute />}>
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
       </Route>
 
       <Route element={<ProtectedRoute allowedRoles={ROUTE_ROLES.authenticated} />}>
@@ -58,6 +65,7 @@ export default function App() {
             <Route path="/admin/users" element={<AdminUsersPage />} />
             <Route path="/admin/organizer-applications" element={<AdminOrganizerApplicationsPage />} />
             <Route path="/admin/events" element={<AdminEventsPage />} />
+            <Route path="/admin/booking-requests" element={<AdminBookingQueue />} />
             <Route path="/admin/events/:id/registrants" element={<RegistrantsPage />} />
           </Route>
         </Route>

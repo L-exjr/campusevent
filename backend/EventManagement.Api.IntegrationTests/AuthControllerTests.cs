@@ -9,6 +9,75 @@ public sealed class AuthControllerTests(ApiIntegrationFixture fixture)
     : IntegrationTestBase(fixture), IClassFixture<ApiIntegrationFixture>
 {
     [Fact]
+    public async Task Forgot_password_returns_same_message_for_known_and_unknown_email()
+    {
+        await ResetAsync();
+        await RegisterStudentAsync("known-reset@example.test");
+        using var client = Fixture.CreateClient();
+        using var known = await client.PostAsJsonAsync("/api/auth/forgot-password", new { email = "known-reset@example.test" });
+        using var unknown = await client.PostAsJsonAsync("/api/auth/forgot-password", new { email = "unknown-reset@example.test" });
+
+        known.EnsureSuccessStatusCode(); unknown.EnsureSuccessStatusCode();
+        Assert.Equal(
+            (await ReadJsonAsync(known)).GetProperty("message").GetString(),
+            (await ReadJsonAsync(unknown)).GetProperty("message").GetString());
+    }
+
+    [Fact]
+    public async Task Reset_token_changes_password_and_is_single_use()
+    {
+        await ResetAsync();
+        var student = await RegisterStudentAsync("reset-once@example.test");
+        var token = await Fixture.CreateResetTokenAsync(student.UserId, DateTimeOffset.UtcNow.AddMinutes(30));
+        using var client = Fixture.CreateClient();
+        using var reset = await client.PostAsJsonAsync("/api/auth/reset-password", new { token, newPassword = "New-Integration-Password-123!" });
+        using var reuse = await client.PostAsJsonAsync("/api/auth/reset-password", new { token, newPassword = "Another-Integration-Password-123!" });
+        using var login = await client.PostAsJsonAsync("/api/auth/login", new { email = "reset-once@example.test", password = "New-Integration-Password-123!" });
+
+        Assert.Equal(HttpStatusCode.OK, reset.StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, reuse.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, login.StatusCode);
+    }
+
+    [Fact]
+    public async Task Expired_reset_token_is_rejected()
+    {
+        await ResetAsync();
+        var student = await RegisterStudentAsync("expired-reset@example.test");
+        var token = await Fixture.CreateResetTokenAsync(student.UserId, DateTimeOffset.UtcNow.AddMinutes(-1));
+        using var client = Fixture.CreateClient();
+        using var response = await client.PostAsJsonAsync("/api/auth/reset-password", new { token, newPassword = "New-Integration-Password-123!" });
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Google_login_links_existing_email_without_duplicate_and_uses_same_user_id()
+    {
+        await ResetAsync();
+        var local = await RegisterStudentAsync("linked@example.test");
+        using var client = Fixture.CreateClient();
+        using var response = await client.PostAsJsonAsync("/api/auth/google", new { idToken = "google-subject|LINKED@example.test|Linked User" });
+        response.EnsureSuccessStatusCode();
+        var body = await ReadJsonAsync(response);
+        using var repeated = await client.PostAsJsonAsync("/api/auth/google", new { idToken = "google-subject|linked@example.test|Linked User" });
+        using var passwordLogin = await client.PostAsJsonAsync("/api/auth/login", new { email = "linked@example.test", password = TestPassword });
+
+        Assert.Equal(local.UserId, body.GetProperty("user").GetProperty("id").GetGuid());
+        Assert.Equal(HttpStatusCode.OK, repeated.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, passwordLogin.StatusCode);
+        Assert.Equal(1, await Fixture.CountUsersByEmailAsync("linked@example.test"));
+    }
+
+    [Fact]
+    public async Task Google_login_creates_only_a_Student_for_a_new_email()
+    {
+        await ResetAsync();
+        using var client = Fixture.CreateClient();
+        using var response = await client.PostAsJsonAsync("/api/auth/google", new { idToken = "new-google-subject|new-google@example.test|New Google User" });
+        response.EnsureSuccessStatusCode();
+        Assert.Equal("Student", (await ReadJsonAsync(response)).GetProperty("user").GetProperty("role").GetString());
+    }
+    [Fact]
     public async Task Login_returns_cryptographically_valid_JWT_with_current_role_claim()
     {
         await ResetAsync();
