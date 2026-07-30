@@ -35,7 +35,10 @@ public interface IOrganizerApplicationService
         CancellationToken cancellationToken);
 }
 
-public sealed class OrganizerApplicationService(AppDbContext dbContext)
+public sealed class OrganizerApplicationService(
+    AppDbContext dbContext,
+    IEmailService emailService,
+    ILogger<OrganizerApplicationService> logger)
     : IOrganizerApplicationService
 {
     public async Task<OrganizerApplicationResponse> SubmitAsync(
@@ -178,6 +181,38 @@ public sealed class OrganizerApplicationService(AppDbContext dbContext)
 
         application.ReviewedByAdmin = await dbContext.Users.AsNoTracking()
             .SingleAsync(user => user.Id == adminId, cancellationToken);
+
+        try
+        {
+            var decision = status == ApplicationStatus.Approved ? "approved" : "rejected";
+            var decisionDetails = status == ApplicationStatus.Approved
+                ? "You can sign in again to receive an Organizer access token."
+                : string.IsNullOrWhiteSpace(rejectionReason)
+                    ? "Contact an administrator if you would like more information."
+                    : $"Reason: {rejectionReason}";
+            await emailService.SendAsync(
+                application.User.Email,
+                application.User.Name,
+                $"Your Organizer application was {decision}",
+                "OrganizerApplicationDecision.html",
+                new Dictionary<string, string?>
+                {
+                    ["StudentName"] = application.User.Name,
+                    ["Decision"] = decision,
+                    ["DecisionDetails"] = decisionDetails
+                },
+                cancellationToken);
+        }
+        catch (Exception exception)
+        {
+            // The review and any role change are already committed. Email failure
+            // is logged without changing the successful application outcome.
+            logger.LogError(
+                exception,
+                "Organizer application {ApplicationId} was reviewed, but its decision email failed.",
+                application.Id);
+        }
+
         return application.ToResponse();
     }
 }

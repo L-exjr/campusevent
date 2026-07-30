@@ -43,6 +43,24 @@ Expected live output:
 Supabase Storage client initialized and both buckets are reachable.
 ```
 
+## Mailtrap email sandbox
+
+Create or sign in to a Mailtrap account, then open **Email Testing → Sandboxes →
+My Sandbox → Integration → SMTP**. Copy that sandbox's host, port, username, and
+password. Mailtrap's current walkthrough is available in its
+[Sandbox SMTP Integration documentation](https://docs.mailtrap.io/email-sandbox/setup/sandbox-smtp-integration).
+
+From `backend/EventManagement.Api`, store the values with .NET User Secrets using
+the commands in [SECURITY.md](SECURITY.md#smtp-credentials). Do not paste them into
+an `appsettings` file. Start the API in Development and exercise event registration
+or an Admin application decision; messages addressed to the test Student email
+will appear only in the Mailtrap sandbox inbox. The API intentionally rejects any
+non-Mailtrap SMTP host in Development.
+
+The reminder worker checks hourly by default and sends once when a registered
+event is within 24 hours. The non-secret cadence can be changed with
+`Email:Reminders:LeadTimeHours` and `Email:Reminders:CheckIntervalMinutes`.
+
 ## npm audit resolution
 
 The initial `npm audit` reported two high findings. They were two dependency

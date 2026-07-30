@@ -62,7 +62,9 @@ public interface IEventService
 
 public sealed class EventService(
     AppDbContext dbContext,
-    IEventAuthorizationService authorizationService) : IEventService
+    IEventAuthorizationService authorizationService,
+    IEmailService emailService,
+    ILogger<EventService> logger) : IEventService
 {
     private static readonly string[] SupportedCategories =
         ["Academic", "Career", "Culture", "Sports", "Technology", "Wellness"];
@@ -246,6 +248,32 @@ public sealed class EventService(
         catch (DbUpdateException)
         {
             throw new ApiException(StatusCodes.Status409Conflict, "You are already registered for this event.");
+        }
+
+        try
+        {
+            await emailService.SendAsync(
+                student.Email,
+                student.Name,
+                $"Registration confirmed: {eventEntity.Title}",
+                "RegistrationConfirmation.html",
+                new Dictionary<string, string?>
+                {
+                    ["StudentName"] = student.Name,
+                    ["EventTitle"] = eventEntity.Title,
+                    ["EventDate"] = eventEntity.Date.ToString("f"),
+                    ["EventLocation"] = eventEntity.Location
+                },
+                cancellationToken);
+        }
+        catch (Exception exception)
+        {
+            // The registration is already committed. Email is best-effort and must
+            // never turn a successful registration into an API failure.
+            logger.LogError(
+                exception,
+                "Registration {RegistrationId} succeeded, but its confirmation email failed.",
+                registration.Id);
         }
 
         return new StudentRegistrationResponse(

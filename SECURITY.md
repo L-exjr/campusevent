@@ -25,6 +25,44 @@
   is low-risk before public deployment, but requires coordinated session expiry
   and user reauthentication once real users exist.
 
+## SMTP credentials
+
+SMTP configuration follows the same secret-storage rule as the JWT signing key.
+For local development, put the complete Mailtrap sandbox configuration in .NET
+User Secrets from `backend/EventManagement.Api`:
+
+```bash
+dotnet user-secrets set "Email:Smtp:Host" "sandbox.smtp.mailtrap.io"
+dotnet user-secrets set "Email:Smtp:Port" "2525"
+dotnet user-secrets set "Email:Smtp:Username" "your-mailtrap-sandbox-username"
+dotnet user-secrets set "Email:Smtp:Password" "your-mailtrap-sandbox-password"
+dotnet user-secrets set "Email:Smtp:FromAddress" "notifications@campus-events.test"
+dotnet user-secrets set "Email:Smtp:FromName" "Campus Events"
+dotnet user-secrets set "Email:Smtp:EnableSsl" "true"
+```
+
+Do not add these values to `appsettings.json`, an environment file, source code,
+or logs. Development deliberately refuses any SMTP host other than
+`sandbox.smtp.mailtrap.io`, so local tests cannot deliver to real inboxes.
+
+In Production, configure the chosen provider's SMTP endpoint through the hosting
+platform's secret manager. ASP.NET Core maps these environment variables without
+any code changes:
+
+```text
+Email__Smtp__Host
+Email__Smtp__Port
+Email__Smtp__Username
+Email__Smtp__Password
+Email__Smtp__FromAddress
+Email__Smtp__FromName
+Email__Smtp__EnableSsl
+```
+
+Treat SMTP credentials as compromised if exposed and rotate them in the provider
+immediately. Production credentials must never be copied into a local development
+profile; local development is Mailtrap sandbox-only.
+
 ## Exposed-key history
 
 The former development key must be treated as compromised because removing it
