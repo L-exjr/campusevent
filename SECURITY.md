@@ -59,6 +59,20 @@ Email__Smtp__FromName
 Email__Smtp__EnableSsl
 ```
 
+Railway Trial and Hobby services cannot open outbound SMTP connections. For
+those deployments, create a scoped Mailtrap API token and configure the HTTPS
+transport instead:
+
+```text
+Email__Api__Token
+Email__Api__InboxId
+Email__Api__UseSandbox
+```
+
+The API token is a secret. Store it only in Railway variables. Sandbox mode
+captures messages in the selected Mailtrap inbox; production sending requires a
+verified sending domain.
+
 Treat SMTP credentials as compromised if exposed and rotate them in the provider
 immediately. Production credentials must never be copied into a local development
 profile; local development is Mailtrap sandbox-only.

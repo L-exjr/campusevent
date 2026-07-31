@@ -117,6 +117,7 @@ builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<IEventAuthorizationService, EventAuthorizationService>();
 builder.Services.AddScoped<IEventService, EventService>();
 builder.Services.AddScoped<IReportService, ReportService>();
+builder.Services.AddHttpClient();
 builder.Services.AddScoped<IEmailService, EmailService>();
 // A database-backed scheduler such as Hangfire is the natural upgrade if
 // reminder volume, retry guarantees, or timing precision outgrow this worker.

@@ -59,6 +59,9 @@ stored in this repository.
 | `Email__Smtp__FromAddress` | Verified sender address. |
 | `Email__Smtp__FromName` | Sender display name. |
 | `Email__Smtp__EnableSsl` | Enables SMTP TLS. |
+| `Email__Api__Token` | Mailtrap API token used over HTTPS. Required on Railway Trial/Hobby, where outbound SMTP is blocked. |
+| `Email__Api__InboxId` | Mailtrap Sandbox inbox ID when sandbox mode is enabled. |
+| `Email__Api__UseSandbox` | `true` to capture messages in Mailtrap Sandbox; `false` for Mailtrap transactional sending with a verified domain. |
 
 Railway injects `PORT`; do not create or override it. The container enables
 ASP.NET Core forwarded-header processing because Railway terminates TLS before
@@ -166,6 +169,11 @@ wildcard Vercel preview origins.
    Supabase bucket.
 7. Request a password reset or trigger another notification and confirm the
    message reaches the configured Mailtrap inbox or production provider.
+
+Railway Trial and Hobby plans block outbound SMTP. On those plans configure the
+Mailtrap HTTPS API variables above; the API transport takes precedence over the
+legacy SMTP variables. SMTP remains available for local development and Railway
+Pro deployments.
 8. Test Google sign-in using the production Vercel origin.
 
 These live checks require the platform projects, domains, and credentials; they
