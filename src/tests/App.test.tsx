@@ -5,6 +5,13 @@ import { users } from './mocks/fixtures'
 import { renderWithAuth } from './testUtils'
 
 describe('App role dashboards', () => {
+  it('renders the public landing page at the root route', () => {
+    renderWithAuth(<App />)
+
+    expect(screen.getByRole('heading', { name: /Every campus moment, within reach/i })).toBeVisible()
+    expect(screen.getAllByRole('button', { name: /Explore events/i }).length).toBeGreaterThan(0)
+  })
+
   it.each<[Role, string, RegExp]>([
     ['student', '/student', /Good to see you, Sam/i],
     ['organizer', '/organizer', /Make it memorable, Olivia/i],

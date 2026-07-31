@@ -73,7 +73,7 @@ export default function LoginPage() {
         <Row className="g-4 align-items-stretch auth-layout">
           <Col lg={6}>
             <section className="auth-hero h-100">
-              <Link to="/events" className="auth-brand">
+              <Link to="/" className="auth-brand">
                 <span className="brand-mark">C</span>
                 Campus Events
               </Link>

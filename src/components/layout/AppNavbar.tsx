@@ -24,7 +24,7 @@ export default function AppNavbar() {
   return (
     <Navbar expand="lg" className="app-navbar" sticky="top">
       <Container>
-        <Navbar.Brand as={NavLink} to="/events" className="d-flex align-items-center gap-2">
+        <Navbar.Brand as={NavLink} to="/" className="d-flex align-items-center gap-2">
           <span className="brand-mark" aria-hidden="true">
             C
           </span>

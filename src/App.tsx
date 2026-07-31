@@ -24,12 +24,14 @@ import MyRegistrationsPage from './pages/student/MyRegistrationsPage'
 import OrganizerApplicationPage from './pages/student/OrganizerApplicationPage'
 import StudentDashboardPage from './pages/student/StudentDashboardPage'
 import ProfilePage from './pages/profile/ProfilePage'
+import LandingPage from './pages/LandingPage'
 import { ROUTE_ROLES } from './utils/permissions'
 
 export default function App() {
   return (
     <Routes>
       <Route element={<AppLayout />}>
+        <Route path="/" element={<LandingPage />} />
         <Route path="/events" element={<EventsPage />} />
         <Route path="/events/:id" element={<EventDetailsPage />} />
         <Route path="/request-organizer" element={<BookingRequestForm />} />
@@ -71,7 +73,6 @@ export default function App() {
         </Route>
       </Route>
 
-      <Route path="/" element={<Navigate to="/events" replace />} />
       <Route path="/unauthorized" element={<UnauthorizedPage />} />
       <Route path="*" element={<NotFoundPage />} />
     </Routes>

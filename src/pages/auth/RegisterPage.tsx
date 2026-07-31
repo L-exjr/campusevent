@@ -57,7 +57,7 @@ export default function RegisterPage() {
           <Col xl={7} lg={8}>
             <Card className="auth-card border-0">
               <Card.Body className="p-4 p-md-5">
-                <Link to="/events" className="auth-brand text-dark mb-5">
+                <Link to="/" className="auth-brand text-dark mb-5">
                   <span className="brand-mark">C</span>
                   Campus Events
                 </Link>
