@@ -76,6 +76,14 @@ export function getNavigationForRole(role: Role) {
   // booking links are intentionally kept out of that focused navigation.
   if (role === 'admin') return [...ROLE_NAVIGATION.admin, { label: 'Profile', to: '/profile' }]
 
+  if (role === 'organizer') {
+    return [
+      { label: 'Explore events', to: '/events' },
+      ...ROLE_NAVIGATION.organizer,
+      { label: 'Profile', to: '/profile' },
+    ]
+  }
+
   return [
     { label: 'Explore events', to: '/events' },
     { label: 'Request an Organizer', to: '/request-organizer' },
