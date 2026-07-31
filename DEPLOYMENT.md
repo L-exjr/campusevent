@@ -16,8 +16,8 @@ autodeploys so a push cannot bypass the test gates or cause a duplicate deploy.
    `postgresql://<user>:<password>@<host>:<port>/<database>`.
 3. Add an empty service for the API and generate its public HTTPS domain.
 4. Generate a project token scoped to the production environment. Add it to
-   GitHub Actions as `RAILWAY_TOKEN`; add the API service ID as
-   `RAILWAY_SERVICE_ID`.
+   GitHub Actions as `RAILWAY_TOKEN`; add the API service name as
+   `RAILWAY_SERVICE`.
 
 Use Railway reference variables to keep the API-to-database connection on the
 project's private network. `ConnectionStrings__DefaultConnection` must be an

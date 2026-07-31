@@ -65,7 +65,7 @@ Add these under **Repository settings → Secrets and variables → Actions**:
 | Secret | Where to obtain it |
 | --- | --- |
 | `RAILWAY_TOKEN` | Railway project **Settings → Tokens**; create a project token scoped to the production environment. |
-| `RAILWAY_SERVICE_ID` | Railway API service **Settings**. This is an identifier rather than a credential, but it is kept with deployment configuration in Actions Secrets. |
+| `RAILWAY_SERVICE` | Railway API service name (`ems-api`). This is an identifier rather than a credential, but it is kept with deployment configuration in Actions Secrets. |
 | `VERCEL_TOKEN` | Vercel account **Settings → Tokens**. |
 | `VERCEL_ORG_ID` | Vercel project/team metadata, available after `vercel link` in `.vercel/project.json`. Copy only the value to the GitHub secret; do not commit `.vercel`. |
 | `VERCEL_PROJECT_ID` | Vercel project metadata, available after `vercel link` in `.vercel/project.json`. |

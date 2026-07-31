@@ -250,7 +250,7 @@ jobs:
     environment: production
     env:
       RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
-      RAILWAY_SERVICE_ID: ${{ secrets.RAILWAY_SERVICE_ID }}
+      RAILWAY_SERVICE: ${{ secrets.RAILWAY_SERVICE }}
 
     steps:
       - name: Check out repository
@@ -269,8 +269,8 @@ jobs:
             echo "Missing required GitHub Actions secret: RAILWAY_TOKEN" >&2
             exit 1
           }
-          [[ -n "${RAILWAY_SERVICE_ID:-}" ]] || {
-            echo "Missing required GitHub Actions secret: RAILWAY_SERVICE_ID" >&2
+          [[ -n "${RAILWAY_SERVICE:-}" ]] || {
+            echo "Missing required GitHub Actions secret: RAILWAY_SERVICE" >&2
             exit 1
           }
 
@@ -278,7 +278,7 @@ jobs:
         run: npm install --global @railway/cli@latest
 
       - name: Deploy backend and wait for Railway healthcheck
-        run: railway up --service "$RAILWAY_SERVICE_ID"
+        run: railway up --service "$RAILWAY_SERVICE"
 
   deploy-frontend:
     name: Deploy frontend to Vercel
