@@ -238,3 +238,92 @@ jobs:
 
       - name: Build frontend
         run: npm run build
+
+  deploy-backend:
+    name: Deploy backend to Railway
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs:
+      - backend-tests
+      - frontend-tests
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    environment: production
+    env:
+      RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+      RAILWAY_SERVICE_ID: ${{ secrets.RAILWAY_SERVICE_ID }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set up Node.js for Railway CLI
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+
+      - name: Validate Railway deployment secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ -n "${RAILWAY_TOKEN:-}" ]] || {
+            echo "Missing required GitHub Actions secret: RAILWAY_TOKEN" >&2
+            exit 1
+          }
+          [[ -n "${RAILWAY_SERVICE_ID:-}" ]] || {
+            echo "Missing required GitHub Actions secret: RAILWAY_SERVICE_ID" >&2
+            exit 1
+          }
+
+      - name: Install Railway CLI
+        run: npm install --global @railway/cli@latest
+
+      - name: Deploy backend and wait for Railway healthcheck
+        run: railway up --service "$RAILWAY_SERVICE_ID"
+
+  deploy-frontend:
+    name: Deploy frontend to Vercel
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs:
+      - backend-tests
+      - frontend-tests
+      - deploy-backend
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    environment: production
+    env:
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set up Node.js for Vercel CLI
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Validate Vercel deployment secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+          for name in VERCEL_TOKEN VERCEL_ORG_ID VERCEL_PROJECT_ID; do
+            [[ -n "${!name:-}" ]] || {
+              echo "Missing required GitHub Actions secret: $name" >&2
+              exit 1
+            }
+          done
+
+      - name: Install Vercel CLI
+        run: npm install --global vercel@latest
+
+      - name: Pull Vercel production configuration
+        run: vercel pull --yes --environment=production --token="$VERCEL_TOKEN"
+
+      - name: Build Vercel production artifacts
+        run: vercel build --prod --token="$VERCEL_TOKEN"
+
+      - name: Deploy frontend to Vercel production
+        run: vercel deploy --prebuilt --prod --token="$VERCEL_TOKEN"

@@ -1,8 +1,8 @@
 # Continuous integration
 
 The GitHub Actions workflow in `.github/workflows/ci.yml` runs on every push to
-`main` and every pull request targeting `main`. It is CI only: it does not deploy,
-publish, or modify any external environment.
+`main` and every pull request targeting `main`. Test jobs run for both event types;
+production deployment jobs run only for a push to `main` after both test jobs pass.
 
 The two jobs run independently and in parallel:
 
@@ -43,3 +43,50 @@ forks. The backend job will therefore fail during service startup or secret
 validation until a trusted maintainer runs it in a context where the test-only
 secrets are available; the workflow will not fall back to an unprotected database
 or key. The independent frontend job can still run.
+
+## Production deployment
+
+`deploy-backend` declares `needs: [backend-tests, frontend-tests]`, and
+`deploy-frontend` additionally needs `deploy-backend`. They cannot start when a
+test fails or is cancelled, and the frontend is not promoted before the Railway
+API is healthy. Their additional event/ref condition permits only a push to
+`refs/heads/main`, never a pull request or feature branch.
+
+Railway and Vercel native production Git integrations must be disabled for this
+repository. GitHub Actions is the single production deployment path, avoiding
+duplicate deploys and ensuring every release passes the existing gates. Hosted
+PR preview deployments are also disabled to honor the no-PR-deploy constraint;
+pull requests still receive the frontend production-build check.
+
+### Deployment secrets
+
+Add these under **Repository settings → Secrets and variables → Actions**:
+
+| Secret | Where to obtain it |
+| --- | --- |
+| `RAILWAY_TOKEN` | Railway project **Settings → Tokens**; create a project token scoped to the production environment. |
+| `RAILWAY_SERVICE_ID` | Railway API service **Settings**. This is an identifier rather than a credential, but it is kept with deployment configuration in Actions Secrets. |
+| `VERCEL_TOKEN` | Vercel account **Settings → Tokens**. |
+| `VERCEL_ORG_ID` | Vercel project/team metadata, available after `vercel link` in `.vercel/project.json`. Copy only the value to the GitHub secret; do not commit `.vercel`. |
+| `VERCEL_PROJECT_ID` | Vercel project metadata, available after `vercel link` in `.vercel/project.json`. |
+
+The Railway job uses a project-scoped token and `railway up` in attached mode.
+The tracked Docker image runs pending EF migrations before exposing `/health`, so
+a failed migration prevents Railway from activating the deployment. The Vercel
+job pulls Production environment configuration, builds with Vercel CLI, and
+uploads one prebuilt production artifact.
+
+Platform application secrets such as database passwords, JWT keys, SMTP
+credentials, Supabase variables, and Google OAuth configuration belong in the
+Railway/Vercel environment dashboards described in [DEPLOYMENT.md](DEPLOYMENT.md),
+not GitHub Actions Secrets unless a workflow directly requires them.
+
+### Manual rollback
+
+- In Railway, select the previous known-good API deployment and choose
+  **Rollback/Redeploy**. Database migrations are not automatically reversed;
+  prefer a forward corrective migration, since an application rollback does not
+  undo schema changes.
+- In Vercel, select the previous known-good deployment and choose **Promote to
+  Production**, then revert the bad commit on `main` so later deployments do not
+  restore it.

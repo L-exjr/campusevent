@@ -1,6 +1,11 @@
+const configuredApiBaseUrl = import.meta.env.VITE_API_BASE_URL?.trim()
 const API_BASE_URL = (
-  import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:5080/api'
+  configuredApiBaseUrl || (import.meta.env.DEV ? 'http://localhost:5080/api' : '')
 ).replace(/\/$/, '')
+
+if (!API_BASE_URL) {
+  throw new Error('VITE_API_BASE_URL must be configured for production builds.')
+}
 
 const SESSION_KEY = 'campus_events_api_session'
 

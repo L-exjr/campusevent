@@ -71,6 +71,7 @@ builder.Services
     });
 
 builder.Services.AddAuthorization();
+builder.Services.AddHealthChecks();
 builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
@@ -123,6 +124,19 @@ builder.Services.AddHostedService<EventReminderBackgroundService>();
 
 var app = builder.Build();
 
+// Railway enables this explicitly with Database__ApplyMigrations=true. Running
+// migrations before the health endpoint is available prevents a deployment
+// from serving traffic against an older schema. Other environments remain
+// unchanged unless they deliberately opt in.
+if (builder.Configuration.GetValue("Database:ApplyMigrations", false))
+{
+    await using var migrationScope = app.Services.CreateAsyncScope();
+    var migrationDbContext = migrationScope.ServiceProvider.GetRequiredService<AppDbContext>();
+    app.Logger.LogInformation("Applying pending EF Core database migrations.");
+    await migrationDbContext.Database.MigrateAsync();
+    app.Logger.LogInformation("EF Core database migrations are up to date.");
+}
+
 app.UseMiddleware<ExceptionHandlingMiddleware>();
 app.UseHttpsRedirection();
 app.UseCors("Frontend");
@@ -143,6 +157,7 @@ app.UseStatusCodePages(async statusCodeContext =>
 app.UseAuthentication();
 app.UseMiddleware<ActiveUserMiddleware>();
 app.UseAuthorization();
+app.MapHealthChecks("/health");
 app.MapControllers();
 
 if (app.Environment.IsDevelopment())

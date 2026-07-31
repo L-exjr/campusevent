@@ -1,0 +1,11 @@
+.git
+.github
+.vercel
+.env
+.env.*
+!.env.example
+**/bin
+**/obj
+node_modules
+dist
+*.log
