@@ -50,6 +50,8 @@ stored in this repository.
 | `Frontend__BaseUrl` | Exact Vercel production origin used in password-reset links. |
 | `Google__ClientId` | Google OAuth web client ID; must match the Vercel client ID. |
 | `Google__ClientSecret` | Store here if Google issued one; reserved for a future authorization-code flow and unused by the current ID-token flow. |
+| `DemoData__Enabled` | Optional one-time KNUST demonstration dataset switch. Set to `true` only while seeding, then set it back to `false`. |
+| `DemoData__Password` | Optional 12+ character password for the deliberately created demo accounts; do not reuse a real password. |
 | `Email__Smtp__Host` | Production SMTP hostname. |
 | `Email__Smtp__Port` | Production SMTP port. |
 | `Email__Smtp__Username` | Production SMTP username. |

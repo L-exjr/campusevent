@@ -29,6 +29,8 @@ describe('AppNavbar', () => {
     expect(screen.getByRole('link', { name: 'Reports' })).toBeVisible()
     expect(screen.getByRole('link', { name: 'Users' })).toBeVisible()
     expect(screen.getByRole('link', { name: 'Applications' })).toBeVisible()
+    expect(screen.queryByRole('link', { name: 'Explore events' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Request an Organizer' })).not.toBeInTheDocument()
     expect(screen.queryByRole('link', { name: 'Manage events' })).not.toBeInTheDocument()
   })
 })

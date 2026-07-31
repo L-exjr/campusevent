@@ -72,6 +72,10 @@ export function getHomeForRole(role: Role) {
 }
 
 export function getNavigationForRole(role: Role) {
+  // Administrators have their own operational workspace. Public discovery and
+  // booking links are intentionally kept out of that focused navigation.
+  if (role === 'admin') return [...ROLE_NAVIGATION.admin, { label: 'Profile', to: '/profile' }]
+
   return [
     { label: 'Explore events', to: '/events' },
     { label: 'Request an Organizer', to: '/request-organizer' },

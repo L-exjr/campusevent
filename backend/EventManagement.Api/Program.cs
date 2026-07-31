@@ -168,6 +168,7 @@ if (app.Environment.IsDevelopment())
         app.Logger);
 }
 await DbInitializer.SeedAdminAsync(app.Services, app.Configuration);
+await DbInitializer.SeedDemoDataAsync(app.Services, app.Configuration, app.Logger);
 
 app.Run();
 
