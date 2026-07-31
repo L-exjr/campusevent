@@ -113,6 +113,11 @@ Configure these variables for Vercel's **Production** environment:
 | `VITE_SUPABASE_ANON_KEY` | Browser-safe publishable/anon key, never `service_role`. |
 | `VITE_GOOGLE_CLIENT_ID` | Google OAuth web client ID. |
 
+Do not mark `VITE_*` variables as **Sensitive** in Vercel. Vercel masks
+sensitive build values as `[SENSITIVE]`, while Vite must embed these
+browser-visible settings in the production bundle. Only browser-safe,
+publishable values belong in `VITE_*` variables.
+
 Vite embeds these values at build time. `httpClient.ts` uses localhost only while
 `import.meta.env.DEV` is true and throws if a production runtime lacks
 `VITE_API_BASE_URL`, preventing a deployed app from silently calling localhost.
