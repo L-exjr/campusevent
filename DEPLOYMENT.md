@@ -61,7 +61,8 @@ stored in this repository.
 Optional production tuning uses normal ASP.NET Core double-underscore keys. The
 tracked defaults are safe starting points: `AuthRateLimiting__Ip__Login__PermitLimit=30`,
 `AuthRateLimiting__Account__Login__PermitLimit=8`,
-`Images__UploadRateLimit__PermitLimit=10`, `Email__Outbox__BatchSize=50`, and
+`Images__UploadRateLimit__PermitLimit=10`, `Email__Outbox__BatchSize=50`,
+`Email__Outbox__PollIntervalSeconds=15`, and
 `Images__Cleanup__PendingRetentionHours=24`. Rate-limit counters, email claims,
 and image cleanup claims are stored in PostgreSQL, so these controls remain
 consistent when the Railway service has multiple replicas.
@@ -152,8 +153,9 @@ wildcard Vercel preview origins.
 
 1. Merge only additive, reviewed EF migrations into `main`. The email outbox,
    image lifecycle, and distributed auth limiter each add an independent table;
-   the image migration also adds nullable `ImageObjectKey` columns to `Users`
-   and `Events`.
+   later additive migrations add the user session version and nullable email
+   outbox payload. The image migration also adds nullable `ImageObjectKey`
+   columns to `Users` and `Events`.
 2. Confirm both GitHub test jobs pass and both deploy jobs succeed.
 3. In Railway logs, confirm `EF Core database migrations are up to date`, the
    Production environment, and a successful `/health` deployment check.

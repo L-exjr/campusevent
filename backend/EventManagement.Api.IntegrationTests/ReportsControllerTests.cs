@@ -51,7 +51,7 @@ public sealed class ReportsControllerTests(ApiIntegrationFixture fixture)
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var report = await ReadJsonAsync(response);
-        var item = report.EnumerateArray().Single(entry =>
+        var item = report.GetProperty("items").EnumerateArray().Single(entry =>
             entry.GetProperty("organizerId").GetGuid() == candidate.UserId);
         Assert.Equal(1, item.GetProperty("eventCount").GetInt32());
         Assert.Equal(1, item.GetProperty("registrationCount").GetInt32());

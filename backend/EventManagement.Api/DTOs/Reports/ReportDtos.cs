@@ -3,6 +3,7 @@ namespace EventManagement.Api.DTOs.Reports;
 public sealed record ReportSummaryResponse(
     int TotalEvents,
     int TotalRegistrations,
+    int TotalUsers,
     decimal OverallAttendanceRate);
 
 public sealed record EventReportResponse(

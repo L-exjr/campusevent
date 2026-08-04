@@ -1,4 +1,5 @@
 using EventManagement.Api.DTOs.Bookings;
+using EventManagement.Api.DTOs.Common;
 using EventManagement.Api.Infrastructure;
 using EventManagement.Api.Models;
 using EventManagement.Api.Services;
@@ -22,14 +23,22 @@ public sealed class BookingRequestsController(IBookingRequestService service) : 
 
     [Authorize(Roles = "Admin")]
     [HttpGet]
-    public async Task<ActionResult<IReadOnlyList<BookingRequestResponse>>> GetAll(
-        CancellationToken cancellationToken) => Ok(await service.GetAllAsync(cancellationToken));
+    public async Task<ActionResult<PaginatedResponse<BookingRequestResponse>>> GetAll(
+        [FromQuery] BookingRequestStatus? status,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20,
+        CancellationToken cancellationToken = default) =>
+        Ok(await service.GetAllAsync(status, page, pageSize, cancellationToken));
 
     [Authorize(Roles = "Organizer")]
     [HttpGet("assigned")]
-    public async Task<ActionResult<IReadOnlyList<BookingRequestResponse>>> GetAssigned(
-        CancellationToken cancellationToken) =>
-        Ok(await service.GetAssignedAsync(User.GetRequiredUserId(), cancellationToken));
+    public async Task<ActionResult<PaginatedResponse<BookingRequestResponse>>> GetAssigned(
+        [FromQuery] BookingRequestStatus? status,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20,
+        CancellationToken cancellationToken = default) =>
+        Ok(await service.GetAssignedAsync(
+            User.GetRequiredUserId(), status, page, pageSize, cancellationToken));
 
     [Authorize(Roles = "Admin")]
     [HttpPut("{id:guid}/assign")]

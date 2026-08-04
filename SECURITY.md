@@ -62,6 +62,14 @@ prevent account enumeration. Reset links contain a cryptographically random toke
 only its SHA-256 hash is stored. Tokens expire after 30 minutes, become invalid after
 one successful use, and requesting another link invalidates every prior unused token.
 Changing the password also preserves a linked Google identity, if present.
+It increments the account session version, so every access token issued before the
+reset is rejected on its next request.
+
+The reset email is written to the PostgreSQL outbox atomically with the reset-token
+record. While delivery is pending, its payload necessarily contains the one-time
+reset URL. The worker clears that payload after successful delivery, permanent
+failure, or discard; database access and backups must therefore be protected as
+sensitive data.
 
 `Frontend:BaseUrl` controls the non-secret origin used to build reset links. Keep it
 at `http://localhost:5173` locally and set `Frontend__BaseUrl` to the deployed HTTPS
@@ -107,6 +115,14 @@ forwarding hops: the authentication and public-booking rate limits partition by
 the resolved client address. If the deployment platform changes, confirm its
 official proxy network before updating
 `Infrastructure/ForwardedHeadersConfiguration.cs`.
+
+## Browser security headers
+
+The API emits HSTS outside Development plus restrictive content-type, referrer,
+permissions, framing, and API content-security headers. Vercel applies the matching
+frontend policy in `vercel.json`, with only the origins required for the API,
+images, and Google Identity Services. Review that allowlist whenever a new browser
+integration is introduced instead of widening it generically.
 
 ## Exposed-key history
 

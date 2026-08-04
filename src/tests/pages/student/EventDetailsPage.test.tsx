@@ -15,12 +15,12 @@ describe('EventDetailsPage student flow', () => {
       http.get('http://localhost:5080/api/events/:id', () =>
         HttpResponse.json(apiEvent({ registeredCount: registered ? 2 : 1 }))),
       http.get('http://localhost:5080/api/students/:id/registrations', () =>
-        HttpResponse.json(registered ? [{
+        HttpResponse.json(paginated(registered ? [{
           registrationId: 'registration-new',
           registeredAt: '2026-07-30T12:00:00Z',
           attended: false,
           event: apiEvent({ registeredCount: 2 }),
-        }] : [])),
+        }] : []))),
       http.post('http://localhost:5080/api/events/:id/register', () => {
         registered = true
         return HttpResponse.json({}, { status: 201 })

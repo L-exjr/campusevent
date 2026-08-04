@@ -54,10 +54,12 @@ public interface IEventService
         Guid eventId,
         Guid studentId,
         CancellationToken cancellationToken);
-    Task<IReadOnlyList<EventRegistrantResponse>> GetRegistrantsAsync(
+    Task<PaginatedResponse<EventRegistrantResponse>> GetRegistrantsAsync(
         Guid eventId,
         Guid actorId,
         UserRole actorRole,
+        int page,
+        int pageSize,
         CancellationToken cancellationToken);
     Task UpdateAttendanceAsync(
         Guid eventId,
@@ -65,17 +67,17 @@ public interface IEventService
         UserRole actorRole,
         BulkAttendanceRequest request,
         CancellationToken cancellationToken);
-    Task<IReadOnlyList<StudentRegistrationResponse>> GetStudentRegistrationsAsync(
+    Task<PaginatedResponse<StudentRegistrationResponse>> GetStudentRegistrationsAsync(
         Guid studentId,
+        int page,
+        int pageSize,
         CancellationToken cancellationToken);
 }
 
 public sealed class EventService(
     AppDbContext dbContext,
     IEventAuthorizationService authorizationService,
-    IImageLifecycleService imageLifecycleService,
-    IEmailService emailService,
-    ILogger<EventService> logger) : IEventService
+    IImageLifecycleService imageLifecycleService) : IEventService
 {
     private static readonly string[] SupportedCategories =
         ["Academic", "Career", "Culture", "Sports", "Technology", "Wellness"];
@@ -212,6 +214,7 @@ public sealed class EventService(
         EventUpsertRequest request,
         CancellationToken cancellationToken)
     {
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
         var input = NormalizeRequest(request);
         var eventEntity = await dbContext.Events
             .Include(item => item.Organizer)
@@ -252,9 +255,11 @@ public sealed class EventService(
         eventEntity.IsPublished = targetPublished;
         if (eventEntity.IsPublished)
         {
-            var bookingRequest = await dbContext.BookingRequests.SingleOrDefaultAsync(
-                item => item.DraftEventId == eventEntity.Id && item.Status == BookingRequestStatus.Accepted,
-                cancellationToken);
+            var acceptedStatus = BookingRequestStatus.Accepted.ToString();
+            var bookingRequest = await dbContext.BookingRequests
+                .FromSqlInterpolated(
+                    $"SELECT * FROM \"BookingRequests\" WHERE \"DraftEventId\" = {eventEntity.Id} AND \"Status\" = {acceptedStatus} FOR UPDATE")
+                .SingleOrDefaultAsync(cancellationToken);
             if (bookingRequest is not null)
             {
                 bookingRequest.Status = BookingRequestStatus.Converted;
@@ -262,6 +267,7 @@ public sealed class EventService(
             }
         }
         await dbContext.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
         return eventEntity.ToResponse(registrationCount);
     }
 
@@ -327,19 +333,12 @@ public sealed class EventService(
             Student = student
         };
         dbContext.EventRegistrations.Add(registration);
-        try
-        {
-            await dbContext.SaveChangesAsync(cancellationToken);
-            await transaction.CommitAsync(cancellationToken);
-        }
-        catch (DbUpdateException)
-        {
-            throw new ApiException(StatusCodes.Status409Conflict, "You are already registered for this event.");
-        }
-
-        try
-        {
-            await emailService.SendEmailAsync(
+        EmailOutbox.Enqueue(
+            dbContext,
+            $"registration-confirmation:{registration.Id}",
+            EmailOutbox.RegistrationConfirmationKind,
+            registration.Id,
+            new EmailOutboxPayload(
                 student.Email,
                 student.Name,
                 $"Registration confirmed: {eventEntity.Title}",
@@ -350,17 +349,15 @@ public sealed class EventService(
                     ["EventTitle"] = eventEntity.Title,
                     ["EventDate"] = eventEntity.Date.ToString("f"),
                     ["EventLocation"] = eventEntity.Location
-                },
-                cancellationToken);
-        }
-        catch (Exception exception)
+                }));
+        try
         {
-            // The registration is already committed. Email is best-effort and must
-            // never turn a successful registration into an API failure.
-            logger.LogError(
-                exception,
-                "Registration {RegistrationId} succeeded, but its confirmation email failed.",
-                registration.Id);
+            await dbContext.SaveChangesAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+        }
+        catch (DbUpdateException)
+        {
+            throw new ApiException(StatusCodes.Status409Conflict, "You are already registered for this event.");
         }
 
         return new StudentRegistrationResponse(
@@ -370,10 +367,12 @@ public sealed class EventService(
             eventEntity.ToResponse(registrationCount + 1));
     }
 
-    public async Task<IReadOnlyList<EventRegistrantResponse>> GetRegistrantsAsync(
+    public async Task<PaginatedResponse<EventRegistrantResponse>> GetRegistrantsAsync(
         Guid eventId,
         Guid actorId,
         UserRole actorRole,
+        int page,
+        int pageSize,
         CancellationToken cancellationToken)
     {
         var eventEntity = await dbContext.Events.AsNoTracking().SingleOrDefaultAsync(
@@ -381,9 +380,15 @@ public sealed class EventService(
             cancellationToken)
             ?? throw new ApiException(StatusCodes.Status404NotFound, "Event not found.");
         authorizationService.EnsureCanManage(eventEntity.OrganizerId, actorId, actorRole);
-        return await dbContext.EventRegistrations.AsNoTracking()
-            .Where(registration => registration.EventId == eventId)
+        (page, pageSize) = Pagination.Normalize(page, pageSize);
+        var query = dbContext.EventRegistrations.AsNoTracking()
+            .Where(registration => registration.EventId == eventId);
+        var totalCount = await query.CountAsync(cancellationToken);
+        var items = await query
             .OrderBy(registration => registration.Student.Name)
+            .ThenBy(registration => registration.Id)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
             .Select(registration => new EventRegistrantResponse(
                 registration.Id,
                 registration.StudentId,
@@ -392,6 +397,8 @@ public sealed class EventService(
                 registration.RegisteredAt,
                 registration.Attended))
             .ToListAsync(cancellationToken);
+        return new PaginatedResponse<EventRegistrantResponse>(
+            items, page, pageSize, totalCount, Pagination.TotalPages(totalCount, pageSize));
     }
 
     public async Task UpdateAttendanceAsync(
@@ -423,17 +430,25 @@ public sealed class EventService(
         await dbContext.SaveChangesAsync(cancellationToken);
     }
 
-    public async Task<IReadOnlyList<StudentRegistrationResponse>> GetStudentRegistrationsAsync(
+    public async Task<PaginatedResponse<StudentRegistrationResponse>> GetStudentRegistrationsAsync(
         Guid studentId,
+        int page,
+        int pageSize,
         CancellationToken cancellationToken)
     {
         var exists = await dbContext.Users.AsNoTracking().AnyAsync(
             user => user.Id == studentId,
             cancellationToken);
         if (!exists) throw new ApiException(StatusCodes.Status404NotFound, "Student account not found.");
-        return await dbContext.EventRegistrations.AsNoTracking()
-            .Where(registration => registration.StudentId == studentId)
+        (page, pageSize) = Pagination.Normalize(page, pageSize);
+        var query = dbContext.EventRegistrations.AsNoTracking()
+            .Where(registration => registration.StudentId == studentId);
+        var totalCount = await query.CountAsync(cancellationToken);
+        var items = await query
             .OrderBy(registration => registration.Event.Date)
+            .ThenBy(registration => registration.Id)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
             .Select(registration => new StudentRegistrationResponse(
                 registration.Id,
                 registration.RegisteredAt,
@@ -453,6 +468,8 @@ public sealed class EventService(
                     registration.Event.ImageUrl,
                     registration.Event.IsPublished)))
             .ToListAsync(cancellationToken);
+        return new PaginatedResponse<StudentRegistrationResponse>(
+            items, page, pageSize, totalCount, Pagination.TotalPages(totalCount, pageSize));
     }
 
     private static IQueryable<EventResponse> ProjectEvents(IQueryable<EventEntity> query) =>
@@ -479,7 +496,9 @@ public sealed class EventService(
     {
         (page, pageSize) = Pagination.Normalize(page, pageSize);
         var totalCount = await query.CountAsync(cancellationToken);
-        var items = await ProjectEvents(query.OrderBy(eventEntity => eventEntity.Date))
+        var items = await ProjectEvents(query
+                .OrderBy(eventEntity => eventEntity.Date)
+                .ThenBy(eventEntity => eventEntity.Id))
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
             .ToListAsync(cancellationToken);

@@ -1,5 +1,6 @@
 using EventManagement.Api.Data;
 using EventManagement.Api.DTOs.Bookings;
+using EventManagement.Api.DTOs.Common;
 using EventManagement.Api.Infrastructure;
 using EventManagement.Api.Models;
 using Microsoft.EntityFrameworkCore;
@@ -9,8 +10,11 @@ namespace EventManagement.Api.Services;
 public interface IBookingRequestService
 {
     Task<BookingSubmissionResponse> SubmitAsync(CreateBookingRequest request, CancellationToken cancellationToken);
-    Task<IReadOnlyList<BookingRequestResponse>> GetAllAsync(CancellationToken cancellationToken);
-    Task<IReadOnlyList<BookingRequestResponse>> GetAssignedAsync(Guid organizerId, CancellationToken cancellationToken);
+    Task<PaginatedResponse<BookingRequestResponse>> GetAllAsync(
+        BookingRequestStatus? status, int page, int pageSize, CancellationToken cancellationToken);
+    Task<PaginatedResponse<BookingRequestResponse>> GetAssignedAsync(
+        Guid organizerId, BookingRequestStatus? status, int page, int pageSize,
+        CancellationToken cancellationToken);
     Task<BookingRequestResponse> AssignAsync(Guid id, Guid organizerId, CancellationToken cancellationToken);
     Task<BookingRequestResponse> RespondAsync(Guid id, Guid organizerId, RespondToBookingRequest request, CancellationToken cancellationToken);
     Task<BookingRequestResponse> UpdateStatusAsync(Guid id, BookingRequestStatus status, CancellationToken cancellationToken);
@@ -50,30 +54,59 @@ public sealed class BookingRequestService(AppDbContext dbContext) : IBookingRequ
         return new BookingSubmissionResponse(SubmissionMessage, entity.Id);
     }
 
-    public async Task<IReadOnlyList<BookingRequestResponse>> GetAllAsync(CancellationToken cancellationToken) =>
-        await Project(dbContext.BookingRequests.AsNoTracking())
-            .OrderByDescending(request => request.SubmittedAt)
-            .ToListAsync(cancellationToken);
-
-    public async Task<IReadOnlyList<BookingRequestResponse>> GetAssignedAsync(
-        Guid organizerId,
+    public Task<PaginatedResponse<BookingRequestResponse>> GetAllAsync(
+        BookingRequestStatus? status,
+        int page,
+        int pageSize,
         CancellationToken cancellationToken) =>
-        await Project(dbContext.BookingRequests.AsNoTracking()
-                .Where(request => request.AssignedOrganizerId == organizerId))
+        PaginateAsync(dbContext.BookingRequests.AsNoTracking(), status, page, pageSize, cancellationToken);
+
+    public Task<PaginatedResponse<BookingRequestResponse>> GetAssignedAsync(
+        Guid organizerId,
+        BookingRequestStatus? status,
+        int page,
+        int pageSize,
+        CancellationToken cancellationToken) =>
+        PaginateAsync(
+            dbContext.BookingRequests.AsNoTracking()
+                .Where(request => request.AssignedOrganizerId == organizerId),
+            status,
+            page,
+            pageSize,
+            cancellationToken);
+
+    private static async Task<PaginatedResponse<BookingRequestResponse>> PaginateAsync(
+        IQueryable<BookingRequest> query,
+        BookingRequestStatus? status,
+        int page,
+        int pageSize,
+        CancellationToken cancellationToken)
+    {
+        (page, pageSize) = Pagination.Normalize(page, pageSize);
+        if (status.HasValue) query = query.Where(request => request.Status == status.Value);
+        var totalCount = await query.CountAsync(cancellationToken);
+        var items = await Project(query)
             .OrderByDescending(request => request.SubmittedAt)
+            .ThenByDescending(request => request.Id)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
             .ToListAsync(cancellationToken);
+        return new PaginatedResponse<BookingRequestResponse>(
+            items, page, pageSize, totalCount, Pagination.TotalPages(totalCount, pageSize));
+    }
 
     public async Task<BookingRequestResponse> AssignAsync(
         Guid id,
         Guid organizerId,
         CancellationToken cancellationToken)
     {
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
         var organizer = await dbContext.Users.SingleOrDefaultAsync(
             user => user.Id == organizerId && user.IsActive,
             cancellationToken);
         if (organizer is null || organizer.Role != UserRole.Organizer)
             throw new ApiException(StatusCodes.Status400BadRequest, "Choose an active Organizer.");
-        var request = await FindAsync(id, cancellationToken);
+        var request = await FindForUpdateAsync(id, cancellationToken);
         if (request.Status != BookingRequestStatus.SentToOrganizer)
             StateTransitionRules.EnsureBookingTransition(
                 request.Status,
@@ -84,6 +117,7 @@ public sealed class BookingRequestService(AppDbContext dbContext) : IBookingRequ
         request.Status = BookingRequestStatus.SentToOrganizer;
         request.UpdatedAt = DateTimeOffset.UtcNow;
         await dbContext.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
         return ToResponse(request);
     }
 
@@ -143,17 +177,24 @@ public sealed class BookingRequestService(AppDbContext dbContext) : IBookingRequ
     {
         if (status is not (BookingRequestStatus.UnderReview or BookingRequestStatus.Converted or BookingRequestStatus.Closed))
             throw new ApiException(StatusCodes.Status400BadRequest, "Admin may only mark requests UnderReview, Converted, or Closed here.");
-        var request = await FindAsync(id, cancellationToken);
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
+        var request = await FindForUpdateAsync(id, cancellationToken);
         StateTransitionRules.EnsureBookingTransition(request.Status, status);
         request.Status = status;
         request.UpdatedAt = DateTimeOffset.UtcNow;
         await dbContext.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
         return ToResponse(request);
     }
 
-    private async Task<BookingRequest> FindAsync(Guid id, CancellationToken cancellationToken) =>
-        await dbContext.BookingRequests.Include(request => request.AssignedOrganizer)
-            .SingleOrDefaultAsync(request => request.Id == id, cancellationToken)
+    private async Task<BookingRequest> FindForUpdateAsync(
+        Guid id,
+        CancellationToken cancellationToken) =>
+        await dbContext.BookingRequests
+            .FromSqlInterpolated(
+                $"SELECT * FROM \"BookingRequests\" WHERE \"Id\" = {id} FOR UPDATE")
+            .Include(request => request.AssignedOrganizer)
+            .SingleOrDefaultAsync(cancellationToken)
         ?? throw new ApiException(StatusCodes.Status404NotFound, "Booking request not found.");
 
     private static string? NormalizeOptional(string? value) =>

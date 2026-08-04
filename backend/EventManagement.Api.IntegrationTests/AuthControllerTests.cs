@@ -21,6 +21,7 @@ public sealed class AuthControllerTests(ApiIntegrationFixture fixture)
         Assert.Equal(
             (await ReadJsonAsync(known)).GetProperty("message").GetString(),
             (await ReadJsonAsync(unknown)).GetProperty("message").GetString());
+        Assert.Equal(1, await Fixture.CountEmailOutboxMessagesAsync("PasswordReset"));
     }
 
     [Fact]
@@ -37,6 +38,34 @@ public sealed class AuthControllerTests(ApiIntegrationFixture fixture)
         Assert.Equal(HttpStatusCode.OK, reset.StatusCode);
         Assert.Equal(HttpStatusCode.BadRequest, reuse.StatusCode);
         Assert.Equal(HttpStatusCode.OK, login.StatusCode);
+    }
+
+    [Fact]
+    public async Task Password_reset_revokes_existing_sessions()
+    {
+        await ResetAsync();
+        var student = await RegisterStudentAsync("reset-revokes@example.test");
+        var token = await Fixture.CreateResetTokenAsync(
+            student.UserId,
+            DateTimeOffset.UtcNow.AddMinutes(30));
+        using var anonymousClient = Fixture.CreateClient();
+        using var reset = await anonymousClient.PostAsJsonAsync(
+            "/api/auth/reset-password",
+            new { token, newPassword = "New-Integration-Password-123!" });
+        reset.EnsureSuccessStatusCode();
+        using var staleClient = CreateAuthenticatedClient(student.Token);
+
+        using var staleResponse = await staleClient.GetAsync(
+            $"/api/students/{student.UserId}/registrations");
+        var refreshed = await LoginAsync(
+            "reset-revokes@example.test",
+            "New-Integration-Password-123!");
+        using var refreshedClient = CreateAuthenticatedClient(refreshed.Token);
+        using var refreshedResponse = await refreshedClient.GetAsync(
+            $"/api/students/{student.UserId}/registrations");
+
+        Assert.Equal(HttpStatusCode.Unauthorized, staleResponse.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, refreshedResponse.StatusCode);
     }
 
     [Fact]
@@ -87,6 +116,7 @@ public sealed class AuthControllerTests(ApiIntegrationFixture fixture)
 
         Assert.Equal(session.UserId.ToString(), principal.FindFirstValue(JwtClaimNames.UserId));
         Assert.Equal("Admin", principal.FindFirstValue(JwtClaimNames.Role));
+        Assert.Equal("1", principal.FindFirstValue(JwtClaimNames.SessionVersion));
         Assert.True(principal.IsInRole("Admin"));
     }
 
@@ -185,7 +215,7 @@ public sealed class AuthRateLimitTests(ApiIntegrationFixture fixture)
         const string forwardedAddress = "203.0.113.10";
         await Fixture.SetAuthRateLimitCountAsync("Ip", "Login", forwardedAddress, 10000);
         using var client = Fixture.CreateClient();
-        client.DefaultRequestHeaders.Add("X-Forwarded-For", forwardedAddress);
+        client.DefaultRequestHeaders.Add("X-Real-IP", forwardedAddress);
         client.DefaultRequestHeaders.Add("X-Forwarded-Proto", "https");
 
         using var response = await client.PostAsJsonAsync(
@@ -205,7 +235,7 @@ public sealed class AuthRateLimitTests(ApiIntegrationFixture fixture)
             ApiIntegrationFixture.AdminEmail,
             10000);
         using var client = Fixture.CreateClient();
-        client.DefaultRequestHeaders.Add("X-Forwarded-For", "203.0.113.11");
+        client.DefaultRequestHeaders.Add("X-Real-IP", "203.0.113.11");
         client.DefaultRequestHeaders.Add("X-Forwarded-Proto", "https");
 
         using var response = await client.PostAsJsonAsync(

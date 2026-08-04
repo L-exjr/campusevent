@@ -30,7 +30,9 @@ public sealed class ReportsController(IReportService reportService) : Controller
         Ok(await reportService.GetEventsAsync(page, pageSize, cancellationToken));
 
     [HttpGet("organizers")]
-    public async Task<ActionResult<IReadOnlyList<OrganizerReportResponse>>> GetOrganizers(
-        CancellationToken cancellationToken) =>
-        Ok(await reportService.GetOrganizersAsync(cancellationToken));
+    public async Task<ActionResult<PaginatedResponse<OrganizerReportResponse>>> GetOrganizers(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20,
+        CancellationToken cancellationToken = default) =>
+        Ok(await reportService.GetOrganizersAsync(page, pageSize, cancellationToken));
 }

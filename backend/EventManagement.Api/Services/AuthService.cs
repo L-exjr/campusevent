@@ -23,10 +23,8 @@ public sealed class AuthService(
     IPasswordHasher passwordHasher,
     IJwtTokenService jwtTokenService,
     IGoogleTokenValidator googleTokenValidator,
-    IEmailService emailService,
     IAuthRateLimitService authRateLimitService,
-    IConfiguration configuration,
-    ILogger<AuthService> logger) : IAuthService
+    IConfiguration configuration) : IAuthService
 {
     public const string ForgotPasswordMessage =
         "If an account exists for that email, a password reset link has been sent.";
@@ -85,26 +83,26 @@ public sealed class AuthService(
             ExpiresAt = now.AddMinutes(30)
         };
         dbContext.PasswordResetTokens.Add(resetToken);
-        await dbContext.SaveChangesAsync(cancellationToken);
-
         var frontendBaseUrl = configuration["Frontend:BaseUrl"]?.TrimEnd('/')
             ?? "http://localhost:5173";
         var resetUrl = $"{frontendBaseUrl}/reset-password?token={Uri.EscapeDataString(rawToken)}";
-        var sent = await emailService.SendEmailAsync(
-            user.Email,
-            user.Name,
-            "Reset your Campus Events password",
-            "PasswordReset.html",
-            new Dictionary<string, string?>
-            {
-                ["Name"] = user.Name,
-                ["ResetUrl"] = resetUrl,
-                ["ExpiresIn"] = "30 minutes"
-            },
-            cancellationToken);
-        if (!sent)
-            logger.LogError("Password reset token {TokenId} was created, but its email was not sent.",
-                resetToken.Id);
+        EmailOutbox.Enqueue(
+            dbContext,
+            $"password-reset:{resetToken.Id}",
+            EmailOutbox.PasswordResetKind,
+            resetToken.Id,
+            new EmailOutboxPayload(
+                user.Email,
+                user.Name,
+                "Reset your Campus Events password",
+                "PasswordReset.html",
+                new Dictionary<string, string?>
+                {
+                    ["Name"] = user.Name,
+                    ["ResetUrl"] = resetUrl,
+                    ["ExpiresIn"] = "30 minutes"
+                }));
+        await dbContext.SaveChangesAsync(cancellationToken);
         return new MessageResponse(ForgotPasswordMessage);
     }
 
@@ -130,6 +128,7 @@ public sealed class AuthService(
         resetToken.User.AuthProvider = resetToken.User.AuthProvider == AuthProvider.Google
             ? AuthProvider.LocalAndGoogle
             : AuthProvider.Local;
+        resetToken.User.SessionVersion += 1;
         resetToken.UsedAt = now;
         await dbContext.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);

@@ -13,7 +13,9 @@ public sealed class ActiveUserMiddleware(RequestDelegate next)
         {
             var idValue = context.User.FindFirstValue(JwtClaimNames.UserId);
             var roleValue = context.User.FindFirstValue(JwtClaimNames.Role);
-            if (!Guid.TryParse(idValue, out var userId))
+            var sessionVersionValue = context.User.FindFirstValue(JwtClaimNames.SessionVersion);
+            if (!Guid.TryParse(idValue, out var userId) ||
+                !int.TryParse(sessionVersionValue, out var sessionVersion))
             {
                 await RejectAsync(context, "The authentication token is invalid.");
                 return;
@@ -21,7 +23,7 @@ public sealed class ActiveUserMiddleware(RequestDelegate next)
 
             var user = await dbContext.Users.AsNoTracking()
                 .Where(item => item.Id == userId)
-                .Select(item => new { item.IsActive, item.Role })
+                .Select(item => new { item.IsActive, item.Role, item.SessionVersion })
                 .SingleOrDefaultAsync();
 
             if (user is null || !user.IsActive)
@@ -34,6 +36,12 @@ public sealed class ActiveUserMiddleware(RequestDelegate next)
             if (!string.Equals(user.Role.ToString(), roleValue, StringComparison.Ordinal))
             {
                 await RejectAsync(context, "Your role changed. Sign in again to refresh your access.");
+                return;
+            }
+
+            if (user.SessionVersion != sessionVersion)
+            {
+                await RejectAsync(context, "Your session is no longer valid. Sign in again.");
                 return;
             }
         }

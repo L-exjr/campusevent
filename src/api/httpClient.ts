@@ -93,7 +93,7 @@ export async function fetchAllPages<T>(path: string): Promise<T[]> {
   return [first, ...remaining].flatMap((page) => page.items)
 }
 
-interface PaginatedResponse<T> {
+export interface PaginatedResponse<T> {
   items: T[]
   page: number
   pageSize: number

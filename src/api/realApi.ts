@@ -6,6 +6,7 @@ import {
   readStoredSession,
   writeStoredSession,
 } from './httpClient'
+import type { PaginatedResponse } from './httpClient'
 import { readJwtSessionClaims } from './jwtSession'
 import type {
   AuthSession,
@@ -89,6 +90,7 @@ interface ApiOrganizerApplication {
 interface ApiSummaryReport {
   totalEvents: number
   totalRegistrations: number
+  totalUsers: number
   overallAttendanceRate: number
 }
 
@@ -292,7 +294,7 @@ export const realApi: EventManagementApi = {
   },
 
   async getStudentRegistrations(studentId) {
-    const registrations = await apiRequest<ApiStudentRegistration[]>(
+    const registrations = await fetchAllPages<ApiStudentRegistration>(
       `/students/${studentId}/registrations`,
     )
     return registrations.map<StudentRegistration>((registration) => ({
@@ -373,7 +375,7 @@ export const realApi: EventManagementApi = {
   },
 
   async getEventRegistrants(eventId) {
-    const registrants = await apiRequest<ApiRegistrant[]>(`/events/${eventId}/registrants`)
+    const registrants = await fetchAllPages<ApiRegistrant>(`/events/${eventId}/registrants`)
     return registrants.map<EventRegistrant>((registrant) => ({
       registrationId: registrant.registrationId,
       userId: registrant.studentId,
@@ -426,14 +428,15 @@ export const realApi: EventManagementApi = {
     return (await fetchAllPages<ApiEvent>('/events/all')).map(mapEvent)
   },
 
-  async getReports() {
-    const [summary, apiEventReports, apiOrganizers, users] = await Promise.all([
+  async getReports(page = 1, pageSize = 20) {
+    const [summary, eventPage, apiOrganizers] = await Promise.all([
       apiRequest<ApiSummaryReport>('/reports/summary'),
-      fetchAllPages<ApiEventReport>('/reports/events'),
-      apiRequest<ApiOrganizerReport[]>('/reports/organizers'),
-      fetchAllPages<ApiUser>('/users'),
+      apiRequest<PaginatedResponse<ApiEventReport>>(
+        `/reports/events?page=${page}&pageSize=${pageSize}`,
+      ),
+      fetchAllPages<ApiOrganizerReport>('/reports/organizers'),
     ])
-    const events = apiEventReports.map<EventReport>((report) => ({
+    const events = eventPage.items.map<EventReport>((report) => ({
       eventId: report.eventId,
       title: report.eventTitle,
       organizerName: report.organizerName,
@@ -450,10 +453,14 @@ export const realApi: EventManagementApi = {
     return {
       totalEvents: summary.totalEvents,
       totalRegistrations: summary.totalRegistrations,
-      totalUsers: users.length,
+      totalUsers: summary.totalUsers,
       attendanceRate: summary.overallAttendanceRate,
       events,
       organizers,
+      eventPage: eventPage.page,
+      eventPageSize: eventPage.pageSize,
+      eventTotalCount: eventPage.totalCount,
+      eventTotalPages: eventPage.totalPages,
     }
   },
 
@@ -466,12 +473,14 @@ export const realApi: EventManagementApi = {
   },
 
   async getBookingRequests() {
-    const requests = await apiRequest<Array<Omit<BookingRequest, 'status'> & { status: string }>>('/booking-requests')
+    const requests = await fetchAllPages<Omit<BookingRequest, 'status'> & { status: string }>(
+      '/booking-requests',
+    )
     return requests.map(mapBookingRequest)
   },
 
   async getAssignedBookingRequests() {
-    const requests = await apiRequest<Array<Omit<BookingRequest, 'status'> & { status: string }>>(
+    const requests = await fetchAllPages<Omit<BookingRequest, 'status'> & { status: string }>(
       '/booking-requests/assigned',
     )
     return requests.map(mapBookingRequest)
@@ -481,6 +490,17 @@ export const realApi: EventManagementApi = {
     const request = await apiRequest<Omit<BookingRequest, 'status'> & { status: string }>(
       `/booking-requests/${id}/assign`,
       { method: 'PUT', body: JSON.stringify({ organizerId }) },
+    )
+    return mapBookingRequest(request)
+  },
+
+  async updateBookingRequestStatus(id, status) {
+    const request = await apiRequest<Omit<BookingRequest, 'status'> & { status: string }>(
+      `/booking-requests/${id}/status`,
+      {
+        method: 'PUT',
+        body: JSON.stringify({ status: `${status[0].toUpperCase()}${status.slice(1)}` }),
+      },
     )
     return mapBookingRequest(request)
   },

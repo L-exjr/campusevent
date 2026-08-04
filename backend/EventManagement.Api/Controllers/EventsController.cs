@@ -123,13 +123,17 @@ public sealed class EventsController(IEventService eventService) : ControllerBas
 
     [Authorize(Roles = "Organizer,Admin")]
     [HttpGet("{id:guid}/registrants")]
-    public async Task<ActionResult<IReadOnlyList<EventRegistrantResponse>>> GetRegistrants(
+    public async Task<ActionResult<PaginatedResponse<EventRegistrantResponse>>> GetRegistrants(
         Guid id,
-        CancellationToken cancellationToken) =>
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 100,
+        CancellationToken cancellationToken = default) =>
         Ok(await eventService.GetRegistrantsAsync(
             id,
             User.GetRequiredUserId(),
             User.GetRequiredRole(),
+            page,
+            pageSize,
             cancellationToken));
 
     [Authorize(Roles = "Organizer,Admin")]

@@ -1,6 +1,7 @@
 using EventManagement.Api.Data;
 using EventManagement.Api.Models;
 using Microsoft.EntityFrameworkCore;
+using System.Text.Json;
 
 namespace EventManagement.Api.Services;
 
@@ -9,15 +10,15 @@ public sealed class EventReminderBackgroundService(
     IConfiguration configuration,
     ILogger<EventReminderBackgroundService> logger) : BackgroundService
 {
-    private const string ReminderKind = "EventReminder";
     private readonly Guid _workerId = Guid.NewGuid();
+    private DateTimeOffset _nextReminderScan = DateTimeOffset.MinValue;
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         await RunCycleAsync(stoppingToken);
-        var interval = TimeSpan.FromMinutes(Math.Max(
-            configuration.GetValue("Email:Reminders:CheckIntervalMinutes", 60),
-            1));
+        var interval = TimeSpan.FromSeconds(Math.Max(
+            configuration.GetValue("Email:Outbox:PollIntervalSeconds", 15),
+            5));
         using var timer = new PeriodicTimer(interval);
         while (await timer.WaitForNextTickAsync(stoppingToken))
             await RunCycleAsync(stoppingToken);
@@ -27,7 +28,14 @@ public sealed class EventReminderBackgroundService(
     {
         try
         {
-            await EnqueueDueRemindersAsync(cancellationToken);
+            var now = DateTimeOffset.UtcNow;
+            if (now >= _nextReminderScan)
+            {
+                await EnqueueDueRemindersAsync(cancellationToken);
+                _nextReminderScan = now.AddMinutes(Math.Max(
+                    configuration.GetValue("Email:Reminders:CheckIntervalMinutes", 60),
+                    1));
+            }
             var messages = await ClaimBatchAsync(cancellationToken);
             foreach (var message in messages)
                 await ProcessAsync(message, cancellationToken);
@@ -58,7 +66,7 @@ public sealed class EventReminderBackgroundService(
                  "AvailableAt", "AttemptCount", "CreatedAt")
             SELECT registration."Id",
                    'event-reminder:' || registration."Id"::text,
-                   {ReminderKind},
+                   {EmailOutbox.EventReminderKind},
                    registration."Id",
                    'Pending',
                    {now},
@@ -67,7 +75,11 @@ public sealed class EventReminderBackgroundService(
             FROM "EventRegistrations" AS registration
             INNER JOIN "Events" AS event_entity
                 ON event_entity."Id" = registration."EventId"
+            INNER JOIN "Users" AS student
+                ON student."Id" = registration."StudentId"
             WHERE registration."ReminderSentAt" IS NULL
+              AND event_entity."IsPublished"
+              AND student."IsActive"
               AND event_entity."Date" > {now}
               AND event_entity."Date" <= {reminderCutoff}
             ON CONFLICT ("IdempotencyKey") DO NOTHING;
@@ -127,18 +139,46 @@ public sealed class EventReminderBackgroundService(
         await using var scope = scopeFactory.CreateAsyncScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var emailService = scope.ServiceProvider.GetRequiredService<IEmailService>();
+        if (message.Kind != EmailOutbox.EventReminderKind)
+        {
+            await ProcessPayloadAsync(dbContext, emailService, message, cancellationToken);
+            return;
+        }
         var registration = await dbContext.EventRegistrations.AsNoTracking()
             .Include(item => item.Event)
             .Include(item => item.Student)
             .SingleOrDefaultAsync(item => item.Id == message.AggregateId, cancellationToken);
+        var now = DateTimeOffset.UtcNow;
+        var leadTime = TimeSpan.FromHours(Math.Max(
+            configuration.GetValue("Email:Reminders:LeadTimeHours", 24),
+            1));
+        var decision = registration is null
+            ? EventReminderDecision.Discard
+            : EventReminderPolicy.Evaluate(
+                registration.Event.IsPublished,
+                registration.Student.IsActive,
+                registration.Event.Date,
+                registration.ReminderSentAt.HasValue,
+                now,
+                now.Add(leadTime));
 
-        if (registration is null || registration.ReminderSentAt.HasValue)
+        if (registration is null || decision == EventReminderDecision.Discard)
         {
             await FinishAsync(
                 dbContext,
                 message,
                 EmailOutboxStatus.Discarded,
                 "The registration no longer requires a reminder.",
+                cancellationToken);
+            return;
+        }
+
+        if (decision == EventReminderDecision.Defer)
+        {
+            await DeferUntilAsync(
+                dbContext,
+                message,
+                registration.Event.Date - leadTime,
                 cancellationToken);
             return;
         }
@@ -171,6 +211,65 @@ public sealed class EventReminderBackgroundService(
         await FinishAsync(dbContext, message, EmailOutboxStatus.Sent, null, cancellationToken);
     }
 
+    private async Task ProcessPayloadAsync(
+        AppDbContext dbContext,
+        IEmailService emailService,
+        EmailOutboxMessage message,
+        CancellationToken cancellationToken)
+    {
+        EmailOutboxPayload? payload;
+        try
+        {
+            payload = EmailOutbox.Deserialize(message.PayloadJson);
+        }
+        catch (JsonException exception)
+        {
+            logger.LogError(exception, "Email outbox message {MessageId} has an invalid payload.", message.Id);
+            await FinishAsync(
+                dbContext, message, EmailOutboxStatus.Discarded,
+                "The email payload is invalid.", cancellationToken);
+            return;
+        }
+
+        if (payload is null)
+        {
+            await FinishAsync(
+                dbContext, message, EmailOutboxStatus.Discarded,
+                "The email payload is missing.", cancellationToken);
+            return;
+        }
+
+        var sent = await emailService.SendEmailAsync(
+            payload.RecipientEmail,
+            payload.RecipientName,
+            payload.Subject,
+            payload.TemplateName,
+            payload.TemplateValues,
+            cancellationToken);
+        if (!sent)
+        {
+            await ReleaseForRetryAsync(dbContext, message, cancellationToken);
+            return;
+        }
+
+        await FinishAsync(dbContext, message, EmailOutboxStatus.Sent, null, cancellationToken);
+    }
+
+    private async Task DeferUntilAsync(
+        AppDbContext dbContext,
+        EmailOutboxMessage claimedMessage,
+        DateTimeOffset availableAt,
+        CancellationToken cancellationToken)
+    {
+        var message = await GetOwnedClaimAsync(dbContext, claimedMessage.Id, cancellationToken);
+        message.Status = EmailOutboxStatus.Pending;
+        message.AvailableAt = availableAt;
+        message.LastError = null;
+        message.ClaimedAt = null;
+        message.ClaimedBy = null;
+        await dbContext.SaveChangesAsync(cancellationToken);
+    }
+
     private async Task ReleaseForRetryAsync(
         AppDbContext dbContext,
         EmailOutboxMessage claimedMessage,
@@ -186,6 +285,7 @@ public sealed class EventReminderBackgroundService(
         message.LastError = "The email provider did not accept the message.";
         message.ClaimedAt = null;
         message.ClaimedBy = null;
+        if (message.Status == EmailOutboxStatus.Failed) message.PayloadJson = null;
         await dbContext.SaveChangesAsync(cancellationToken);
     }
 
@@ -200,6 +300,8 @@ public sealed class EventReminderBackgroundService(
         message.Status = status;
         message.SentAt = status == EmailOutboxStatus.Sent ? DateTimeOffset.UtcNow : null;
         message.LastError = lastError;
+        if (status is EmailOutboxStatus.Sent or EmailOutboxStatus.Discarded)
+            message.PayloadJson = null;
         message.ClaimedAt = null;
         message.ClaimedBy = null;
         await dbContext.SaveChangesAsync(cancellationToken);

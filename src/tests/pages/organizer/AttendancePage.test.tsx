@@ -2,7 +2,7 @@ import { screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
 import App from '../../../App'
-import { apiEvent, event, users } from '../../mocks/fixtures'
+import { apiEvent, event, paginated, users } from '../../mocks/fixtures'
 import { server } from '../../mocks/server'
 import { renderWithAuth } from '../../testUtils'
 
@@ -13,14 +13,14 @@ describe('AttendancePage organizer flow', () => {
     server.use(
       http.get('http://localhost:5080/api/events/:id/management', () => HttpResponse.json(apiEvent())),
       http.get('http://localhost:5080/api/events/:id/registrants', () =>
-        HttpResponse.json([{
+        HttpResponse.json(paginated([{
           registrationId: 'registration-1',
           studentId: users.student.id,
           studentName: users.student.name,
           studentEmail: users.student.email,
           registeredAt: '2026-07-20T12:00:00Z',
           attended,
-        }])),
+        }]))),
       http.put('http://localhost:5080/api/events/:id/attendance', async ({ request }) => {
         savedBody = await request.json()
         attended = true

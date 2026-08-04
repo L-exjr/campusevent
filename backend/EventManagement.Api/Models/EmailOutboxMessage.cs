@@ -15,6 +15,7 @@ public sealed class EmailOutboxMessage
     public required string IdempotencyKey { get; set; }
     public required string Kind { get; set; }
     public Guid AggregateId { get; set; }
+    public string? PayloadJson { get; set; }
     public EmailOutboxStatus Status { get; set; } = EmailOutboxStatus.Pending;
     public DateTimeOffset AvailableAt { get; set; } = DateTimeOffset.UtcNow;
     public DateTimeOffset? ClaimedAt { get; set; }

@@ -42,10 +42,14 @@ export interface EventManagementApi {
   updateUserStatus(id: string, active: boolean): Promise<void>
   updateProfile(id: string, imageUrl: string | null): Promise<User>
   getAllEvents(): Promise<EventItem[]>
-  getReports(): Promise<ReportsData>
+  getReports(page?: number, pageSize?: number): Promise<ReportsData>
   submitBookingRequest(input: BookingRequestInput): Promise<string>
   getBookingRequests(): Promise<BookingRequest[]>
   getAssignedBookingRequests(): Promise<BookingRequest[]>
   assignBookingRequest(id: string, organizerId: string): Promise<BookingRequest>
+  updateBookingRequestStatus(
+    id: string,
+    status: Extract<BookingRequest['status'], 'underReview' | 'converted' | 'closed'>,
+  ): Promise<BookingRequest>
   respondToBookingRequest(id: string, accept: boolean, note?: string): Promise<BookingRequest>
 }

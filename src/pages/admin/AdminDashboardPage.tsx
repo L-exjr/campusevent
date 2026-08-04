@@ -1,5 +1,6 @@
-import { useCallback } from 'react'
+import { useCallback, useState } from 'react'
 import Badge from 'react-bootstrap/Badge'
+import Button from 'react-bootstrap/Button'
 import Col from 'react-bootstrap/Col'
 import Row from 'react-bootstrap/Row'
 import Table from 'react-bootstrap/Table'
@@ -12,7 +13,8 @@ import { useApiResource } from '../../hooks/useApiResource'
 import { formatPercent } from '../../utils/formatters'
 
 export default function AdminDashboardPage() {
-  const loadReports = useCallback(() => api.getReports(), [])
+  const [page, setPage] = useState(1)
+  const loadReports = useCallback(() => api.getReports(page, 20), [page])
   const { data: report, loading, error, reload } = useApiResource(loadReports)
 
   if (loading) return <LoadingState label="Compiling system reports" />
@@ -74,6 +76,27 @@ export default function AdminDashboardPage() {
                 ))}
               </tbody>
             </Table>
+            {report.eventTotalPages > 1 && (
+              <div className="d-flex justify-content-between align-items-center p-3 border-top">
+                <Button
+                  variant="outline-secondary"
+                  disabled={report.eventPage <= 1}
+                  onClick={() => setPage((current) => Math.max(current - 1, 1))}
+                >
+                  Previous
+                </Button>
+                <span className="small text-secondary">
+                  Page {report.eventPage} of {report.eventTotalPages} · {report.eventTotalCount} events
+                </span>
+                <Button
+                  variant="outline-secondary"
+                  disabled={report.eventPage >= report.eventTotalPages}
+                  onClick={() => setPage((current) => current + 1)}
+                >
+                  Next
+                </Button>
+              </div>
+            )}
           </div>
         </Col>
         <Col xl={4}>

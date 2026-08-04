@@ -28,6 +28,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
             entity.Property(user => user.ImageUrl).HasMaxLength(2048);
             entity.Property(user => user.ImageObjectKey).HasMaxLength(1024);
             entity.Property(user => user.Role).HasConversion<string>().HasMaxLength(30);
+            entity.Property(user => user.SessionVersion).HasDefaultValue(1);
             entity.HasIndex(user => user.Email).IsUnique();
             entity.HasIndex(user => user.GoogleSubject).IsUnique();
         });
@@ -128,6 +129,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
             entity.Property(message => message.Kind).HasMaxLength(100).IsRequired();
             entity.Property(message => message.Status).HasConversion<string>().HasMaxLength(30);
             entity.Property(message => message.LastError).HasMaxLength(2000);
+            entity.Property(message => message.PayloadJson).HasMaxLength(20000);
             entity.HasIndex(message => message.IdempotencyKey).IsUnique();
             entity.HasIndex(message => new { message.Status, message.AvailableAt });
             entity.HasIndex(message => message.ClaimedBy);

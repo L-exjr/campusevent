@@ -10,8 +10,9 @@ ASP.NET Core 10 Web API using Entity Framework Core 10, PostgreSQL through Npgsq
 - A Student becomes an `Organizer` only after Admin approval of an application or direct Admin promotion.
 - Organizer ownership is checked again in `EventService` for every update, delete, registrant, and attendance operation.
 - Active account state and the current database role are checked for every authenticated request. A deactivated user or stale role token receives `401`.
-- JWTs expire after 75 minutes. Refresh tokens are intentionally not implemented. The client should return to login when a token expires or when a `401` reports a role change. A production follow-up should add rotating, revocable refresh tokens stored in secure HTTP-only cookies.
+- JWTs expire after 75 minutes and carry the user's current session version. Password resets increment that version, immediately rejecting previously issued access tokens. Refresh tokens are intentionally not implemented; the client returns to login whenever an access token expires or the API rejects a stale session or role.
 - Event registration uses a serializable database transaction for capacity enforcement and a unique `(EventId, StudentId)` database index for duplicate prevention.
+- Registration confirmations and password resets are committed to the PostgreSQL email outbox in the same transaction as their domain changes. The background worker retries provider failures and clears stored payloads after terminal delivery status.
 - A filtered unique index prevents more than one pending organizer application per Student.
 
 All API failures use:
@@ -84,12 +85,15 @@ Every list response contains `items`, `page`, `pageSize`, `totalCount`, and `tot
 | PUT | `/api/events/{id}` | Owner Organizer, Admin | Update an event |
 | DELETE | `/api/events/{id}` | Owner Organizer, Admin | Delete an event and its registrations |
 | POST | `/api/events/{id}/register` | Student | Register with duplicate/capacity enforcement |
-| GET | `/api/events/{id}/registrants` | Owner Organizer, Admin | View registrants |
+| GET | `/api/events/{id}/registrants?page=1&pageSize=20` | Owner Organizer, Admin | View paginated registrants |
 | PUT | `/api/events/{id}/attendance` | Owner Organizer, Admin | Bulk-update attendance |
-| GET | `/api/students/{id}/registrations` | Same Student only | View own registrations |
+| GET | `/api/students/{id}/registrations?page=1&pageSize=20` | Same Student only | View paginated own registrations |
+| GET | `/api/booking-requests?status=&page=1&pageSize=20` | Admin | Paginated booking-request queue |
+| GET | `/api/booking-requests/assigned?status=&page=1&pageSize=20` | Organizer | Paginated assigned booking requests |
 | GET | `/api/reports/summary` | Admin | Totals and overall attendance rate |
-| GET | `/api/reports/events/{id}` | Admin | Per-event registration and attendance |
-| GET | `/api/reports/organizers` | Admin | Activity grouped by Organizer |
+| GET | `/api/reports/events?page=1&pageSize=20` | Admin | Paginated per-event registration and attendance aggregates |
+| GET | `/api/reports/events/{id}` | Admin | One event's registration and attendance aggregate |
+| GET | `/api/reports/organizers?page=1&pageSize=20` | Admin | Paginated activity grouped by Organizer |
 
 Authenticated requests use `Authorization: Bearer <token>`.
 
@@ -134,7 +138,7 @@ Content-Type: application/json
 }
 ```
 
-The JWT contains `sub` and `userId` claims for the user ID plus a `role` claim used by API authorization.
+The JWT contains `sub` and `userId` claims for the user ID, a `role` claim used by API authorization, and a `sessionVersion` claim checked against the database on every authenticated request.
 
 Organizer application:
 

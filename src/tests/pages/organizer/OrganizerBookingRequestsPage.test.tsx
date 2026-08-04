@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
 import App from '../../../App'
 import { server } from '../../mocks/server'
-import { users } from '../../mocks/fixtures'
+import { paginated, users } from '../../mocks/fixtures'
 import { renderWithAuth } from '../../testUtils'
 
 const apiUrl = 'http://localhost:5080/api'
@@ -37,7 +37,7 @@ describe('OrganizerBookingRequestsPage', () => {
     let responseBody: unknown
     server.use(
       http.get(`${apiUrl}/booking-requests/assigned`, () =>
-        HttpResponse.json([assignedRequest()])),
+        HttpResponse.json(paginated([assignedRequest()]))),
       http.put(`${apiUrl}/booking-requests/:id/respond`, async ({ request }) => {
         responseBody = await request.json()
         return HttpResponse.json({
@@ -65,7 +65,7 @@ describe('OrganizerBookingRequestsPage', () => {
   it('declines an assigned request', async () => {
     server.use(
       http.get(`${apiUrl}/booking-requests/assigned`, () =>
-        HttpResponse.json([assignedRequest()])),
+        HttpResponse.json(paginated([assignedRequest()]))),
       http.put(`${apiUrl}/booking-requests/:id/respond`, () =>
         HttpResponse.json({
           ...assignedRequest('Declined'),
@@ -88,7 +88,7 @@ describe('OrganizerBookingRequestsPage', () => {
   it('keeps the request actionable and exposes API response errors', async () => {
     server.use(
       http.get(`${apiUrl}/booking-requests/assigned`, () =>
-        HttpResponse.json([assignedRequest()])),
+        HttpResponse.json(paginated([assignedRequest()]))),
       http.put(`${apiUrl}/booking-requests/:id/respond`, () =>
         HttpResponse.json({ error: 'This request is not awaiting an Organizer response.' }, { status: 409 })),
     )

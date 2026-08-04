@@ -146,6 +146,10 @@ export interface ReportsData {
   attendanceRate: number
   events: EventReport[]
   organizers: OrganizerReport[]
+  eventPage: number
+  eventPageSize: number
+  eventTotalCount: number
+  eventTotalPages: number
 }
 
 export const EVENT_CATEGORIES: EventCategory[] = [

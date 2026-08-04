@@ -55,6 +55,7 @@ public sealed class UserService(
 
         var totalCount = await query.CountAsync(cancellationToken);
         var users = await query.OrderBy(user => user.Name)
+            .ThenBy(user => user.Id)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
             .ToListAsync(cancellationToken);

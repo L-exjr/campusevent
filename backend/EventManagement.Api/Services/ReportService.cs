@@ -14,7 +14,8 @@ public interface IReportService
         int page,
         int pageSize,
         CancellationToken cancellationToken);
-    Task<IReadOnlyList<OrganizerReportResponse>> GetOrganizersAsync(CancellationToken cancellationToken);
+    Task<PaginatedResponse<OrganizerReportResponse>> GetOrganizersAsync(
+        int page, int pageSize, CancellationToken cancellationToken);
 }
 
 public sealed class ReportService(AppDbContext dbContext) : IReportService
@@ -23,12 +24,14 @@ public sealed class ReportService(AppDbContext dbContext) : IReportService
     {
         var totalEvents = await dbContext.Events.CountAsync(cancellationToken);
         var totalRegistrations = await dbContext.EventRegistrations.CountAsync(cancellationToken);
+        var totalUsers = await dbContext.Users.CountAsync(cancellationToken);
         var attended = await dbContext.EventRegistrations.CountAsync(
             registration => registration.Attended,
             cancellationToken);
         return new ReportSummaryResponse(
             totalEvents,
             totalRegistrations,
+            totalUsers,
             CalculateRate(attended, totalRegistrations));
     }
 
@@ -88,12 +91,17 @@ public sealed class ReportService(AppDbContext dbContext) : IReportService
             Pagination.TotalPages(totalCount, pageSize));
     }
 
-    public async Task<IReadOnlyList<OrganizerReportResponse>> GetOrganizersAsync(
+    public async Task<PaginatedResponse<OrganizerReportResponse>> GetOrganizersAsync(
+        int page,
+        int pageSize,
         CancellationToken cancellationToken)
     {
-        return await dbContext.Users.AsNoTracking()
+        (page, pageSize) = Pagination.Normalize(page, pageSize);
+        var query = dbContext.Users.AsNoTracking()
             .Where(user => dbContext.Events.Any(eventEntity =>
-                eventEntity.OrganizerId == user.Id))
+                eventEntity.OrganizerId == user.Id));
+        var totalCount = await query.CountAsync(cancellationToken);
+        var items = await query
             .Select(user => new
             {
                 OrganizerId = user.Id,
@@ -105,12 +113,17 @@ public sealed class ReportService(AppDbContext dbContext) : IReportService
             })
             .OrderByDescending(organizer => organizer.RegistrationCount)
             .ThenByDescending(organizer => organizer.EventCount)
+            .ThenBy(organizer => organizer.OrganizerId)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
             .Select(organizer => new OrganizerReportResponse(
                 organizer.OrganizerId,
                 organizer.OrganizerName,
                 organizer.EventCount,
                 organizer.RegistrationCount))
             .ToListAsync(cancellationToken);
+        return new PaginatedResponse<OrganizerReportResponse>(
+            items, page, pageSize, totalCount, Pagination.TotalPages(totalCount, pageSize));
     }
 
     private static decimal CalculateRate(int attended, int total) =>

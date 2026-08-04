@@ -10,6 +10,7 @@ public sealed class User
     public string? GoogleSubject { get; set; }
     public UserRole Role { get; set; } = UserRole.Student;
     public bool IsActive { get; set; } = true;
+    public int SessionVersion { get; set; } = 1;
     public string? ImageUrl { get; set; }
     public string? ImageObjectKey { get; set; }
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;

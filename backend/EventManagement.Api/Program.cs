@@ -160,6 +160,8 @@ if (builder.Configuration.GetValue("Database:ApplyMigrations", false))
 
 app.UseForwardedHeaders();
 app.UseMiddleware<ExceptionHandlingMiddleware>();
+app.UseMiddleware<SecurityHeadersMiddleware>();
+if (!app.Environment.IsDevelopment()) app.UseHsts();
 app.UseHttpsRedirection();
 app.UseCors("Frontend");
 app.UseAuthentication();

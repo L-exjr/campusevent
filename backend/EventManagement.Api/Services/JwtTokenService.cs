@@ -31,6 +31,7 @@ public sealed class JwtTokenService(IConfiguration configuration) : IJwtTokenSer
             new Claim(JwtRegisteredClaimNames.Name, user.Name),
             new Claim(JwtRegisteredClaimNames.Email, user.Email),
             new Claim(JwtClaimNames.Role, user.Role.ToString()),
+            new Claim(JwtClaimNames.SessionVersion, user.SessionVersion.ToString()),
             new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
         };
         var credentials = new SigningCredentials(

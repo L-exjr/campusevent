@@ -812,7 +812,7 @@ export const mockApi: EventManagementApi = {
   },
 
   // TODO: replace with GET /api/admin/reports/summary.
-  async getReports(): Promise<ReportsData> {
+  async getReports(page = 1, pageSize = 20): Promise<ReportsData> {
     await pause()
     const database = getDatabase()
     const events = database.events.map((event) => {
@@ -858,8 +858,12 @@ export const mockApi: EventManagementApi = {
       attendanceRate: database.registrations.length
         ? (attended / database.registrations.length) * 100
         : 0,
-      events,
+      events: events.slice((page - 1) * pageSize, page * pageSize),
       organizers,
+      eventPage: page,
+      eventPageSize: pageSize,
+      eventTotalCount: events.length,
+      eventTotalPages: Math.ceil(events.length / pageSize),
     }
   },
 
@@ -880,6 +884,10 @@ export const mockApi: EventManagementApi = {
 
   async assignBookingRequest(): Promise<BookingRequest> {
     throw new Error('No mock booking request is available to assign.')
+  },
+
+  async updateBookingRequestStatus(): Promise<BookingRequest> {
+    throw new Error('No mock booking request is available to update.')
   },
 
   async respondToBookingRequest(): Promise<BookingRequest> {

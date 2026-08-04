@@ -98,6 +98,12 @@ public sealed class ApiIntegrationFixture : IAsyncLifetime
         return await dbContext.Events.CountAsync();
     }
 
+    public async Task<int> CountEmailOutboxMessagesAsync(string kind)
+    {
+        await using var dbContext = CreateDbContext();
+        return await dbContext.EmailOutboxMessages.CountAsync(message => message.Kind == kind);
+    }
+
     public async Task SetAuthRateLimitCountAsync(
         string scope,
         string operation,

@@ -11,6 +11,7 @@ public sealed class BookingRequestsControllerTests(ApiIntegrationFixture fixture
     {
         await ResetAsync();
         using var client = Fixture.CreateClient();
+        SetClientAddress(client, "203.0.113.20");
         using var response = await client.PostAsJsonAsync("/api/booking-requests", Payload("bot.example"));
         Assert.Equal(HttpStatusCode.Accepted, response.StatusCode);
         Assert.Equal(0, await Fixture.CountBookingRequestsAsync());
@@ -23,6 +24,7 @@ public sealed class BookingRequestsControllerTests(ApiIntegrationFixture fixture
         var organizer = await CreateActorAsync("booking-organizer@example.test", "Organizer");
         var admin = await LoginAdminAsync();
         using var publicClient = Fixture.CreateClient();
+        SetClientAddress(publicClient, "203.0.113.21");
         using var submission = await publicClient.PostAsJsonAsync("/api/booking-requests", Payload());
         var bookingId = (await ReadJsonAsync(submission)).GetProperty("id").GetGuid();
 
@@ -55,6 +57,7 @@ public sealed class BookingRequestsControllerTests(ApiIntegrationFixture fixture
         await ResetAsync();
         var organizer = await CreateActorAsync("unassigned-organizer@example.test", "Organizer");
         using var publicClient = Fixture.CreateClient();
+        SetClientAddress(publicClient, "203.0.113.22");
         using var submission = await publicClient.PostAsJsonAsync("/api/booking-requests", Payload());
         var bookingId = (await ReadJsonAsync(submission)).GetProperty("id").GetGuid();
         using var organizerClient = CreateAuthenticatedClient(organizer.Token);
@@ -68,6 +71,7 @@ public sealed class BookingRequestsControllerTests(ApiIntegrationFixture fixture
     {
         await ResetAsync();
         using var publicClient = Fixture.CreateClient();
+        SetClientAddress(publicClient, "203.0.113.23");
         using var submission = await publicClient.PostAsJsonAsync("/api/booking-requests", Payload());
         var bookingId = (await ReadJsonAsync(submission)).GetProperty("id").GetGuid();
         var admin = await LoginAdminAsync();
@@ -91,6 +95,7 @@ public sealed class BookingRequestsControllerTests(ApiIntegrationFixture fixture
         var organizer = await CreateActorAsync("concurrent-booking-organizer@example.test", "Organizer");
         var admin = await LoginAdminAsync();
         using var publicClient = Fixture.CreateClient();
+        SetClientAddress(publicClient, "203.0.113.24");
         using var submission = await publicClient.PostAsJsonAsync("/api/booking-requests", Payload());
         var bookingId = (await ReadJsonAsync(submission)).GetProperty("id").GetGuid();
 
@@ -127,6 +132,46 @@ public sealed class BookingRequestsControllerTests(ApiIntegrationFixture fixture
         }
     }
 
+    [Fact]
+    public async Task Concurrent_reassignment_and_response_produce_one_consistent_winner()
+    {
+        await ResetAsync();
+        var firstOrganizer = await CreateActorAsync("first-race-organizer@example.test", "Organizer");
+        var secondOrganizer = await CreateActorAsync("second-race-organizer@example.test", "Organizer");
+        var admin = await LoginAdminAsync();
+        using var publicClient = Fixture.CreateClient();
+        SetClientAddress(publicClient, "203.0.113.25");
+        using var submission = await publicClient.PostAsJsonAsync("/api/booking-requests", Payload());
+        var bookingId = (await ReadJsonAsync(submission)).GetProperty("id").GetGuid();
+        using var adminClient = CreateAuthenticatedClient(admin.Token);
+        using var initialAssignment = await adminClient.PutAsJsonAsync(
+            $"/api/booking-requests/{bookingId}/assign",
+            new { organizerId = firstOrganizer.UserId });
+        initialAssignment.EnsureSuccessStatusCode();
+        using var organizerClient = CreateAuthenticatedClient(firstOrganizer.Token);
+        var gate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var reassignTask = SendAfterGateAsync(gate.Task, () => adminClient.PutAsJsonAsync(
+            $"/api/booking-requests/{bookingId}/assign",
+            new { organizerId = secondOrganizer.UserId }));
+        var respondTask = SendAfterGateAsync(gate.Task, () => organizerClient.PutAsJsonAsync(
+            $"/api/booking-requests/{bookingId}/respond",
+            new { accept = true, note = "Concurrent response." }));
+
+        gate.SetResult();
+        var responses = await Task.WhenAll(reassignTask, respondTask);
+        try
+        {
+            Assert.Single(responses, response => response.StatusCode == HttpStatusCode.OK);
+            Assert.Single(responses, response =>
+                response.StatusCode is HttpStatusCode.Conflict or HttpStatusCode.Forbidden);
+            Assert.InRange(await Fixture.CountEventsAsync(), 0, 1);
+        }
+        finally
+        {
+            foreach (var response in responses) response.Dispose();
+        }
+    }
+
     private static object Payload(string website = "") => new
     {
         organizationName = "Integration Test Society",
@@ -142,6 +187,12 @@ public sealed class BookingRequestsControllerTests(ApiIntegrationFixture fixture
         description = "A detailed public booking request for an integration test event.",
         website
     };
+
+    private static void SetClientAddress(HttpClient client, string address)
+    {
+        client.DefaultRequestHeaders.Add("X-Real-IP", address);
+        client.DefaultRequestHeaders.Add("X-Forwarded-Proto", "https");
+    }
 }
 
 public sealed class BookingRequestRateLimitTests(ApiIntegrationFixture fixture)
@@ -152,6 +203,8 @@ public sealed class BookingRequestRateLimitTests(ApiIntegrationFixture fixture)
     {
         await ResetAsync();
         using var client = Fixture.CreateClient();
+        client.DefaultRequestHeaders.Add("X-Real-IP", "203.0.113.26");
+        client.DefaultRequestHeaders.Add("X-Forwarded-Proto", "https");
         for (var index = 0; index < 5; index++)
         {
             using var allowed = await client.PostAsJsonAsync("/api/booking-requests", Payload(index));
