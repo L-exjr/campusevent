@@ -15,6 +15,7 @@ import LoadingState from '../../components/shared/LoadingState'
 import PageHeader from '../../components/shared/PageHeader'
 import PaginationControls from '../../components/shared/PaginationControls'
 import { useApiResource } from '../../hooks/useApiResource'
+import { useDebouncedValue } from '../../hooks/useDebouncedValue'
 import { formatDateTime, getInitials } from '../../utils/formatters'
 import type { OrganizerApplication } from '../../types'
 
@@ -29,9 +30,10 @@ export default function AdminOrganizerApplicationsPage() {
   const [notice, setNotice] = useState<string | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
   const [page, setPage] = useState(1)
+  const debouncedSearch = useDebouncedValue(search)
   const loadApplications = useCallback(
-    () => api.getPendingOrganizerApplications(page, 20, search),
-    [page, search],
+    (signal: AbortSignal) => api.getPendingOrganizerApplications(page, 20, debouncedSearch, signal),
+    [debouncedSearch, page],
   )
   const { data: applicationPage, loading, error, reload, setData } = useApiResource(loadApplications)
   const applications = applicationPage?.items

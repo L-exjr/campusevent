@@ -46,6 +46,34 @@ function apiUser() {
 }
 
 describe('AdminBookingQueue', () => {
+  it('searches active organizers server-side instead of relying on a capped list', async () => {
+    let searchQuery: Record<string, string> | null = null
+    let nonEmptySearches = 0
+    server.use(
+      http.get(`${apiUrl}/booking-requests`, () => HttpResponse.json(paginated([request()]))),
+      http.get(`${apiUrl}/users`, ({ request: httpRequest }) => {
+        const query = new URL(httpRequest.url).searchParams
+        if (query.get('search')) nonEmptySearches += 1
+        if (query.get('search') === 'Zuri') {
+          searchQuery = {
+            role: query.get('role') ?? '',
+            isActive: query.get('isActive') ?? '',
+            pageSize: query.get('pageSize') ?? '',
+          }
+        }
+        return HttpResponse.json(paginated([apiUser()]))
+      }),
+    )
+    const user = userEvent.setup()
+    renderWithAuth(<App />, { user: users.admin, initialEntries: ['/admin/booking-requests'] })
+
+    await user.type(await screen.findByLabelText('Find an Organizer to assign'), 'Zuri')
+
+    await waitFor(() => expect(searchQuery).not.toBeNull())
+    expect(searchQuery).toEqual({ role: 'Organizer', isActive: 'true', pageSize: '20' })
+    expect(nonEmptySearches).toBe(1)
+  })
+
   it('reassigns an already assigned request', async () => {
     let assignmentBody: unknown
     server.use(

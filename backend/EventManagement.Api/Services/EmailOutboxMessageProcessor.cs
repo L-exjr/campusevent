@@ -11,7 +11,7 @@ public sealed class EmailOutboxMessageProcessor(
 {
     public async Task ProcessAsync(
         EmailOutboxMessage claimedMessage,
-        Guid workerId,
+        Guid claimId,
         CancellationToken cancellationToken)
     {
         var handler = handlers.SingleOrDefault(item => item.CanHandle(claimedMessage.Kind));
@@ -22,7 +22,7 @@ public sealed class EmailOutboxMessageProcessor(
             : await handler.HandleAsync(claimedMessage, cancellationToken);
         var message = await dbContext.EmailOutboxMessages.SingleAsync(
             item => item.Id == claimedMessage.Id &&
-                    item.ClaimedBy == workerId &&
+                    item.ClaimedBy == claimId &&
                     item.Status == EmailOutboxStatus.Processing,
             cancellationToken);
 
@@ -42,13 +42,7 @@ public sealed class EmailOutboxMessageProcessor(
                 message.AvailableAt = result.AvailableAt ?? DateTimeOffset.UtcNow.AddMinutes(1);
                 break;
             case EmailOutboxOutcome.Retry:
-                var maxAttempts = Math.Max(configuration.GetValue("Email:Outbox:MaxAttempts", 8), 1);
-                message.Status = message.AttemptCount >= maxAttempts
-                    ? EmailOutboxStatus.Failed
-                    : EmailOutboxStatus.Pending;
-                message.AvailableAt = DateTimeOffset.UtcNow.AddMinutes(
-                    Math.Min(Math.Pow(2, Math.Max(message.AttemptCount - 1, 0)), 60));
-                if (message.Status == EmailOutboxStatus.Failed) message.PayloadJson = null;
+                ApplyRetry(message);
                 break;
             default:
                 throw new ArgumentOutOfRangeException();
@@ -57,5 +51,41 @@ public sealed class EmailOutboxMessageProcessor(
         message.ClaimedAt = null;
         message.ClaimedBy = null;
         await dbContext.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task RecoverUnexpectedFailureAsync(
+        Guid messageId,
+        Guid claimId,
+        Exception exception,
+        CancellationToken cancellationToken)
+    {
+        var message = await dbContext.EmailOutboxMessages.SingleOrDefaultAsync(
+            item => item.Id == messageId &&
+                    item.ClaimedBy == claimId &&
+                    item.Status == EmailOutboxStatus.Processing,
+            cancellationToken);
+        if (message is null) return;
+
+        ApplyRetry(message);
+        var error = $"{exception.GetType().Name}: {exception.Message}";
+        message.LastError = error[..Math.Min(error.Length, 2000)];
+        message.ClaimedAt = null;
+        message.ClaimedBy = null;
+        await dbContext.SaveChangesAsync(cancellationToken);
+    }
+
+    private void ApplyRetry(EmailOutboxMessage message)
+    {
+        var maxAttempts = Math.Max(configuration.GetValue("Email:Outbox:MaxAttempts", 8), 1);
+        message.Status = message.AttemptCount >= maxAttempts
+            ? EmailOutboxStatus.Failed
+            : EmailOutboxStatus.Pending;
+        message.AvailableAt = DateTimeOffset.UtcNow.AddMinutes(
+            Math.Min(Math.Pow(2, Math.Max(message.AttemptCount - 1, 0)), 60));
+        if (message.Status == EmailOutboxStatus.Failed &&
+            !EmailOutboxRecoveryPolicy.ShouldRetainPayloadOnFailure(message.Kind))
+        {
+            message.PayloadJson = null;
+        }
     }
 }

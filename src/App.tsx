@@ -6,6 +6,7 @@ import AdminDashboardPage from './pages/admin/AdminDashboardPage'
 import AdminEventsPage from './pages/admin/AdminEventsPage'
 import AdminOrganizerApplicationsPage from './pages/admin/AdminOrganizerApplicationsPage'
 import AdminUsersPage from './pages/admin/AdminUsersPage'
+import AdminEmailOutboxPage from './pages/admin/AdminEmailOutboxPage'
 import LoginPage from './pages/auth/LoginPage'
 import RegisterPage from './pages/auth/RegisterPage'
 import ForgotPassword from './pages/auth/ForgotPassword'
@@ -70,6 +71,7 @@ export default function App() {
             <Route path="/admin/organizer-applications" element={<AdminOrganizerApplicationsPage />} />
             <Route path="/admin/events" element={<AdminEventsPage />} />
             <Route path="/admin/booking-requests" element={<AdminBookingQueue />} />
+            <Route path="/admin/email-outbox" element={<AdminEmailOutboxPage />} />
             <Route path="/admin/events/:id/registrants" element={<RegistrantsPage />} />
           </Route>
         </Route>

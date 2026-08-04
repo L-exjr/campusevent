@@ -14,6 +14,7 @@ import LoadingState from '../../components/shared/LoadingState'
 import PageHeader from '../../components/shared/PageHeader'
 import PaginationControls from '../../components/shared/PaginationControls'
 import { useApiResource } from '../../hooks/useApiResource'
+import { useDebouncedValue } from '../../hooks/useDebouncedValue'
 import type { Role, User } from '../../types'
 
 export default function AdminUsersPage() {
@@ -24,9 +25,10 @@ export default function AdminUsersPage() {
   const [notice, setNotice] = useState<string | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
   const [page, setPage] = useState(1)
+  const debouncedSearch = useDebouncedValue(search)
   const loadUsers = useCallback(
-    () => api.getUsers(page, 20, search, role ? role as Role : undefined),
-    [page, role, search],
+    (signal: AbortSignal) => api.getUsers(page, 20, debouncedSearch, role ? role as Role : undefined, signal),
+    [debouncedSearch, page, role],
   )
   const { data: userPage, loading, error, reload } = useApiResource(loadUsers)
 

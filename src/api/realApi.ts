@@ -11,6 +11,7 @@ import type {
   AuthSession,
   BookingRequest,
   BookingRequestInput,
+  EmailDeadLetter,
   EventFilters,
   EventInput,
   EventItem,
@@ -291,10 +292,11 @@ export const realApi: EventManagementApi = {
     clearStoredSession()
   },
 
-  async getEvents(filters = {}, page = 1, pageSize = 20) {
+  async getEvents(filters = {}, page = 1, pageSize = 20, signal) {
     return mapPage(
       await apiRequest<PaginatedResponse<ApiEvent>>(
         pageQuery(buildEventQuery(filters, true), page, pageSize),
+        { signal },
       ),
       mapEvent,
     )
@@ -352,7 +354,7 @@ export const realApi: EventManagementApi = {
     return mapOrganizerApplication(application)
   },
 
-  async getPendingOrganizerApplications(page = 1, pageSize = 20, search = '') {
+  async getPendingOrganizerApplications(page = 1, pageSize = 20, search = '', signal) {
     const query = new URLSearchParams({
       status: 'Pending',
       page: String(page),
@@ -362,6 +364,7 @@ export const realApi: EventManagementApi = {
     return mapPage(
       await apiRequest<PaginatedResponse<ApiOrganizerApplication>>(
         `/organizer-applications?${query}`,
+        { signal },
       ),
       mapOrganizerApplication,
     )
@@ -408,17 +411,25 @@ export const realApi: EventManagementApi = {
     }))
   },
 
+  async transferEventOwnership(id, organizerId, version) {
+    return mapEvent(await apiRequest<ApiEvent>(`/events/${id}/organizer`, {
+      method: 'PUT',
+      body: JSON.stringify({ organizerId, version }),
+    }))
+  },
+
   async deleteEvent(id) {
     await apiRequest(`/events/${id}`, { method: 'DELETE' })
   },
 
-  async getEventRegistrants(eventId, page = 1, pageSize = 20, search = '', attended) {
+  async getEventRegistrants(eventId, page = 1, pageSize = 20, search = '', attended, signal) {
     const query = new URLSearchParams({ page: String(page), pageSize: String(pageSize) })
     if (search.trim()) query.set('search', search.trim())
     if (attended !== undefined) query.set('attended', String(attended))
     return mapPage(
       await apiRequest<PaginatedResponse<ApiRegistrant>>(
         `/events/${eventId}/registrants?${query}`,
+        { signal },
       ),
       (registrant): EventRegistrant => ({
       registrationId: registrant.registrationId,
@@ -443,12 +454,26 @@ export const realApi: EventManagementApi = {
     })
   },
 
-  async getUsers(page = 1, pageSize = 20, search = '', role) {
+  async getUsers(page = 1, pageSize = 20, search = '', role, signal) {
     const query = new URLSearchParams({ page: String(page), pageSize: String(pageSize) })
     if (search.trim()) query.set('search', search.trim())
     if (role) query.set('role', `${role[0].toUpperCase()}${role.slice(1)}`)
     return mapPage(
-      await apiRequest<PaginatedResponse<ApiUser>>(`/users?${query}`),
+      await apiRequest<PaginatedResponse<ApiUser>>(`/users?${query}`, { signal }),
+      mapUser,
+    )
+  },
+
+  async searchOrganizers(search = '', pageSize = 20, signal) {
+    const query = new URLSearchParams({
+      role: 'Organizer',
+      isActive: 'true',
+      page: '1',
+      pageSize: String(pageSize),
+    })
+    if (search.trim()) query.set('search', search.trim())
+    return mapPage(
+      await apiRequest<PaginatedResponse<ApiUser>>(`/users?${query}`, { signal }),
       mapUser,
     )
   },
@@ -475,13 +500,14 @@ export const realApi: EventManagementApi = {
     return mapUser(apiUser)
   },
 
-  async getAllEvents(page = 1, pageSize = 20, filters = {}) {
+  async getAllEvents(page = 1, pageSize = 20, filters = {}, signal) {
     const query = new URLSearchParams({ page: String(page), pageSize: String(pageSize) })
     if (filters.search?.trim()) query.set('search', filters.search.trim())
     if (filters.category) query.set('category', filters.category)
     return mapPage(
       await apiRequest<PaginatedResponse<ApiEvent>>(
         `/events/all?${query}`,
+        { signal },
       ),
       mapEvent,
     )
@@ -521,6 +547,16 @@ export const realApi: EventManagementApi = {
       eventTotalCount: eventPage.totalCount,
       eventTotalPages: eventPage.totalPages,
     }
+  },
+
+  async getFailedEmails(page = 1, pageSize = 20) {
+    return apiRequest<PaginatedResponse<EmailDeadLetter>>(
+      `/email-outbox/failed?page=${page}&pageSize=${pageSize}`,
+    )
+  },
+
+  async retryFailedEmail(id) {
+    await apiRequest(`/email-outbox/${id}/retry`, { method: 'PUT' })
   },
 
   async submitBookingRequest(input: BookingRequestInput) {

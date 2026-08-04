@@ -15,6 +15,7 @@ import LinkButton from '../../components/shared/LinkButton'
 import PageHeader from '../../components/shared/PageHeader'
 import PaginationControls from '../../components/shared/PaginationControls'
 import { useApiResource } from '../../hooks/useApiResource'
+import { useDebouncedValue } from '../../hooks/useDebouncedValue'
 import { useAuth } from '../../hooks/useAuth'
 import { canManageEvent } from '../../utils/permissions'
 
@@ -24,16 +25,17 @@ export default function RegistrantsPage() {
   const [search, setSearch] = useState('')
   const [attendance, setAttendance] = useState('')
   const [page, setPage] = useState(1)
+  const debouncedSearch = useDebouncedValue(search)
   const loadData = useCallback(
-    async () => {
+    async (signal: AbortSignal) => {
       const event = await api.getManagementEvent(id)
       if (!user || !canManageEvent(user, event)) {
         return { event, registrants: null }
       }
       const attended = attendance ? attendance === 'attended' : undefined
-      return { event, registrants: await api.getEventRegistrants(id, page, 50, search, attended) }
+      return { event, registrants: await api.getEventRegistrants(id, page, 50, debouncedSearch, attended, signal) }
     },
-    [attendance, id, page, search, user],
+    [attendance, debouncedSearch, id, page, user],
   )
   const { data, loading, error, reload } = useApiResource(loadData)
   const registrants = data?.registrants?.items ?? []

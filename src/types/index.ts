@@ -162,6 +162,16 @@ export interface ReportsData {
   eventTotalPages: number
 }
 
+export interface EmailDeadLetter {
+  id: string
+  kind: string
+  aggregateId: string
+  attemptCount: number
+  lastError: string | null
+  createdAt: string
+  canRetry: boolean
+}
+
 export const EVENT_CATEGORIES: EventCategory[] = [
   'Academic',
   'Career',

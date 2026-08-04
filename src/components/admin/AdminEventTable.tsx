@@ -9,10 +9,11 @@ import LinkButton from '../shared/LinkButton'
 interface AdminEventTableProps {
   events: EventItem[]
   onEdit: (event: EventItem) => void
+  onTransfer: (event: EventItem) => void
   onDelete: (event: EventItem) => void
 }
 
-export default function AdminEventTable({ events, onEdit, onDelete }: AdminEventTableProps) {
+export default function AdminEventTable({ events, onEdit, onTransfer, onDelete }: AdminEventTableProps) {
   return (
     <div className="table-shell">
       <Table responsive hover className="align-middle mb-0">
@@ -52,6 +53,9 @@ export default function AdminEventTable({ events, onEdit, onDelete }: AdminEvent
                   </LinkButton>
                   <Button variant="outline-primary" onClick={() => onEdit(event)}>
                     Edit
+                  </Button>
+                  <Button variant="outline-primary" onClick={() => onTransfer(event)}>
+                    Transfer
                   </Button>
                   <Button variant="outline-danger" onClick={() => onDelete(event)}>
                     Delete

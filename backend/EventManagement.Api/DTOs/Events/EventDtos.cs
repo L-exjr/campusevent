@@ -13,6 +13,10 @@ public sealed record EventUpsertRequest(
     bool? IsPublished = null,
     int? Version = null);
 
+public sealed record TransferEventOwnershipRequest(
+    Guid OrganizerId,
+    [param: Range(1, int.MaxValue)] int Version);
+
 public sealed record EventResponse(
     Guid Id,
     string Title,

@@ -7,6 +7,49 @@ public sealed class EventsControllerTests(ApiIntegrationFixture fixture)
     : IntegrationTestBase(fixture), IClassFixture<ApiIntegrationFixture>
 {
     [Fact]
+    public async Task Admin_can_transfer_event_ownership_to_an_active_organizer()
+    {
+        await ResetAsync();
+        var originalOwner = await CreateActorAsync("transfer-old@example.test", "Organizer");
+        var newOwner = await CreateActorAsync("transfer-new@example.test", "Organizer");
+        var eventId = await CreateEventAsync(originalOwner.Token, "Transferred event", 10);
+        var admin = await LoginAdminAsync();
+        using var adminClient = CreateAuthenticatedClient(admin.Token);
+
+        using var transfer = await adminClient.PutAsJsonAsync(
+            $"/api/events/{eventId}/organizer",
+            new { organizerId = newOwner.UserId, version = 1 });
+
+        transfer.EnsureSuccessStatusCode();
+        var payload = await ReadJsonAsync(transfer);
+        Assert.Equal(newOwner.UserId, payload.GetProperty("organizerId").GetGuid());
+        Assert.Equal(2, payload.GetProperty("version").GetInt32());
+        using var oldOwnerClient = CreateAuthenticatedClient(originalOwner.Token);
+        using var oldOwnerDetail = await oldOwnerClient.GetAsync($"/api/events/{eventId}/management");
+        using var newOwnerClient = CreateAuthenticatedClient(newOwner.Token);
+        using var newOwnerDetail = await newOwnerClient.GetAsync($"/api/events/{eventId}/management");
+        Assert.Equal(HttpStatusCode.Forbidden, oldOwnerDetail.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, newOwnerDetail.StatusCode);
+    }
+
+    [Fact]
+    public async Task Organizer_cannot_transfer_event_ownership()
+    {
+        await ResetAsync();
+        var originalOwner = await CreateActorAsync("transfer-forbidden-old@example.test", "Organizer");
+        var newOwner = await CreateActorAsync("transfer-forbidden-new@example.test", "Organizer");
+        var eventId = await CreateEventAsync(originalOwner.Token, "Protected transfer", 10);
+        using var client = CreateAuthenticatedClient(originalOwner.Token);
+
+        using var response = await client.PutAsJsonAsync(
+            $"/api/events/{eventId}/organizer",
+            new { organizerId = newOwner.UserId, version = 1 });
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        Assert.Equal(originalOwner.UserId, (await Fixture.GetEventStateAsync(eventId)).OrganizerId);
+    }
+
+    [Fact]
     public async Task Unpublished_management_detail_is_limited_to_owner_or_admin()
     {
         await ResetAsync();

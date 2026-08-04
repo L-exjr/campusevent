@@ -735,6 +735,34 @@ export const mockApi: EventManagementApi = {
     return eventWithCount(database, event)
   },
 
+  async transferEventOwnership(
+    id: string,
+    organizerId: string,
+    version: number,
+  ): Promise<EventItem> {
+    await pause()
+    const database = getDatabase()
+    const actor = getCurrentUser(database)
+    if (actor.role !== 'admin') throw new Error('Only Admins can transfer event ownership.')
+    const event = database.events.find((item) => item.id === id)
+    if (!event) throw new Error('Event not found.')
+    if ((event.version ?? 1) !== version) {
+      throw new Error('This event changed after you opened it. Refresh and try again.')
+    }
+    const organizer = database.users.find(
+      (user) => user.id === organizerId && user.role === 'organizer' && user.active,
+    )
+    if (!organizer) {
+      throw new Error('Event ownership can only be transferred to an active Organizer.')
+    }
+    if (event.organizerId === organizer.id) throw new Error('This Organizer already owns the event.')
+    event.organizerId = organizer.id
+    event.organizerName = organizer.name
+    event.version = (event.version ?? 1) + 1
+    saveDatabase(database)
+    return eventWithCount(database, event)
+  },
+
   // TODO: replace with DELETE /api/events/{id}.
   async deleteEvent(id: string) {
     await pause()
@@ -811,6 +839,16 @@ export const mockApi: EventManagementApi = {
     return paginate(getDatabase().users.map(publicUser).filter((user) =>
       (!query || user.name.toLowerCase().includes(query) || user.email.toLowerCase().includes(query)) &&
       (!role || user.role === role)), page, pageSize)
+  },
+
+  async searchOrganizers(search = '', pageSize = 20): Promise<Page<User>> {
+    await pause()
+    const query = search.trim().toLowerCase()
+    return paginate(getDatabase().users.map(publicUser).filter((user) =>
+      user.role === 'organizer' &&
+      user.active &&
+      (!query || user.name.toLowerCase().includes(query) || user.email.toLowerCase().includes(query))),
+    1, pageSize)
   },
 
   // TODO: replace with PATCH /api/admin/users/{id}/role.
@@ -924,6 +962,15 @@ export const mockApi: EventManagementApi = {
       eventTotalCount: events.length,
       eventTotalPages: Math.ceil(events.length / pageSize),
     }
+  },
+
+  async getFailedEmails(page = 1, pageSize = 20) {
+    await pause()
+    return { items: [], page, pageSize, totalCount: 0, totalPages: 0 }
+  },
+
+  async retryFailedEmail() {
+    await pause()
   },
 
   async submitBookingRequest(): Promise<string> {

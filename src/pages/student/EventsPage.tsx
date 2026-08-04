@@ -13,6 +13,7 @@ import LoadingState from '../../components/shared/LoadingState'
 import PageHeader from '../../components/shared/PageHeader'
 import PaginationControls from '../../components/shared/PaginationControls'
 import { useApiResource } from '../../hooks/useApiResource'
+import { useDebouncedValue } from '../../hooks/useDebouncedValue'
 import { EVENT_CATEGORIES } from '../../types'
 
 export default function EventsPage() {
@@ -20,9 +21,10 @@ export default function EventsPage() {
   const [category, setCategory] = useState('')
   const [date, setDate] = useState('')
   const [page, setPage] = useState(1)
+  const debouncedSearch = useDebouncedValue(search)
   const loadEvents = useCallback(
-    () => api.getEvents({ search, category, date }, page, 12),
-    [category, date, page, search],
+    (signal: AbortSignal) => api.getEvents({ search: debouncedSearch, category, date }, page, 12, signal),
+    [category, date, debouncedSearch, page],
   )
   const { data: events, loading, error, reload } = useApiResource(loadEvents)
 

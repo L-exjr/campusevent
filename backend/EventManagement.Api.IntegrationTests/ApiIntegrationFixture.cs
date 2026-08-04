@@ -104,6 +104,35 @@ public sealed class ApiIntegrationFixture : IAsyncLifetime
         return await dbContext.EmailOutboxMessages.CountAsync(message => message.Kind == kind);
     }
 
+    public async Task<Guid> CreateFailedEmailOutboxMessageAsync(string kind, string? payloadJson)
+    {
+        await using var dbContext = CreateDbContext();
+        var message = new EmailOutboxMessage
+        {
+            IdempotencyKey = $"integration-failed:{Guid.NewGuid():N}",
+            Kind = kind,
+            AggregateId = Guid.NewGuid(),
+            PayloadJson = payloadJson,
+            Status = EmailOutboxStatus.Failed,
+            AttemptCount = 8,
+            LastError = "Provider unavailable"
+        };
+        dbContext.EmailOutboxMessages.Add(message);
+        await dbContext.SaveChangesAsync();
+        return message.Id;
+    }
+
+    public async Task<(EmailOutboxStatus Status, int AttemptCount)> GetEmailOutboxStateAsync(Guid id)
+    {
+        await using var dbContext = CreateDbContext();
+        return await dbContext.EmailOutboxMessages
+            .Where(message => message.Id == id)
+            .Select(message => new ValueTuple<EmailOutboxStatus, int>(
+                message.Status,
+                message.AttemptCount))
+            .SingleAsync();
+    }
+
     public async Task SetAuthRateLimitCountAsync(
         string scope,
         string operation,

@@ -142,6 +142,7 @@ builder.Services.AddScoped<EventReminderEnqueuer>();
 builder.Services.AddScoped<IEmailOutboxHandler, EventReminderEmailOutboxHandler>();
 builder.Services.AddScoped<IEmailOutboxHandler, PayloadEmailOutboxHandler>();
 builder.Services.AddScoped<EmailOutboxMessageProcessor>();
+builder.Services.AddScoped<EmailOutboxAdministrationService>();
 // A database-backed scheduler such as Hangfire is the natural upgrade if
 // reminder volume, retry guarantees, or timing precision outgrow this worker.
 builder.Services.AddHostedService<EmailOutboxBackgroundService>();

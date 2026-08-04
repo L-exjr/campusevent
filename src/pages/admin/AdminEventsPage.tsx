@@ -8,6 +8,7 @@ import Modal from 'react-bootstrap/Modal'
 import Row from 'react-bootstrap/Row'
 import { api } from '../../api'
 import AdminEventTable from '../../components/admin/AdminEventTable'
+import TransferEventOwnershipModal from '../../components/admin/TransferEventOwnershipModal'
 import EventForm from '../../components/events/EventForm'
 import ConfirmModal from '../../components/shared/ConfirmModal'
 import EmptyState from '../../components/shared/EmptyState'
@@ -16,6 +17,7 @@ import LoadingState from '../../components/shared/LoadingState'
 import PageHeader from '../../components/shared/PageHeader'
 import PaginationControls from '../../components/shared/PaginationControls'
 import { useApiResource } from '../../hooks/useApiResource'
+import { useDebouncedValue } from '../../hooks/useDebouncedValue'
 import type { EventInput, EventItem } from '../../types'
 import { EVENT_CATEGORIES } from '../../types'
 
@@ -25,13 +27,15 @@ export default function AdminEventsPage() {
   const [editorOpen, setEditorOpen] = useState(false)
   const [editing, setEditing] = useState<EventItem | null>(null)
   const [deleting, setDeleting] = useState<EventItem | null>(null)
+  const [transferring, setTransferring] = useState<EventItem | null>(null)
   const [busy, setBusy] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
   const [page, setPage] = useState(1)
+  const debouncedSearch = useDebouncedValue(search)
   const loadEvents = useCallback(
-    () => api.getAllEvents(page, 20, { search, category }),
-    [category, page, search],
+    (signal: AbortSignal) => api.getAllEvents(page, 20, { search: debouncedSearch, category }, signal),
+    [category, debouncedSearch, page],
   )
   const { data: eventPage, loading, error, reload } = useApiResource(loadEvents)
 
@@ -84,6 +88,22 @@ export default function AdminEventsPage() {
     }
   }
 
+  const transferOwnership = async (organizerId: string) => {
+    if (!transferring) return
+    setBusy(true)
+    setActionError(null)
+    try {
+      await api.transferEventOwnership(transferring.id, organizerId, transferring.version)
+      setNotice('Event ownership transferred successfully.')
+      setTransferring(null)
+      await reload()
+    } catch (caught) {
+      setActionError(caught instanceof Error ? caught.message : 'Event ownership could not be transferred.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
   return (
     <>
       <PageHeader
@@ -124,7 +144,12 @@ export default function AdminEventsPage() {
         <ErrorState message={error} onRetry={() => void reload()} />
       ) : eventPage?.items.length ? (
         <>
-          <AdminEventTable events={eventPage.items} onEdit={openEdit} onDelete={setDeleting} />
+          <AdminEventTable
+            events={eventPage.items}
+            onEdit={openEdit}
+            onTransfer={(event) => { setActionError(null); setTransferring(event) }}
+            onDelete={setDeleting}
+          />
           <PaginationControls {...eventPage} label="events" onPageChange={setPage} />
         </>
       ) : (
@@ -169,6 +194,15 @@ export default function AdminEventsPage() {
         onConfirm={() => void deleteEvent()}
         onHide={() => setDeleting(null)}
       />
+      {transferring && (
+        <TransferEventOwnershipModal
+          event={transferring}
+          busy={busy}
+          error={actionError}
+          onTransfer={(organizerId) => void transferOwnership(organizerId)}
+          onHide={() => { if (!busy) { setTransferring(null); setActionError(null) } }}
+        />
+      )}
     </>
   )
 }

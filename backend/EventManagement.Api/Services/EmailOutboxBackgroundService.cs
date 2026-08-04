@@ -9,7 +9,6 @@ public sealed class EmailOutboxBackgroundService(
     IConfiguration configuration,
     ILogger<EmailOutboxBackgroundService> logger) : BackgroundService
 {
-    private readonly Guid _workerId = Guid.NewGuid();
     private DateTimeOffset _nextReminderScan = DateTimeOffset.MinValue;
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -38,12 +37,44 @@ public sealed class EmailOutboxBackgroundService(
                     1));
             }
 
-            var messages = await ClaimBatchAsync(cancellationToken);
-            foreach (var message in messages)
+            var batch = await ClaimBatchAsync(cancellationToken);
+            foreach (var message in batch.Messages)
             {
-                await using var processingScope = scopeFactory.CreateAsyncScope();
-                await processingScope.ServiceProvider.GetRequiredService<EmailOutboxMessageProcessor>()
-                    .ProcessAsync(message, _workerId, cancellationToken);
+                try
+                {
+                    await using var processingScope = scopeFactory.CreateAsyncScope();
+                    await processingScope.ServiceProvider.GetRequiredService<EmailOutboxMessageProcessor>()
+                        .ProcessAsync(message, batch.ClaimId, cancellationToken);
+                }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                {
+                    throw;
+                }
+                catch (Exception exception)
+                {
+                    logger.LogError(
+                        exception,
+                        "Email outbox message {MessageId} failed unexpectedly; continuing the batch.",
+                        message.Id);
+                    try
+                    {
+                        await using var recoveryScope = scopeFactory.CreateAsyncScope();
+                        await recoveryScope.ServiceProvider
+                            .GetRequiredService<EmailOutboxMessageProcessor>()
+                            .RecoverUnexpectedFailureAsync(
+                                message.Id,
+                                batch.ClaimId,
+                                exception,
+                                cancellationToken);
+                    }
+                    catch (Exception recoveryException)
+                    {
+                        logger.LogError(
+                            recoveryException,
+                            "Could not release failed email outbox claim {MessageId}; the lease will expire.",
+                            message.Id);
+                    }
+                }
             }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -56,7 +87,7 @@ public sealed class EmailOutboxBackgroundService(
         }
     }
 
-    private async Task<IReadOnlyList<EmailOutboxMessage>> ClaimBatchAsync(
+    private async Task<ClaimedEmailBatch> ClaimBatchAsync(
         CancellationToken cancellationToken)
     {
         await using var scope = scopeFactory.CreateAsyncScope();
@@ -66,6 +97,7 @@ public sealed class EmailOutboxBackgroundService(
             configuration.GetValue("Email:Outbox:ClaimLeaseMinutes", 10),
             1));
         var batchSize = Math.Clamp(configuration.GetValue("Email:Outbox:BatchSize", 50), 1, 500);
+        var claimId = Guid.NewGuid();
 
         await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
         await dbContext.Database.ExecuteSqlInterpolatedAsync(
@@ -81,7 +113,7 @@ public sealed class EmailOutboxBackgroundService(
             )
             UPDATE "EmailOutboxMessages" AS message
             SET "Status" = 'Processing',
-                "ClaimedBy" = {_workerId},
+                "ClaimedBy" = {claimId},
                 "ClaimedAt" = {now},
                 "AttemptCount" = message."AttemptCount" + 1
             FROM candidates
@@ -90,10 +122,15 @@ public sealed class EmailOutboxBackgroundService(
             cancellationToken);
         await transaction.CommitAsync(cancellationToken);
 
-        return await dbContext.EmailOutboxMessages.AsNoTracking()
-            .Where(message => message.ClaimedBy == _workerId &&
+        var messages = await dbContext.EmailOutboxMessages.AsNoTracking()
+            .Where(message => message.ClaimedBy == claimId &&
                               message.Status == EmailOutboxStatus.Processing)
             .OrderBy(message => message.CreatedAt)
             .ToListAsync(cancellationToken);
+        return new ClaimedEmailBatch(claimId, messages);
     }
+
+    private sealed record ClaimedEmailBatch(
+        Guid ClaimId,
+        IReadOnlyList<EmailOutboxMessage> Messages);
 }

@@ -98,6 +98,14 @@ public sealed class EventsController(IEventService eventService) : ControllerBas
             request,
             cancellationToken));
 
+    [Authorize(Roles = "Admin")]
+    [HttpPut("{id:guid}/organizer")]
+    public async Task<ActionResult<EventResponse>> TransferOwnership(
+        Guid id,
+        TransferEventOwnershipRequest request,
+        CancellationToken cancellationToken) =>
+        Ok(await eventService.TransferOwnershipAsync(id, request, cancellationToken));
+
     [Authorize(Roles = "Organizer,Admin")]
     [HttpDelete("{id:guid}")]
     public async Task<IActionResult> Delete(Guid id, CancellationToken cancellationToken)

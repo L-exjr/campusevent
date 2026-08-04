@@ -61,6 +61,21 @@ public sealed class PayloadEmailOutboxHandler(
                     "The password reset token is no longer valid.");
             }
         }
+        else if (message.Kind == EmailOutbox.RegistrationConfirmationKind)
+        {
+            var registration = await dbContext.EventRegistrations.AsNoTracking()
+                .Where(item => item.Id == message.AggregateId)
+                .Select(item => new { StudentIsActive = item.Student.IsActive })
+                .SingleOrDefaultAsync(cancellationToken);
+            if (!RegistrationConfirmationEmailPolicy.ShouldDeliver(
+                    registration is not null,
+                    registration?.StudentIsActive ?? false))
+            {
+                return new EmailOutboxHandlingResult(
+                    EmailOutboxOutcome.Discard,
+                    "The registration confirmation is no longer valid.");
+            }
+        }
 
         EmailOutboxPayload? payload;
         try

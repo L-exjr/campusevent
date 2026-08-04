@@ -49,8 +49,12 @@ export async function apiRequest<T>(path: string, options: RequestInit = {}): Pr
   let response: Response
   try {
     response = await fetch(`${API_BASE_URL}${path}`, { ...options, headers })
-  } catch {
-    throw new Error('The API is unavailable. Check that the backend is running and try again.')
+  } catch (caught) {
+    if (caught instanceof Error && caught.name === 'AbortError') throw caught
+    throw new Error(
+      'The API is unavailable. Check that the backend is running and try again.',
+      { cause: caught },
+    )
   }
 
   const body = response.status === 204

@@ -48,6 +48,10 @@ public interface IEventService
         UserRole actorRole,
         EventUpsertRequest request,
         CancellationToken cancellationToken);
+    Task<EventResponse> TransferOwnershipAsync(
+        Guid eventId,
+        TransferEventOwnershipRequest request,
+        CancellationToken cancellationToken);
     Task DeleteAsync(
         Guid eventId,
         Guid actorId,
@@ -282,6 +286,65 @@ public sealed class EventService(
                 bookingRequest.UpdatedAt = DateTimeOffset.UtcNow;
             }
         }
+        try
+        {
+            await dbContext.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            throw new ApiException(
+                StatusCodes.Status409Conflict,
+                "This event changed after you opened it. Refresh and try again.");
+        }
+        await transaction.CommitAsync(cancellationToken);
+        return eventEntity.ToResponse(registrationCount);
+    }
+
+    public async Task<EventResponse> TransferOwnershipAsync(
+        Guid eventId,
+        TransferEventOwnershipRequest request,
+        CancellationToken cancellationToken)
+    {
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
+        var newOrganizer = await dbContext.Users
+            .FromSqlInterpolated($"SELECT * FROM \"Users\" WHERE \"Id\" = {request.OrganizerId} FOR UPDATE")
+            .SingleOrDefaultAsync(cancellationToken)
+            ?? throw new ApiException(StatusCodes.Status404NotFound, "Organizer not found.");
+        if (!newOrganizer.IsActive || newOrganizer.Role != UserRole.Organizer)
+            throw new ApiException(
+                StatusCodes.Status409Conflict,
+                "Event ownership can only be transferred to an active Organizer.");
+
+        var eventEntity = await dbContext.Events
+            .FromSqlInterpolated($"SELECT * FROM \"Events\" WHERE \"Id\" = {eventId} FOR UPDATE")
+            .Include(item => item.Organizer)
+            .SingleOrDefaultAsync(cancellationToken)
+            ?? throw new ApiException(StatusCodes.Status404NotFound, "Event not found.");
+        if (eventEntity.Version != request.Version)
+            throw new ApiException(
+                StatusCodes.Status409Conflict,
+                "This event changed after you opened it. Refresh and try again.");
+        if (eventEntity.OrganizerId == newOrganizer.Id)
+            throw new ApiException(StatusCodes.Status409Conflict, "This Organizer already owns the event.");
+
+        eventEntity.OrganizerId = newOrganizer.Id;
+        eventEntity.Organizer = newOrganizer;
+        eventEntity.Version += 1;
+
+        var acceptedStatus = BookingRequestStatus.Accepted.ToString();
+        var sourceRequest = await dbContext.BookingRequests
+            .FromSqlInterpolated(
+                $"SELECT * FROM \"BookingRequests\" WHERE \"DraftEventId\" = {eventId} AND \"Status\" = {acceptedStatus} FOR UPDATE")
+            .SingleOrDefaultAsync(cancellationToken);
+        if (sourceRequest is not null)
+        {
+            sourceRequest.AssignedOrganizerId = newOrganizer.Id;
+            sourceRequest.UpdatedAt = DateTimeOffset.UtcNow;
+        }
+
+        var registrationCount = await dbContext.EventRegistrations.CountAsync(
+            registration => registration.EventId == eventId,
+            cancellationToken);
         try
         {
             await dbContext.SaveChangesAsync(cancellationToken);
