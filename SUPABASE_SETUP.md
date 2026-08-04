@@ -1,51 +1,31 @@
 # Supabase Storage setup
 
-Supabase is used only for object storage. Campus Events continues to use its own
-ASP.NET Core JWT authentication and EF Core/PostgreSQL database. Do not enable or
-integrate Supabase Auth, and do not point the application at Supabase Postgres.
+Supabase is used only for object storage. Campus Events keeps its ASP.NET Core
+JWT authentication and EF Core/PostgreSQL database. Every upload is authorized
+and validated by the ASP.NET API before the backend writes to Supabase with a
+server-only service-role key.
 
-## 1. Open the existing project and get browser configuration
+## 1. Configure backend credentials
 
-This setup assumes the Supabase project already exists. Do not create another
-project for this workspace.
-
-1. Sign in to the [Supabase dashboard](https://supabase.com/dashboard), select the
-   organization, and open the existing Event Management System project.
-2. Click **Connect** in the project toolbar and open **App Frameworks**.
-3. Copy the **Project URL** and the **Publishable key**. If the project still uses
-   legacy JWT keys, open **Project Settings → API Keys → Legacy API Keys** and
-   copy the `anon` key instead. Never use a secret or `service_role` key here.
-4. The project URL can also be copied from **Project Settings → Data API**.
-5. Copy `.env.example` to `.env` and set:
-   works. Never copy a `service_role` or secret key into the frontend.
-   ```dotenv
-   VITE_SUPABASE_URL=https://your-project-ref.supabase.co
-   VITE_SUPABASE_ANON_KEY=your-anon-or-publishable-key
-   ```
-
-The publishable/anon key is intentionally exposed to the browser and its power is
-limited by Storage policies. Any variable prefixed with `VITE_` is compiled into
-the client bundle, so a service-role key must never be used here.
-
-The repository ignores `.env`; only the empty `.env.example` template is checked
-in. Once the values and buckets are configured, verify the live connection with:
+In **Supabase → Project Settings → API Keys**, obtain the Project URL and the
+service-role key. Store them only in backend User Secrets or the deployment
+secret manager:
 
 ```bash
-npm run supabase:smoke
+cd backend/EventManagement.Api
+dotnet user-secrets set "Supabase:Url" "https://your-project-ref.supabase.co"
+dotnet user-secrets set "Supabase:ServiceRoleKey" "your-service-role-key"
 ```
 
-The command lists at most one object from each image bucket and prints a success
-line for `event-images` and `profile-images`. It does not use Supabase Auth or its
-Postgres database.
+Production uses `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`. Never create a
+`VITE_SUPABASE_SERVICE_ROLE_KEY`; all `VITE_*` values are compiled into the
+browser bundle.
 
 ## 2. Create the public image buckets
 
-Use **Storage → New bucket** to create `event-images` and `profile-images`. Mark
-both as public, restrict MIME types to `image/jpeg`, `image/png`, and `image/webp`,
-and set the file-size limit to 5 MB.
-
-Alternatively, run this in the Supabase SQL editor to create both buckets with
-the same restrictions:
+Create `event-images` and `profile-images` as public-read buckets. Restrict both
+to 5 MB and `image/jpeg`, `image/png`, and `image/webp`. Public reads are required
+because event and profile image URLs appear in normal page markup.
 
 ```sql
 insert into storage.buckets
@@ -61,69 +41,30 @@ on conflict (id) do update set
   allowed_mime_types = excluded.allowed_mime_types;
 ```
 
-Public buckets allow anyone who has an object URL to view it. That is appropriate
-for public event covers and the current product decision for profile pictures.
-Profile pictures should be moved to a private bucket if they become sensitive;
-that design would require short-lived signed URLs from trusted server-side code or
-an Edge Function instead of permanently storing a public URL.
+## 3. Remove anonymous write policies
 
-## 3. Allow browser uploads
+The service-role key bypasses Storage RLS, so the browser needs no Supabase
+INSERT/UPDATE/DELETE policy. Remove the former anonymous upload policies after
+the backend proxy is deployed and verified. Keep only policies required for the
+chosen public/private read model.
 
-A public bucket makes downloads public, but uploads still require an RLS policy.
-This application intentionally does not use Supabase Auth, so Supabase cannot
-interpret the application's JWT. Direct uploads must therefore permit the `anon`
-role:
+The application exposes:
 
-```sql
-create policy "Allow anonymous event image uploads"
-on storage.objects for insert to anon
-with check (bucket_id = 'event-images');
+- `POST /api/uploads/profile-image` for any authenticated active user.
+- `POST /api/uploads/event-image` for Organizer or Admin users.
 
-create policy "Allow anonymous profile image uploads"
-on storage.objects for insert to anon
-with check (bucket_id = 'profile-images');
-```
-
-Do not add anonymous `UPDATE` or `DELETE` policies. Uploads use random object names
-and `upsert: false`, so clients cannot overwrite existing images. If uploads fail
-with a `RETURNING`/RLS error in your Supabase project, add metadata-read policies:
-
-```sql
-create policy "Allow event image metadata reads"
-on storage.objects for select to anon
-using (bucket_id = 'event-images');
-
-create policy "Allow profile image metadata reads"
-on storage.objects for select to anon
-using (bucket_id = 'profile-images');
-```
-
-### Security limitation
-
-The UI validates JPG/PNG/WebP and a 5 MB maximum, while bucket restrictions provide
-a second content-type/size boundary. A malicious client can still bypass the UI and
-use the public key to upload directly, and MIME declarations alone do not prove file
-contents. For production, put upload authorization and content inspection in a
-Supabase Edge Function or another trusted service that validates the Campus Events
-JWT and returns a controlled upload URL. This MVP does not proxy file bytes through
-the ASP.NET Core API.
+Both endpoints accept multipart field `file`, enforce a 5 MB maximum, allow only
+JPG/PNG/WebP, validate magic bytes, and return `{ "url": "..." }`. Provider
+failures return a controlled 502 response; raw Supabase errors and credentials
+are never returned.
 
 Official references:
 
 - [Storage bucket access models](https://supabase.com/docs/guides/storage/buckets/fundamentals)
-- [Storage access-control policies](https://supabase.com/docs/guides/storage/security/access-control)
-- [JavaScript file uploads](https://supabase.com/docs/reference/javascript/file-buckets-upload)
-- [Public asset URLs](https://supabase.com/docs/reference/javascript/file-buckets-getpublicurl)
+- [Storage access control](https://supabase.com/docs/guides/storage/security/access-control)
+- [Service-role security](https://supabase.com/docs/guides/api/api-keys)
 
-## 4. Apply the application migration
+## 4. Application database
 
-The application database remains the source of truth for URLs. Apply the EF Core
-migration to the existing application PostgreSQL database:
-
-```bash
-cd backend
-dotnet ef database update --project EventManagement.Api/EventManagement.Api.csproj
-```
-
-The migration adds nullable `ImageUrl` columns to `Events` and `Users`. Existing
-rows remain valid and render with local placeholder images.
+The application database remains the source of truth for image URLs. Existing
+nullable `ImageUrl` columns on `Events` and `Users` require no new migration.

@@ -10,7 +10,7 @@ import {
   IMAGE_ACCEPT,
   uploadImage,
   validateImageFile,
-} from '../../api/supabaseStorage'
+} from '../../api/imageStorage'
 import PageHeader from '../../components/shared/PageHeader'
 import { useAuth } from '../../hooks/useAuth'
 

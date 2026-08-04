@@ -30,7 +30,9 @@ public interface IUserService
     Task DeactivateAsync(Guid userId, Guid adminId, CancellationToken cancellationToken);
 }
 
-public sealed class UserService(AppDbContext dbContext) : IUserService
+public sealed class UserService(
+    AppDbContext dbContext,
+    IImageLifecycleService imageLifecycleService) : IUserService
 {
     public async Task<PaginatedResponse<UserResponse>> GetAsync(
         string? search,
@@ -111,7 +113,15 @@ public sealed class UserService(AppDbContext dbContext) : IUserService
             cancellationToken)
             ?? throw new ApiException(StatusCodes.Status404NotFound, "User account not found.");
 
-        user.ImageUrl = string.IsNullOrWhiteSpace(imageUrl) ? null : imageUrl.Trim();
+        var image = await imageLifecycleService.ClaimAsync(
+            actorId,
+            ImageUploadKind.Profile,
+            imageUrl,
+            user.ImageUrl,
+            user.ImageObjectKey,
+            cancellationToken);
+        user.ImageUrl = image.Url;
+        user.ImageObjectKey = image.ObjectKey;
         await dbContext.SaveChangesAsync(cancellationToken);
         return user.ToResponse();
     }

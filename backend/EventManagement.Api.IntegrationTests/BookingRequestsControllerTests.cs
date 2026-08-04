@@ -63,6 +63,49 @@ public sealed class BookingRequestsControllerTests(ApiIntegrationFixture fixture
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
     }
 
+    [Fact]
+    public async Task Two_simultaneous_accepts_create_one_draft_and_one_conflict()
+    {
+        await ResetAsync();
+        var organizer = await CreateActorAsync("concurrent-booking-organizer@example.test", "Organizer");
+        var admin = await LoginAdminAsync();
+        using var publicClient = Fixture.CreateClient();
+        using var submission = await publicClient.PostAsJsonAsync("/api/booking-requests", Payload());
+        var bookingId = (await ReadJsonAsync(submission)).GetProperty("id").GetGuid();
+
+        using var adminClient = CreateAuthenticatedClient(admin.Token);
+        using var assignment = await adminClient.PutAsJsonAsync(
+            $"/api/booking-requests/{bookingId}/assign", new { organizerId = organizer.UserId });
+        assignment.EnsureSuccessStatusCode();
+
+        using var firstClient = CreateAuthenticatedClient(organizer.Token);
+        using var secondClient = CreateAuthenticatedClient(organizer.Token);
+        var gate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var firstTask = SendAfterGateAsync(
+            gate.Task,
+            () => firstClient.PutAsJsonAsync(
+                $"/api/booking-requests/{bookingId}/respond",
+                new { accept = true, note = "First concurrent response." }));
+        var secondTask = SendAfterGateAsync(
+            gate.Task,
+            () => secondClient.PutAsJsonAsync(
+                $"/api/booking-requests/{bookingId}/respond",
+                new { accept = true, note = "Second concurrent response." }));
+
+        gate.SetResult();
+        var responses = await Task.WhenAll(firstTask, secondTask);
+        try
+        {
+            Assert.Equal(1, responses.Count(response => response.StatusCode == HttpStatusCode.OK));
+            Assert.Equal(1, responses.Count(response => response.StatusCode == HttpStatusCode.Conflict));
+            Assert.Equal(1, await Fixture.CountEventsAsync());
+        }
+        finally
+        {
+            foreach (var response in responses) response.Dispose();
+        }
+    }
+
     private static object Payload(string website = "") => new
     {
         organizationName = "Integration Test Society",

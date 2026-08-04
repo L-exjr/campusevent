@@ -16,7 +16,6 @@ WORKDIR /app
 COPY --from=build /app/publish .
 
 ENV ASPNETCORE_ENVIRONMENT=Production \
-    ASPNETCORE_FORWARDEDHEADERS_ENABLED=true \
     Database__ApplyMigrations=true
 EXPOSE 8080
 USER $APP_UID

@@ -114,6 +114,16 @@ public abstract class IntegrationTestBase(ApiIntegrationFixture fixture)
         reason = "I want to organize useful events for the campus community."
     };
 
+    protected static MultipartFormDataContent CreatePngUpload()
+    {
+        var pngHeader = new byte[] { 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A };
+        var file = new ByteArrayContent(pngHeader);
+        file.Headers.ContentType = new MediaTypeHeaderValue("image/png");
+        var form = new MultipartFormDataContent();
+        form.Add(file, "file", "test.png");
+        return form;
+    }
+
     protected static async Task<JsonElement> ReadJsonAsync(HttpResponseMessage response)
     {
         await using var stream = await response.Content.ReadAsStreamAsync();

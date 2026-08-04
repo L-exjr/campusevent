@@ -12,7 +12,7 @@ import {
   IMAGE_ACCEPT,
   uploadImage,
   validateImageFile,
-} from '../../api/supabaseStorage'
+} from '../../api/imageStorage'
 
 interface EventFormProps {
   event?: EventItem | null

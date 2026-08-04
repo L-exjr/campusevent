@@ -2,7 +2,7 @@ namespace EventManagement.Api.Services;
 
 public interface IEmailService
 {
-    Task<bool> SendAsync(
+    Task<bool> SendEmailAsync(
         string recipientEmail,
         string recipientName,
         string subject,

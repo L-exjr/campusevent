@@ -190,7 +190,7 @@ public sealed class OrganizerApplicationService(
                 : string.IsNullOrWhiteSpace(rejectionReason)
                     ? "Contact an administrator if you would like more information."
                     : $"Reason: {rejectionReason}";
-            await emailService.SendAsync(
+            await emailService.SendEmailAsync(
                 application.User.Email,
                 application.User.Name,
                 $"Your Organizer application was {decision}",

@@ -67,6 +67,7 @@ public interface IEventService
 public sealed class EventService(
     AppDbContext dbContext,
     IEventAuthorizationService authorizationService,
+    IImageLifecycleService imageLifecycleService,
     IEmailService emailService,
     ILogger<EventService> logger) : IEventService
 {
@@ -148,6 +149,13 @@ public sealed class EventService(
             ?? throw new ApiException(StatusCodes.Status404NotFound, "Creating user not found.");
         if (organizer.Role is not (UserRole.Organizer or UserRole.Admin))
             throw new ApiException(StatusCodes.Status403Forbidden, "Only Organizers or Admins can create events.");
+        var image = await imageLifecycleService.ClaimAsync(
+            actorId,
+            ImageUploadKind.Event,
+            input.ImageUrl,
+            null,
+            null,
+            cancellationToken);
         var eventEntity = new EventEntity
         {
             Title = input.Title,
@@ -156,7 +164,8 @@ public sealed class EventService(
             Location = input.Location,
             Capacity = input.Capacity,
             Category = input.Category,
-            ImageUrl = input.ImageUrl,
+            ImageUrl = image.Url,
+            ImageObjectKey = image.ObjectKey,
             OrganizerId = actorId,
             Organizer = organizer,
             IsPublished = request.IsPublished ?? true
@@ -193,7 +202,15 @@ public sealed class EventService(
         eventEntity.Location = input.Location;
         eventEntity.Capacity = input.Capacity;
         eventEntity.Category = input.Category;
-        eventEntity.ImageUrl = input.ImageUrl;
+        var image = await imageLifecycleService.ClaimAsync(
+            actorId,
+            ImageUploadKind.Event,
+            input.ImageUrl,
+            eventEntity.ImageUrl,
+            eventEntity.ImageObjectKey,
+            cancellationToken);
+        eventEntity.ImageUrl = image.Url;
+        eventEntity.ImageObjectKey = image.ObjectKey;
         eventEntity.IsPublished = request.IsPublished ?? eventEntity.IsPublished;
         if (eventEntity.IsPublished)
         {
@@ -221,6 +238,9 @@ public sealed class EventService(
             cancellationToken)
             ?? throw new ApiException(StatusCodes.Status404NotFound, "Event not found.");
         authorizationService.EnsureCanManage(eventEntity.OrganizerId, actorId, actorRole);
+        await imageLifecycleService.MarkForDeletionAsync(
+            eventEntity.ImageObjectKey,
+            cancellationToken);
         dbContext.Events.Remove(eventEntity);
         await dbContext.SaveChangesAsync(cancellationToken);
     }
@@ -281,7 +301,7 @@ public sealed class EventService(
 
         try
         {
-            await emailService.SendAsync(
+            await emailService.SendEmailAsync(
                 student.Email,
                 student.Name,
                 $"Registration confirmed: {eventEntity.Title}",

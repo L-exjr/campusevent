@@ -32,6 +32,8 @@ internal sealed class ApiWebApplicationFactory : WebApplicationFactory<Program>
         {
             services.RemoveAll<IGoogleTokenValidator>();
             services.AddSingleton<IGoogleTokenValidator, TestGoogleTokenValidator>();
+            services.RemoveAll<IImageStorageService>();
+            services.AddSingleton<IImageStorageService, TestImageStorageService>();
         });
     }
 
@@ -60,6 +62,31 @@ internal sealed class ApiWebApplicationFactory : WebApplicationFactory<Program>
             throw new InvalidOperationException(
                 "TEST_JWT_SIGNING_KEY must contain at least 32 characters.");
         return configuredKey;
+    }
+}
+
+internal sealed class TestImageStorageService : IImageStorageService
+{
+    public Task<StoredImage> UploadImageAsync(
+        Stream content,
+        string contentType,
+        string bucket,
+        string extension,
+        Guid ownerId,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var key = $"{ownerId:N}/{Guid.NewGuid():N}.{extension}";
+        return Task.FromResult(new StoredImage(key, $"https://storage.example.test/{bucket}/{key}"));
+    }
+
+    public Task DeleteImageAsync(
+        string bucket,
+        string objectKey,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.CompletedTask;
     }
 }
 

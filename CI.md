@@ -35,7 +35,7 @@ running the workflow:
 Use separate, clearly disposable values. Never copy a production database
 password, JWT key, Mailtrap credential, or Supabase credential into these
 secrets. Mailtrap and Supabase secrets are not required: CI does not send external
-email or call live storage. Email failure isolation is exercised without an SMTP
+email or call live storage. Email failure isolation is exercised without a live API
 provider, and storage tests use local test doubles.
 
 GitHub does not expose repository secrets to workflows triggered from untrusted

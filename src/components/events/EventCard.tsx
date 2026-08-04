@@ -4,7 +4,7 @@ import ProgressBar from 'react-bootstrap/ProgressBar'
 import type { EventItem } from '../../types'
 import { formatDate, formatTime } from '../../utils/formatters'
 import LinkButton from '../shared/LinkButton'
-import { DEFAULT_EVENT_IMAGE } from '../../api/supabaseStorage'
+import { DEFAULT_EVENT_IMAGE } from '../../api/imageStorage'
 
 interface EventCardProps {
   event: EventItem

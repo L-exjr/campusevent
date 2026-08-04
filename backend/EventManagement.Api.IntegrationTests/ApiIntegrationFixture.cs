@@ -43,6 +43,8 @@ public sealed class ApiIntegrationFixture : IAsyncLifetime
         await dbContext.Database.ExecuteSqlRawAsync(
             """
             TRUNCATE TABLE
+                "AuthRateLimitBuckets",
+                "EmailOutboxMessages",
                 "EventRegistrations",
                 "OrganizerApplications",
                 "PasswordResetTokens",
@@ -88,6 +90,50 @@ public sealed class ApiIntegrationFixture : IAsyncLifetime
     {
         await using var dbContext = CreateDbContext();
         return await dbContext.BookingRequests.CountAsync();
+    }
+
+    public async Task<int> CountEventsAsync()
+    {
+        await using var dbContext = CreateDbContext();
+        return await dbContext.Events.CountAsync();
+    }
+
+    public async Task SetAuthRateLimitCountAsync(
+        string scope,
+        string operation,
+        string discriminator,
+        int count)
+    {
+        var normalized = discriminator.Trim().ToLowerInvariant();
+        var hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(normalized)));
+        await using var dbContext = CreateDbContext();
+        dbContext.AuthRateLimitBuckets.Add(new AuthRateLimitBucket
+        {
+            Key = $"{scope}:{operation}:{hash}",
+            WindowStartedAt = DateTimeOffset.UtcNow,
+            AttemptCount = count,
+            UpdatedAt = DateTimeOffset.UtcNow
+        });
+        await dbContext.SaveChangesAsync();
+    }
+
+    public async Task<(string? Url, string? ObjectKey)> GetUserImageStateAsync(Guid userId)
+    {
+        await using var dbContext = CreateDbContext();
+        var state = await dbContext.Users
+            .Where(user => user.Id == userId)
+            .Select(user => new { user.ImageUrl, user.ImageObjectKey })
+            .SingleAsync();
+        return (state.ImageUrl, state.ImageObjectKey);
+    }
+
+    public async Task<ImageUploadStatus> GetImageUploadStatusAsync(string objectKey)
+    {
+        await using var dbContext = CreateDbContext();
+        return await dbContext.ImageUploads
+            .Where(upload => upload.ObjectKey == objectKey)
+            .Select(upload => upload.Status)
+            .SingleAsync();
     }
 
     public async Task<string> CreateResetTokenAsync(Guid userId, DateTimeOffset expiresAt)

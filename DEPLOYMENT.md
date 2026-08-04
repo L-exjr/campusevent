@@ -52,16 +52,19 @@ stored in this repository.
 | `Google__ClientSecret` | Store here if Google issued one; reserved for a future authorization-code flow and unused by the current ID-token flow. |
 | `DemoData__Enabled` | Optional one-time KNUST demonstration dataset switch. Set to `true` only while seeding, then set it back to `false`. |
 | `DemoData__Password` | Optional 12+ character password for the deliberately created demo accounts; do not reuse a real password. |
-| `Email__Smtp__Host` | Production SMTP hostname. |
-| `Email__Smtp__Port` | Production SMTP port. |
-| `Email__Smtp__Username` | Production SMTP username. |
-| `Email__Smtp__Password` | Production SMTP password. |
-| `Email__Smtp__FromAddress` | Verified sender address. |
-| `Email__Smtp__FromName` | Sender display name. |
-| `Email__Smtp__EnableSsl` | Enables SMTP TLS. |
-| `Email__Api__Token` | Mailtrap API token used over HTTPS. Required on Railway Trial/Hobby, where outbound SMTP is blocked. |
-| `Email__Api__InboxId` | Mailtrap Sandbox inbox ID when sandbox mode is enabled. |
-| `Email__Api__UseSandbox` | `true` to capture messages in Mailtrap Sandbox; `false` for Mailtrap transactional sending with a verified domain. |
+| `SUPABASE_URL` | Supabase project URL used only by the backend upload proxy. |
+| `SUPABASE_SERVICE_ROLE_KEY` | Server-only Supabase service-role key. Never use a `VITE_*` name or expose it to the browser. |
+| `MAILTRAP_API_TOKEN` | Mailtrap Sending API token. Store it only in Railway variables. |
+| `MAILTRAP_SENDER_EMAIL` | Sender accepted by Mailtrap; use `hello@demomailtrap.co` with the free demo domain. |
+| `MAILTRAP_SENDER_NAME` | Optional sender display name; defaults to `Campus Events`. |
+
+Optional production tuning uses normal ASP.NET Core double-underscore keys. The
+tracked defaults are safe starting points: `AuthRateLimiting__Ip__Login__PermitLimit=30`,
+`AuthRateLimiting__Account__Login__PermitLimit=8`,
+`Images__UploadRateLimit__PermitLimit=10`, `Email__Outbox__BatchSize=50`, and
+`Images__Cleanup__PendingRetentionHours=24`. Rate-limit counters, email claims,
+and image cleanup claims are stored in PostgreSQL, so these controls remain
+consistent when the Railway service has multiple replicas.
 
 Railway injects `PORT`; do not create or override it. The container enables
 ASP.NET Core forwarded-header processing because Railway terminates TLS before
@@ -114,8 +117,6 @@ Configure these variables for Vercel's **Production** environment:
 | --- | --- |
 | `VITE_API_BASE_URL` | Railway public HTTPS API URL ending in `/api`. |
 | `VITE_USE_MOCK_API` | Production must not enable mock mode. |
-| `VITE_SUPABASE_URL` | Existing Supabase project URL. |
-| `VITE_SUPABASE_ANON_KEY` | Browser-safe publishable/anon key, never `service_role`. |
 | `VITE_GOOGLE_CLIENT_ID` | Google OAuth web client ID. |
 
 Do not mark `VITE_*` variables as **Sensitive** in Vercel. Vercel masks
@@ -149,7 +150,10 @@ wildcard Vercel preview origins.
 
 ## First deployment and verification
 
-1. Merge only additive, reviewed EF migrations into `main`.
+1. Merge only additive, reviewed EF migrations into `main`. The email outbox,
+   image lifecycle, and distributed auth limiter each add an independent table;
+   the image migration also adds nullable `ImageObjectKey` columns to `Users`
+   and `Events`.
 2. Confirm both GitHub test jobs pass and both deploy jobs succeed.
 3. In Railway logs, confirm `EF Core database migrations are up to date`, the
    Production environment, and a successful `/health` deployment check.
@@ -165,15 +169,18 @@ wildcard Vercel preview origins.
 5. Register a real Student, log in, and open a JWT-protected Student route from
    the Vercel origin. Confirm the browser has no CORS errors and the API returns
    the expected authenticated response.
-6. Upload one event/profile image and verify it is readable from the configured
-   Supabase bucket.
-7. Request a password reset or trigger another notification and confirm the
-   message reaches the configured Mailtrap inbox or production provider.
+6. Upload one event/profile image and verify the browser sends multipart data to
+   `/api/uploads/*`, the authenticated API writes it to Supabase, and the returned
+   public URL is readable. Remove all Supabase `anon` INSERT/UPDATE/DELETE storage
+   policies after the backend service-role configuration is deployed.
+7. Request a password reset or trigger another notification to the email address
+   registered on the Mailtrap account. The free demo domain can send only to that
+   address. It cannot deliver to arbitrary app users unless a custom domain is
+   added and verified later. Mailtrap's free plan currently allows 150 messages
+   per day and up to 3,500 per month.
 
-Railway Trial and Hobby plans block outbound SMTP. On those plans configure the
-Mailtrap HTTPS API variables above; the API transport takes precedence over the
-legacy SMTP variables. SMTP remains available for local development and Railway
-Pro deployments.
+The API uses Mailtrap's HTTPS Sending API. Failed provider responses and
+exceptions are logged without printing the API token or raw response body.
 8. Test Google sign-in using the production Vercel origin.
 
 These live checks require the platform projects, domains, and credentials; they

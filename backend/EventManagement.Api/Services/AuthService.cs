@@ -24,6 +24,7 @@ public sealed class AuthService(
     IJwtTokenService jwtTokenService,
     IGoogleTokenValidator googleTokenValidator,
     IEmailService emailService,
+    IAuthRateLimitService authRateLimitService,
     IConfiguration configuration,
     ILogger<AuthService> logger) : IAuthService
 {
@@ -34,6 +35,10 @@ public sealed class AuthService(
         CancellationToken cancellationToken)
     {
         var email = request.Email.Trim().ToLowerInvariant();
+        await authRateLimitService.EnsureAccountAllowedAsync(
+            AuthRateLimitOperation.Registration,
+            email,
+            cancellationToken);
         if (await dbContext.Users.AnyAsync(user => user.Email == email, cancellationToken))
             throw new ApiException(StatusCodes.Status409Conflict, "An account with this email already exists.");
 
@@ -56,6 +61,10 @@ public sealed class AuthService(
         CancellationToken cancellationToken)
     {
         var email = request.Email.Trim().ToLowerInvariant();
+        await authRateLimitService.EnsureAccountAllowedAsync(
+            AuthRateLimitOperation.ForgotPassword,
+            email,
+            cancellationToken);
         var user = await dbContext.Users.SingleOrDefaultAsync(
             item => item.Email == email && item.IsActive,
             cancellationToken);
@@ -81,7 +90,7 @@ public sealed class AuthService(
         var frontendBaseUrl = configuration["Frontend:BaseUrl"]?.TrimEnd('/')
             ?? "http://localhost:5173";
         var resetUrl = $"{frontendBaseUrl}/reset-password?token={Uri.EscapeDataString(rawToken)}";
-        var sent = await emailService.SendAsync(
+        var sent = await emailService.SendEmailAsync(
             user.Email,
             user.Name,
             "Reset your Campus Events password",
@@ -104,6 +113,10 @@ public sealed class AuthService(
         CancellationToken cancellationToken)
     {
         var tokenHash = HashResetToken(request.Token.Trim());
+        await authRateLimitService.EnsureAccountAllowedAsync(
+            AuthRateLimitOperation.ResetPassword,
+            tokenHash,
+            cancellationToken);
         await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
         var resetToken = await dbContext.PasswordResetTokens
             .FromSqlInterpolated($"SELECT * FROM \"PasswordResetTokens\" WHERE \"TokenHash\" = {tokenHash} FOR UPDATE")
@@ -129,6 +142,10 @@ public sealed class AuthService(
     {
         var identity = await googleTokenValidator.ValidateAsync(request.IdToken, cancellationToken);
         var email = identity.Email.Trim().ToLowerInvariant();
+        await authRateLimitService.EnsureAccountAllowedAsync(
+            AuthRateLimitOperation.GoogleLogin,
+            email,
+            cancellationToken);
         var user = await dbContext.Users.SingleOrDefaultAsync(
             item => item.GoogleSubject == identity.Subject,
             cancellationToken);
@@ -176,6 +193,10 @@ public sealed class AuthService(
         CancellationToken cancellationToken)
     {
         var email = request.Email.Trim().ToLowerInvariant();
+        await authRateLimitService.EnsureAccountAllowedAsync(
+            AuthRateLimitOperation.Login,
+            email,
+            cancellationToken);
         var user = await dbContext.Users.SingleOrDefaultAsync(
             item => item.Email == email,
             cancellationToken);

@@ -40,7 +40,9 @@ export function clearStoredSession() {
 
 export async function apiRequest<T>(path: string, options: RequestInit = {}): Promise<T> {
   const headers = new Headers(options.headers)
-  if (options.body && !headers.has('Content-Type')) headers.set('Content-Type', 'application/json')
+  if (options.body && !(options.body instanceof FormData) && !headers.has('Content-Type')) {
+    headers.set('Content-Type', 'application/json')
+  }
   const token = readStoredSession()?.token
   if (token) headers.set('Authorization', `Bearer ${token}`)
 
@@ -73,12 +75,20 @@ export async function fetchAllPages<T>(path: string): Promise<T[]> {
   const separator = path.includes('?') ? '&' : '?'
   const first = await apiRequest<PaginatedResponse<T>>(`${path}${separator}page=1&pageSize=100`)
   if (first.totalPages <= 1) return first.items
-  const remaining = await Promise.all(
-    Array.from({ length: first.totalPages - 1 }, (_, index) =>
-      apiRequest<PaginatedResponse<T>>(
-        `${path}${separator}page=${index + 2}&pageSize=100`,
-      ),
-    ),
+  const remainingPageCount = first.totalPages - 1
+  const remaining = new Array<PaginatedResponse<T>>(remainingPageCount)
+  let nextPageIndex = 0
+  const worker = async () => {
+    while (nextPageIndex < remainingPageCount) {
+      const pageIndex = nextPageIndex
+      nextPageIndex += 1
+      remaining[pageIndex] = await apiRequest<PaginatedResponse<T>>(
+        `${path}${separator}page=${pageIndex + 2}&pageSize=100`,
+      )
+    }
+  }
+  await Promise.all(
+    Array.from({ length: Math.min(4, remainingPageCount) }, () => worker()),
   )
   return [first, ...remaining].flatMap((page) => page.items)
 }

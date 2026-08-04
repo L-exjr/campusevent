@@ -10,6 +10,7 @@ public sealed class EventEntity
     public int Capacity { get; set; }
     public required string Category { get; set; }
     public string? ImageUrl { get; set; }
+    public string? ImageObjectKey { get; set; }
     public Guid OrganizerId { get; set; }
     public bool IsPublished { get; set; } = true;
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;

@@ -14,7 +14,7 @@ import LinkButton from '../../components/shared/LinkButton'
 import { useApiResource } from '../../hooks/useApiResource'
 import { useAuth } from '../../hooks/useAuth'
 import { formatDate, formatTime } from '../../utils/formatters'
-import { DEFAULT_EVENT_IMAGE } from '../../api/supabaseStorage'
+import { DEFAULT_EVENT_IMAGE } from '../../api/imageStorage'
 
 export default function EventDetailsPage() {
   const { id = '' } = useParams()

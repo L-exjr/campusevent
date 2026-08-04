@@ -1,6 +1,6 @@
 # Local development setup
 
-## Supabase Storage client
+## Supabase Storage backend
 
 The workspace uses the already-created Supabase project only for Storage. The
 application continues to use its ASP.NET Core JWTs and EF Core/PostgreSQL database.
@@ -8,54 +8,34 @@ application continues to use its ASP.NET Core JWTs and EF Core/PostgreSQL databa
 1. Sign in to the [Supabase dashboard](https://supabase.com/dashboard), select the
    correct organization, and open the existing Event Management System project.
    Do not click **New project** for this setup.
-2. Click **Connect** in the project toolbar, then choose **App Frameworks**.
-3. Copy **Project URL** and **Publishable key**. A legacy project may instead show
-   its browser key under **Settings → API Keys → Legacy API Keys → anon**.
-   Never copy a secret or `service_role` key into this frontend.
-4. The URL is also available at **Integrations → Data API → Project URL**. Keys
-   are also available at **Settings → API Keys**; use a publishable key (or the
-   legacy `anon` key), never a secret or legacy `service_role` key.
-5. Copy `.env.example` to `.env` and populate these browser variables:
+2. Copy the Project URL, then obtain the server-only service-role key from
+   **Settings → API Keys**.
+3. Store both with .NET User Secrets from `backend/EventManagement.Api`:
 
-   ```dotenv
-   VITE_SUPABASE_URL=https://your-project-ref.supabase.co
-   VITE_SUPABASE_ANON_KEY=your-publishable-or-anon-key
+   ```bash
+   dotnet user-secrets set "Supabase:Url" "https://your-project-ref.supabase.co"
+   dotnet user-secrets set "Supabase:ServiceRoleKey" "your-service-role-key"
    ```
 
-`.env` is ignored by Git and `.env.example` intentionally contains empty values.
-The publishable/anon key is designed to be exposed in a browser; its permissions
-must be constrained with Storage policies. See [SUPABASE_SETUP.md](SUPABASE_SETUP.md)
-for the two bucket definitions and policies.
+Never put the service-role key in `.env`, a `VITE_*` variable, or frontend code.
+The browser uploads multipart data to the authenticated ASP.NET API. See
+[SUPABASE_SETUP.md](SUPABASE_SETUP.md) for bucket and policy setup.
 
-An offline Vitest smoke test verifies client construction. After filling `.env`
-and creating the buckets, run the live Storage check:
+## Mailtrap free-tier Sending API
+
+Create a Mailtrap Sending API token and use the demo sender shown in Mailtrap's
+integration page. Store both locally with User Secrets:
 
 ```bash
-npm test -- src/tests/api/supabaseClient.test.ts
-npm run supabase:smoke
+dotnet user-secrets set "Email:Api:Token" "your-mailtrap-api-token"
+dotnet user-secrets set "Email:Api:SenderEmail" "hello@demomailtrap.co"
 ```
 
-Expected live output:
-
-```text
-✓ Connected to event-images
-✓ Connected to profile-images
-Supabase Storage client initialized and both buckets are reachable.
-```
-
-## Mailtrap email sandbox
-
-Create or sign in to a Mailtrap account, then open **Email Testing → Sandboxes →
-My Sandbox → Integration → SMTP**. Copy that sandbox's host, port, username, and
-password. Mailtrap's current walkthrough is available in its
-[Sandbox SMTP Integration documentation](https://docs.mailtrap.io/email-sandbox/setup/sandbox-smtp-integration).
-
-From `backend/EventManagement.Api`, store the values with .NET User Secrets using
-the commands in [SECURITY.md](SECURITY.md#smtp-credentials). Do not paste them into
-an `appsettings` file. Start the API in Development and exercise event registration
-or an Admin application decision; messages addressed to the test Student email
-will appear only in the Mailtrap sandbox inbox. The API intentionally rejects any
-non-Mailtrap SMTP host in Development.
+The free demo domain does not require DNS verification, but it can send only to
+the email address registered on the Mailtrap account. Use that address for the
+school demonstration. Sending to arbitrary users requires adding and verifying
+a custom domain later. The free plan is limited to 150 messages per day and up
+to 3,500 per month. See [SECURITY.md](SECURITY.md#transactional-email-credentials).
 
 The reminder worker checks hourly by default and sends once when a registered
 event is within 24 hours. The non-secret cadence can be changed with

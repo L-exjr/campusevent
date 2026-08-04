@@ -12,7 +12,9 @@ public sealed class UsersControllerTests(ApiIntegrationFixture fixture)
         await ResetAsync();
         var student = await RegisterStudentAsync("profile-owner@example.test");
         using var client = CreateAuthenticatedClient(student.Token);
-        const string imageUrl = "https://project.supabase.co/storage/v1/object/public/profile-images/user.jpg";
+        using var upload = await client.PostAsync("/api/uploads/profile-image", CreatePngUpload());
+        upload.EnsureSuccessStatusCode();
+        var imageUrl = (await ReadJsonAsync(upload)).GetProperty("url").GetString()!;
 
         using var response = await client.PutAsJsonAsync(
             $"/api/users/{student.UserId}/profile",

@@ -11,6 +11,7 @@ public sealed class User
     public UserRole Role { get; set; } = UserRole.Student;
     public bool IsActive { get; set; } = true;
     public string? ImageUrl { get; set; }
+    public string? ImageObjectKey { get; set; }
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
 
     public ICollection<EventEntity> OrganizedEvents { get; set; } = [];
@@ -18,4 +19,5 @@ public sealed class User
     public ICollection<OrganizerApplication> OrganizerApplications { get; set; } = [];
     public ICollection<PasswordResetToken> PasswordResetTokens { get; set; } = [];
     public ICollection<BookingRequest> AssignedBookingRequests { get; set; } = [];
+    public ICollection<ImageUpload> ImageUploads { get; set; } = [];
 }

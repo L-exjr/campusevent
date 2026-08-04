@@ -26,7 +26,9 @@ public sealed class EventsControllerTests(ApiIntegrationFixture fixture)
         await ResetAsync();
         var organizer = await CreateActorAsync("image-organizer@example.test", "Organizer");
         using var client = CreateAuthenticatedClient(organizer.Token);
-        const string imageUrl = "https://project.supabase.co/storage/v1/object/public/event-images/cover.webp";
+        using var upload = await client.PostAsync("/api/uploads/event-image", CreatePngUpload());
+        upload.EnsureSuccessStatusCode();
+        var imageUrl = (await ReadJsonAsync(upload)).GetProperty("url").GetString()!;
         var payload = new
         {
             title = "Event with cover",

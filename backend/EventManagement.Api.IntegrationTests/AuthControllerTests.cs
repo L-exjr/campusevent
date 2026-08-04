@@ -174,3 +174,44 @@ public sealed class AuthControllerTests(ApiIntegrationFixture fixture)
         Assert.Equal(HttpStatusCode.Created, refreshedResponse.StatusCode);
     }
 }
+
+public sealed class AuthRateLimitTests(ApiIntegrationFixture fixture)
+    : IntegrationTestBase(fixture), IClassFixture<ApiIntegrationFixture>
+{
+    [Fact]
+    public async Task Login_is_limited_by_forwarded_client_IP()
+    {
+        await ResetAsync();
+        const string forwardedAddress = "203.0.113.10";
+        await Fixture.SetAuthRateLimitCountAsync("Ip", "Login", forwardedAddress, 10000);
+        using var client = Fixture.CreateClient();
+        client.DefaultRequestHeaders.Add("X-Forwarded-For", forwardedAddress);
+        client.DefaultRequestHeaders.Add("X-Forwarded-Proto", "https");
+
+        using var response = await client.PostAsJsonAsync(
+            "/api/auth/login",
+            new { email = ApiIntegrationFixture.AdminEmail, password = ApiIntegrationFixture.AdminPassword });
+
+        Assert.Equal(HttpStatusCode.TooManyRequests, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Login_is_limited_by_account_across_client_IPs()
+    {
+        await ResetAsync();
+        await Fixture.SetAuthRateLimitCountAsync(
+            "Account",
+            "Login",
+            ApiIntegrationFixture.AdminEmail,
+            10000);
+        using var client = Fixture.CreateClient();
+        client.DefaultRequestHeaders.Add("X-Forwarded-For", "203.0.113.11");
+        client.DefaultRequestHeaders.Add("X-Forwarded-Proto", "https");
+
+        using var response = await client.PostAsJsonAsync(
+            "/api/auth/login",
+            new { email = ApiIntegrationFixture.AdminEmail, password = ApiIntegrationFixture.AdminPassword });
+
+        Assert.Equal(HttpStatusCode.TooManyRequests, response.StatusCode);
+    }
+}

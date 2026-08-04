@@ -11,6 +11,9 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
     public DbSet<EventRegistration> EventRegistrations => Set<EventRegistration>();
     public DbSet<PasswordResetToken> PasswordResetTokens => Set<PasswordResetToken>();
     public DbSet<BookingRequest> BookingRequests => Set<BookingRequest>();
+    public DbSet<EmailOutboxMessage> EmailOutboxMessages => Set<EmailOutboxMessage>();
+    public DbSet<ImageUpload> ImageUploads => Set<ImageUpload>();
+    public DbSet<AuthRateLimitBucket> AuthRateLimitBuckets => Set<AuthRateLimitBucket>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -23,6 +26,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
             entity.Property(user => user.AuthProvider).HasConversion<string>().HasMaxLength(30);
             entity.Property(user => user.GoogleSubject).HasMaxLength(255);
             entity.Property(user => user.ImageUrl).HasMaxLength(2048);
+            entity.Property(user => user.ImageObjectKey).HasMaxLength(1024);
             entity.Property(user => user.Role).HasConversion<string>().HasMaxLength(30);
             entity.HasIndex(user => user.Email).IsUnique();
             entity.HasIndex(user => user.GoogleSubject).IsUnique();
@@ -56,6 +60,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
             entity.Property(eventEntity => eventEntity.Location).HasMaxLength(300).IsRequired();
             entity.Property(eventEntity => eventEntity.Category).HasMaxLength(100).IsRequired();
             entity.Property(eventEntity => eventEntity.ImageUrl).HasMaxLength(2048);
+            entity.Property(eventEntity => eventEntity.ImageObjectKey).HasMaxLength(1024);
             entity.HasIndex(eventEntity => eventEntity.Date);
             entity.HasIndex(eventEntity => eventEntity.Category);
             entity.HasOne(eventEntity => eventEntity.Organizer)
@@ -114,6 +119,44 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
                 .WithOne(eventEntity => eventEntity.SourceBookingRequest)
                 .HasForeignKey<BookingRequest>(request => request.DraftEventId)
                 .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        modelBuilder.Entity<EmailOutboxMessage>(entity =>
+        {
+            entity.HasKey(message => message.Id);
+            entity.Property(message => message.IdempotencyKey).HasMaxLength(200).IsRequired();
+            entity.Property(message => message.Kind).HasMaxLength(100).IsRequired();
+            entity.Property(message => message.Status).HasConversion<string>().HasMaxLength(30);
+            entity.Property(message => message.LastError).HasMaxLength(2000);
+            entity.HasIndex(message => message.IdempotencyKey).IsUnique();
+            entity.HasIndex(message => new { message.Status, message.AvailableAt });
+            entity.HasIndex(message => message.ClaimedBy);
+        });
+
+        modelBuilder.Entity<ImageUpload>(entity =>
+        {
+            entity.HasKey(upload => upload.Id);
+            entity.Property(upload => upload.Bucket).HasMaxLength(100).IsRequired();
+            entity.Property(upload => upload.ObjectKey).HasMaxLength(1024).IsRequired();
+            entity.Property(upload => upload.PublicUrl).HasMaxLength(2048).IsRequired();
+            entity.Property(upload => upload.Kind).HasConversion<string>().HasMaxLength(30);
+            entity.Property(upload => upload.Status).HasConversion<string>().HasMaxLength(30);
+            entity.Property(upload => upload.LastError).HasMaxLength(2000);
+            entity.HasIndex(upload => new { upload.Bucket, upload.ObjectKey }).IsUnique();
+            entity.HasIndex(upload => upload.PublicUrl).IsUnique();
+            entity.HasIndex(upload => new { upload.Status, upload.AvailableAt });
+            entity.HasIndex(upload => upload.DeletionClaimedBy);
+            entity.HasOne(upload => upload.Owner)
+                .WithMany(user => user.ImageUploads)
+                .HasForeignKey(upload => upload.OwnerId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<AuthRateLimitBucket>(entity =>
+        {
+            entity.HasKey(bucket => bucket.Key);
+            entity.Property(bucket => bucket.Key).HasMaxLength(160);
+            entity.HasIndex(bucket => bucket.UpdatedAt);
         });
     }
 }

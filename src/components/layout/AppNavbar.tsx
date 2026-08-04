@@ -7,7 +7,7 @@ import { useAuth } from '../../hooks/useAuth'
 import { getInitials } from '../../utils/formatters'
 import { getNavigationForRole, ROLE_LABELS } from '../../utils/permissions'
 import LinkButton from '../shared/LinkButton'
-import { DEFAULT_PROFILE_IMAGE } from '../../api/supabaseStorage'
+import { DEFAULT_PROFILE_IMAGE } from '../../api/imageStorage'
 
 export default function AppNavbar() {
   const { user, logout } = useAuth()

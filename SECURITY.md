@@ -25,57 +25,35 @@
   is low-risk before public deployment, but requires coordinated session expiry
   and user reauthentication once real users exist.
 
-## SMTP credentials
+## Transactional email credentials
 
-SMTP configuration follows the same secret-storage rule as the JWT signing key.
-For local development, put the complete Mailtrap sandbox configuration in .NET
-User Secrets from `backend/EventManagement.Api`:
+Email uses Mailtrap's HTTPS Sending API. Store `MAILTRAP_API_TOKEN` only in User
+Secrets locally or Railway variables when deployed, and rotate it immediately if
+it is printed, logged, or committed. Configure `MAILTRAP_SENDER_EMAIL` separately;
+the school-project setup uses Mailtrap's `hello@demomailtrap.co` demo sender.
 
-```bash
-dotnet user-secrets set "Email:Smtp:Host" "sandbox.smtp.mailtrap.io"
-dotnet user-secrets set "Email:Smtp:Port" "2525"
-dotnet user-secrets set "Email:Smtp:Username" "your-mailtrap-sandbox-username"
-dotnet user-secrets set "Email:Smtp:Password" "your-mailtrap-sandbox-password"
-dotnet user-secrets set "Email:Smtp:FromAddress" "notifications@campus-events.test"
-dotnet user-secrets set "Email:Smtp:FromName" "Campus Events"
-dotnet user-secrets set "Email:Smtp:EnableSsl" "true"
-```
+Mailtrap's demo domain needs no custom DNS setup, but it can send only to the
+email address registered on the Mailtrap account. A missing token or sender logs
+an error and sends nothing. Provider failures are logged without exposing the
+token or raw response body.
 
-Do not add these values to `appsettings.json`, an environment file, source code,
-or logs. Development deliberately refuses any SMTP host other than
-`sandbox.smtp.mailtrap.io`, so local tests cannot deliver to real inboxes.
+## Image upload credentials
 
-In Production, configure the chosen provider's SMTP endpoint through the hosting
-platform's secret manager. ASP.NET Core maps these environment variables without
-any code changes:
+The browser sends multipart image data only to authenticated `/api/uploads/*`
+routes. The backend repeats size, MIME, and file-signature validation before it
+writes to Supabase with `SUPABASE_SERVICE_ROLE_KEY`. That key bypasses storage
+RLS and must exist only in backend User Secrets or Railway variables—never in a
+`VITE_*` variable, frontend bundle, response, or log.
 
-```text
-Email__Smtp__Host
-Email__Smtp__Port
-Email__Smtp__Username
-Email__Smtp__Password
-Email__Smtp__FromAddress
-Email__Smtp__FromName
-Email__Smtp__EnableSsl
-```
+Uploaded objects are placed below an authenticated owner-ID prefix and first
+recorded as pending in PostgreSQL. A profile/event save may claim only a pending
+object owned by the acting account; expired pending objects and superseded
+objects are deleted by a leased cleanup worker. Directly supplying a new
+third-party image URL is intentionally rejected.
 
-Railway Trial and Hobby services cannot open outbound SMTP connections. For
-those deployments, create a scoped Mailtrap API token and configure the HTTPS
-transport instead:
-
-```text
-Email__Api__Token
-Email__Api__InboxId
-Email__Api__UseSandbox
-```
-
-The API token is a secret. Store it only in Railway variables. Sandbox mode
-captures messages in the selected Mailtrap inbox; production sending requires a
-verified sending domain.
-
-Treat SMTP credentials as compromised if exposed and rotate them in the provider
-immediately. Production credentials must never be copied into a local development
-profile; local development is Mailtrap sandbox-only.
+Once the backend proxy is deployed and verified, remove Supabase storage policies
+that grant `anon` INSERT, UPDATE, or DELETE. Buckets can remain public-read when
+their returned URLs are intended to appear on public event pages.
 
 ## Password reset tokens
 

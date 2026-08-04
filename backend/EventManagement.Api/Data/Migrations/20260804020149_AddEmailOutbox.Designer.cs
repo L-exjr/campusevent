@@ -3,6 +3,7 @@ using System;
 using EventManagement.Api.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace EventManagement.Api.Data.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260804020149_AddEmailOutbox")]
+    partial class AddEmailOutbox
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -21,28 +24,6 @@ namespace EventManagement.Api.Data.Migrations
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
-
-            modelBuilder.Entity("EventManagement.Api.Models.AuthRateLimitBucket", b =>
-                {
-                    b.Property<string>("Key")
-                        .HasMaxLength(160)
-                        .HasColumnType("character varying(160)");
-
-                    b.Property<int>("AttemptCount")
-                        .HasColumnType("integer");
-
-                    b.Property<DateTimeOffset>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<DateTimeOffset>("WindowStartedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.HasKey("Key");
-
-                    b.HasIndex("UpdatedAt");
-
-                    b.ToTable("AuthRateLimitBuckets");
-                });
 
             modelBuilder.Entity("EventManagement.Api.Models.BookingRequest", b =>
                 {
@@ -216,10 +197,6 @@ namespace EventManagement.Api.Data.Migrations
                         .HasMaxLength(5000)
                         .HasColumnType("character varying(5000)");
 
-                    b.Property<string>("ImageObjectKey")
-                        .HasMaxLength(1024)
-                        .HasColumnType("character varying(1024)");
-
                     b.Property<string>("ImageUrl")
                         .HasMaxLength(2048)
                         .HasColumnType("character varying(2048)");
@@ -280,82 +257,6 @@ namespace EventManagement.Api.Data.Migrations
                         .IsUnique();
 
                     b.ToTable("EventRegistrations");
-                });
-
-            modelBuilder.Entity("EventManagement.Api.Models.ImageUpload", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTimeOffset>("AvailableAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("Bucket")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
-
-                    b.Property<DateTimeOffset?>("ClaimedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<int>("DeleteAttemptCount")
-                        .HasColumnType("integer");
-
-                    b.Property<DateTimeOffset?>("DeletedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<DateTimeOffset?>("DeletionClaimedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid?>("DeletionClaimedBy")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("Kind")
-                        .IsRequired()
-                        .HasMaxLength(30)
-                        .HasColumnType("character varying(30)");
-
-                    b.Property<string>("LastError")
-                        .HasMaxLength(2000)
-                        .HasColumnType("character varying(2000)");
-
-                    b.Property<string>("ObjectKey")
-                        .IsRequired()
-                        .HasMaxLength(1024)
-                        .HasColumnType("character varying(1024)");
-
-                    b.Property<Guid>("OwnerId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("PublicUrl")
-                        .IsRequired()
-                        .HasMaxLength(2048)
-                        .HasColumnType("character varying(2048)");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasMaxLength(30)
-                        .HasColumnType("character varying(30)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("DeletionClaimedBy");
-
-                    b.HasIndex("OwnerId");
-
-                    b.HasIndex("PublicUrl")
-                        .IsUnique();
-
-                    b.HasIndex("Bucket", "ObjectKey")
-                        .IsUnique();
-
-                    b.HasIndex("Status", "AvailableAt");
-
-                    b.ToTable("ImageUploads");
                 });
 
             modelBuilder.Entity("EventManagement.Api.Models.OrganizerApplication", b =>
@@ -457,10 +358,6 @@ namespace EventManagement.Api.Data.Migrations
                         .HasMaxLength(255)
                         .HasColumnType("character varying(255)");
 
-                    b.Property<string>("ImageObjectKey")
-                        .HasMaxLength(1024)
-                        .HasColumnType("character varying(1024)");
-
                     b.Property<string>("ImageUrl")
                         .HasMaxLength(2048)
                         .HasColumnType("character varying(2048)");
@@ -540,17 +437,6 @@ namespace EventManagement.Api.Data.Migrations
                     b.Navigation("Student");
                 });
 
-            modelBuilder.Entity("EventManagement.Api.Models.ImageUpload", b =>
-                {
-                    b.HasOne("EventManagement.Api.Models.User", "Owner")
-                        .WithMany("ImageUploads")
-                        .HasForeignKey("OwnerId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("Owner");
-                });
-
             modelBuilder.Entity("EventManagement.Api.Models.OrganizerApplication", b =>
                 {
                     b.HasOne("EventManagement.Api.Models.User", "ReviewedByAdmin")
@@ -590,8 +476,6 @@ namespace EventManagement.Api.Data.Migrations
             modelBuilder.Entity("EventManagement.Api.Models.User", b =>
                 {
                     b.Navigation("AssignedBookingRequests");
-
-                    b.Navigation("ImageUploads");
 
                     b.Navigation("OrganizedEvents");
 

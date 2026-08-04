@@ -7,6 +7,8 @@ using EventManagement.Api.Middleware;
 using EventManagement.Api.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.HttpOverrides;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using System.Threading.RateLimiting;
@@ -72,9 +74,29 @@ builder.Services
 
 builder.Services.AddAuthorization();
 builder.Services.AddHealthChecks();
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    // Railway terminates TLS at its reverse proxy. Trust exactly the nearest hop
+    // so rate-limit partitions see the original client address and request scheme.
+    options.ForwardedHeaders =
+        ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+    options.ForwardLimit = 1;
+    options.KnownIPNetworks.Clear();
+    options.KnownProxies.Clear();
+});
 builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.OnRejected = async (context, cancellationToken) =>
+    {
+        context.HttpContext.Response.ContentType = "application/json";
+        if (context.Lease.TryGetMetadata(MetadataName.RetryAfter, out var retryAfter))
+            context.HttpContext.Response.Headers.RetryAfter =
+                Math.Ceiling(retryAfter.TotalSeconds).ToString();
+        await context.HttpContext.Response.WriteAsJsonAsync(
+            new { error = "Too many requests. Please wait and try again." },
+            cancellationToken);
+    };
     options.AddPolicy("PublicBookingRequests", context =>
         RateLimitPartition.GetFixedWindowLimiter(
             context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
@@ -109,6 +131,7 @@ builder.Services.AddCors(options =>
 
 builder.Services.AddScoped<IPasswordHasher, Pbkdf2PasswordHasher>();
 builder.Services.AddScoped<IJwtTokenService, JwtTokenService>();
+builder.Services.AddScoped<IAuthRateLimitService, AuthRateLimitService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IGoogleTokenValidator, GoogleTokenValidator>();
 builder.Services.AddScoped<IBookingRequestService, BookingRequestService>();
@@ -118,10 +141,13 @@ builder.Services.AddScoped<IEventAuthorizationService, EventAuthorizationService
 builder.Services.AddScoped<IEventService, EventService>();
 builder.Services.AddScoped<IReportService, ReportService>();
 builder.Services.AddHttpClient();
-builder.Services.AddScoped<IEmailService, EmailService>();
+builder.Services.AddScoped<IImageStorageService, SupabaseImageStorageService>();
+builder.Services.AddScoped<IImageLifecycleService, ImageLifecycleService>();
+builder.Services.AddScoped<IEmailService, MailtrapEmailService>();
 // A database-backed scheduler such as Hangfire is the natural upgrade if
 // reminder volume, retry guarantees, or timing precision outgrow this worker.
 builder.Services.AddHostedService<EventReminderBackgroundService>();
+builder.Services.AddHostedService<ImageCleanupBackgroundService>();
 
 var app = builder.Build();
 
@@ -138,9 +164,12 @@ if (builder.Configuration.GetValue("Database:ApplyMigrations", false))
     app.Logger.LogInformation("EF Core database migrations are up to date.");
 }
 
+app.UseForwardedHeaders();
 app.UseMiddleware<ExceptionHandlingMiddleware>();
 app.UseHttpsRedirection();
 app.UseCors("Frontend");
+app.UseAuthentication();
+app.UseMiddleware<AuthIpRateLimitMiddleware>();
 app.UseRateLimiter();
 app.UseStatusCodePages(async statusCodeContext =>
 {
@@ -155,7 +184,6 @@ app.UseStatusCodePages(async statusCodeContext =>
     response.ContentType = "application/json";
     await response.WriteAsJsonAsync(new { error = message });
 });
-app.UseAuthentication();
 app.UseMiddleware<ActiveUserMiddleware>();
 app.UseAuthorization();
 app.MapHealthChecks("/health");

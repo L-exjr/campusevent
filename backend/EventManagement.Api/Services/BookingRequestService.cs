@@ -93,8 +93,10 @@ public sealed class BookingRequestService(AppDbContext dbContext) : IBookingRequ
     {
         await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
         var request = await dbContext.BookingRequests
+            .FromSqlInterpolated(
+                $"SELECT * FROM \"BookingRequests\" WHERE \"Id\" = {id} FOR UPDATE")
             .Include(item => item.AssignedOrganizer)
-            .SingleOrDefaultAsync(item => item.Id == id, cancellationToken)
+            .SingleOrDefaultAsync(cancellationToken)
             ?? throw new ApiException(StatusCodes.Status404NotFound, "Booking request not found.");
         if (request.AssignedOrganizerId != organizerId)
             throw new ApiException(StatusCodes.Status403Forbidden, "Only the assigned Organizer can respond.");
