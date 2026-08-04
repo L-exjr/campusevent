@@ -10,7 +10,8 @@ public sealed record EventUpsertRequest(
     [param: Range(1, 100000)] int Capacity,
     [param: Required, StringLength(100)] string Category,
     [param: Url, StringLength(2048)] string? ImageUrl,
-    bool? IsPublished = null);
+    bool? IsPublished = null,
+    int? Version = null);
 
 public sealed record EventResponse(
     Guid Id,
@@ -25,7 +26,8 @@ public sealed record EventResponse(
     int RegistrationCount,
     DateTimeOffset CreatedAt,
     string? ImageUrl,
-    bool IsPublished = true);
+    bool IsPublished,
+    int Version);
 
 public sealed record EventRegistrantResponse(
     Guid RegistrationId,
@@ -45,3 +47,5 @@ public sealed record StudentRegistrationResponse(
     DateTimeOffset RegisteredAt,
     bool Attended,
     EventResponse Event);
+
+public sealed record RegistrationStatusResponse(bool IsRegistered);

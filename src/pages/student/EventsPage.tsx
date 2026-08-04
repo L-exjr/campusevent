@@ -11,6 +11,7 @@ import EmptyState from '../../components/shared/EmptyState'
 import ErrorState from '../../components/shared/ErrorState'
 import LoadingState from '../../components/shared/LoadingState'
 import PageHeader from '../../components/shared/PageHeader'
+import PaginationControls from '../../components/shared/PaginationControls'
 import { useApiResource } from '../../hooks/useApiResource'
 import { EVENT_CATEGORIES } from '../../types'
 
@@ -18,9 +19,10 @@ export default function EventsPage() {
   const [search, setSearch] = useState('')
   const [category, setCategory] = useState('')
   const [date, setDate] = useState('')
+  const [page, setPage] = useState(1)
   const loadEvents = useCallback(
-    () => api.getEvents({ search, category, date }),
-    [category, date, search],
+    () => api.getEvents({ search, category, date }, page, 12),
+    [category, date, page, search],
   )
   const { data: events, loading, error, reload } = useApiResource(loadEvents)
 
@@ -28,6 +30,7 @@ export default function EventsPage() {
     setSearch('')
     setCategory('')
     setDate('')
+    setPage(1)
   }
 
   return (
@@ -47,7 +50,7 @@ export default function EventsPage() {
                   <InputGroup.Text aria-hidden="true">⌕</InputGroup.Text>
                   <Form.Control
                     value={search}
-                    onChange={(event) => setSearch(event.target.value)}
+                    onChange={(event) => { setSearch(event.target.value); setPage(1) }}
                     placeholder="Title, description, or location"
                   />
                 </InputGroup>
@@ -56,7 +59,7 @@ export default function EventsPage() {
             <Col md={5} lg={3}>
               <Form.Group controlId="event-category-filter">
                 <Form.Label>Category</Form.Label>
-                <Form.Select value={category} onChange={(event) => setCategory(event.target.value)}>
+                <Form.Select value={category} onChange={(event) => { setCategory(event.target.value); setPage(1) }}>
                   <option value="">All categories</option>
                   {EVENT_CATEGORIES.map((item) => (
                     <option key={item}>{item}</option>
@@ -67,7 +70,7 @@ export default function EventsPage() {
             <Col md={5} lg={3}>
               <Form.Group controlId="event-date-filter">
                 <Form.Label>Date</Form.Label>
-                <Form.Control type="date" value={date} onChange={(event) => setDate(event.target.value)} />
+                <Form.Control type="date" value={date} onChange={(event) => { setDate(event.target.value); setPage(1) }} />
               </Form.Group>
             </Col>
             <Col md={2} lg={1}>
@@ -82,16 +85,17 @@ export default function EventsPage() {
         <LoadingState label="Finding events" />
       ) : error ? (
         <ErrorState message={error} onRetry={() => void reload()} />
-      ) : events?.length ? (
+      ) : events?.items.length ? (
         <>
-          <p className="text-secondary mb-3">{events.length} event{events.length === 1 ? '' : 's'} found</p>
+          <p className="text-secondary mb-3">{events.totalCount} event{events.totalCount === 1 ? '' : 's'} found</p>
           <Row className="g-4">
-            {events.map((event) => (
+            {events.items.map((event) => (
               <Col xl={4} md={6} key={event.id}>
                 <EventCard event={event} />
               </Col>
             ))}
           </Row>
+          <PaginationControls {...events} label="events" onPageChange={setPage} />
         </>
       ) : (
         <EmptyState

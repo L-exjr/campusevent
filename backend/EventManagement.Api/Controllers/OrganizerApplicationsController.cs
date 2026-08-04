@@ -39,10 +39,11 @@ public sealed class OrganizerApplicationsController(
     [Authorize(Roles = "Admin")]
     public async Task<ActionResult<PaginatedResponse<OrganizerApplicationResponse>>> Get(
         [FromQuery] ApplicationStatus? status = ApplicationStatus.Pending,
+        [FromQuery] string? search = null,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 20,
         CancellationToken cancellationToken = default) =>
-        Ok(await applicationService.GetAsync(status, page, pageSize, cancellationToken));
+        Ok(await applicationService.GetAsync(status, search, page, pageSize, cancellationToken));
 
     [HttpPut("{id:guid}/approve")]
     [Authorize(Roles = "Admin")]

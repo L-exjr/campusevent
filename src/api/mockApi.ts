@@ -6,6 +6,7 @@ import type {
   EventItem,
   EventRegistrant,
   OrganizerApplication,
+  Page,
   Registration,
   ReportsData,
   Role,
@@ -15,9 +16,10 @@ import type {
 import { EVENT_CATEGORIES } from '../types'
 import type { EventManagementApi } from './EventManagementApi'
 
-type StoredEvent = Omit<EventItem, 'registeredCount' | 'imageUrl' | 'isPublished'> & {
+type StoredEvent = Omit<EventItem, 'registeredCount' | 'imageUrl' | 'isPublished' | 'version'> & {
   imageUrl?: string | null
   isPublished?: boolean
+  version?: number
 }
 type StoredUser = Omit<User, 'imageUrl'> & { imageUrl?: string | null; password: string }
 
@@ -32,6 +34,21 @@ const DB_KEY = 'campus_events_mock_db'
 const SESSION_KEY = 'campus_events_session'
 const LEGACY_EMAIL_SUFFIX = '@campus.edu'
 const EMAIL_SUFFIX = '@cevents.com'
+
+function paginate<T>(items: T[], page = 1, pageSize = 20): Page<T> {
+  const normalizedPage = Math.max(page, 1)
+  const normalizedPageSize = Math.max(pageSize, 1)
+  return {
+    items: items.slice(
+      (normalizedPage - 1) * normalizedPageSize,
+      normalizedPage * normalizedPageSize,
+    ),
+    page: normalizedPage,
+    pageSize: normalizedPageSize,
+    totalCount: items.length,
+    totalPages: Math.ceil(items.length / normalizedPageSize),
+  }
+}
 
 const pause = (milliseconds = 420) =>
   new Promise<void>((resolve) => window.setTimeout(resolve, milliseconds))
@@ -254,7 +271,10 @@ function getDatabase() {
     const database = JSON.parse(saved) as MockDatabase
     database.organizerApplications ??= []
     database.users.forEach((user) => { user.imageUrl ??= null })
-    database.events.forEach((event) => { event.imageUrl ??= null })
+    database.events.forEach((event) => {
+      event.imageUrl ??= null
+      event.version ??= 1
+    })
 
     const userEmails = database.users.map((user) => migrateEmailDomain(user.email))
     const applicationEmails = database.organizerApplications.map((application) =>
@@ -304,6 +324,7 @@ function eventWithCount(database: MockDatabase, event: StoredEvent): EventItem {
     ...event,
     imageUrl: event.imageUrl ?? null,
     isPublished: event.isPublished ?? true,
+    version: event.version ?? 1,
     registeredCount: database.registrations.filter(
       (registration) => registration.eventId === event.id,
     ).length,
@@ -352,6 +373,8 @@ function normalizeEventInput(input: EventInput, requireFutureDate: boolean): Eve
     category,
     location,
     imageUrl: input.imageUrl ?? null,
+    isPublished: input.isPublished ?? true,
+    version: input.version,
   }
 }
 
@@ -444,7 +467,7 @@ export const mockApi: EventManagementApi = {
   },
 
   // TODO: replace with GET /api/events?search=&category=&date=.
-  async getEvents(filters: EventFilters = {}): Promise<EventItem[]> {
+  async getEvents(filters: EventFilters = {}, page = 1, pageSize = 20): Promise<Page<EventItem>> {
     await pause()
     const database = getDatabase()
     const query = filters.search?.trim().toLowerCase()
@@ -454,7 +477,7 @@ export const mockApi: EventManagementApi = {
           end: new Date(`${filters.date}T23:59:59.999`).getTime(),
         }
       : null
-    return database.events
+    return paginate(database.events
       .filter((event) => new Date(event.date).getTime() >= Date.now())
       .filter(
         (event) =>
@@ -472,7 +495,7 @@ export const mockApi: EventManagementApi = {
         return eventTime >= selectedDay.start && eventTime <= selectedDay.end
       })
       .sort((left, right) => left.date.localeCompare(right.date))
-      .map((event) => eventWithCount(database, event))
+      .map((event) => eventWithCount(database, event)), page, pageSize)
   },
 
   // TODO: replace with GET /api/events/{id}.
@@ -530,11 +553,20 @@ export const mockApi: EventManagementApi = {
     saveDatabase(database)
   },
 
-  // TODO: replace with GET /api/registrations/me.
-  async getStudentRegistrations(studentId: string): Promise<StudentRegistration[]> {
+  async isRegisteredForEvent(eventId: string) {
     await pause()
     const database = getDatabase()
-    return database.registrations
+    const student = getCurrentUser(database)
+    return database.registrations.some(
+      (registration) => registration.eventId === eventId && registration.studentId === student.id,
+    )
+  },
+
+  // TODO: replace with GET /api/registrations/me.
+  async getStudentRegistrations(studentId: string, page = 1, pageSize = 20): Promise<Page<StudentRegistration>> {
+    await pause()
+    const database = getDatabase()
+    return paginate(database.registrations
       .filter((item) => item.studentId === studentId)
       .map((registration) => {
         const event = database.events.find((item) => item.id === registration.eventId)
@@ -542,7 +574,7 @@ export const mockApi: EventManagementApi = {
         return { registration, event: eventWithCount(database, event) }
       })
       .filter((item): item is StudentRegistration => item !== null)
-      .sort((left, right) => left.event.date.localeCompare(right.event.date))
+      .sort((left, right) => left.event.date.localeCompare(right.event.date)), page, pageSize)
   },
 
   async getMyOrganizerApplication(): Promise<OrganizerApplication | null> {
@@ -591,14 +623,19 @@ export const mockApi: EventManagementApi = {
     return application
   },
 
-  async getPendingOrganizerApplications(): Promise<OrganizerApplication[]> {
+  async getPendingOrganizerApplications(page = 1, pageSize = 20, search = ''): Promise<Page<OrganizerApplication>> {
     await pause()
     const database = getDatabase()
     const user = getCurrentUser(database)
     if (user.role !== 'admin') throw new Error('Admin access is required.')
-    return database.organizerApplications
+    const query = search.trim().toLowerCase()
+    return paginate(database.organizerApplications
       .filter((application) => application.status === 'pending')
-      .sort((left, right) => right.submittedAt.localeCompare(left.submittedAt))
+      .filter((application) => !query ||
+        application.userName.toLowerCase().includes(query) ||
+        application.userEmail.toLowerCase().includes(query) ||
+        application.reason.toLowerCase().includes(query))
+      .sort((left, right) => right.submittedAt.localeCompare(left.submittedAt)), page, pageSize)
   },
 
   async approveOrganizerApplication(id: string): Promise<OrganizerApplication> {
@@ -651,14 +688,14 @@ export const mockApi: EventManagementApi = {
   },
 
   // TODO: replace with organizer-scoped GET /api/events/mine.
-  async getOrganizerEvents(organizerId: string, upcomingOnly = false): Promise<EventItem[]> {
+  async getOrganizerEvents(organizerId: string, upcomingOnly = false, page = 1, pageSize = 20): Promise<Page<EventItem>> {
     await pause()
     const database = getDatabase()
     const now = new Date().toISOString()
-    return database.events
+    return paginate(database.events
       .filter((event) => event.organizerId === organizerId && (!upcomingOnly || event.date > now))
       .sort((left, right) => left.date.localeCompare(right.date))
-      .map((event) => eventWithCount(database, event))
+      .map((event) => eventWithCount(database, event)), page, pageSize)
   },
 
   // TODO: replace with POST /api/events.
@@ -676,6 +713,7 @@ export const mockApi: EventManagementApi = {
       organizerId: organizer.id,
       organizerName: organizer.name,
       createdAt: new Date().toISOString(),
+      version: 1,
     }
     database.events.push(event)
     saveDatabase(database)
@@ -688,7 +726,11 @@ export const mockApi: EventManagementApi = {
     const database = getDatabase()
     const event = database.events.find((item) => item.id === id)
     if (!event) throw new Error('This event could not be found.')
+    if (input.version !== (event.version ?? 1)) {
+      throw new Error('This event changed after you opened it. Refresh and try again.')
+    }
     Object.assign(event, normalizeEventInput(input, false))
+    event.version = (event.version ?? 1) + 1
     saveDatabase(database)
     return eventWithCount(database, event)
   },
@@ -705,7 +747,13 @@ export const mockApi: EventManagementApi = {
   },
 
   // TODO: replace with GET /api/events/{id}/registrants.
-  async getEventRegistrants(eventId: string): Promise<EventRegistrant[]> {
+  async getEventRegistrants(
+    eventId: string,
+    page = 1,
+    pageSize = 20,
+    search = '',
+    attended?: boolean,
+  ): Promise<Page<EventRegistrant>> {
     await pause()
     const database = getDatabase()
     const actor = getCurrentUser(database)
@@ -717,7 +765,8 @@ export const mockApi: EventManagementApi = {
     ) {
       throw new Error('You do not have permission to view this event’s registrants.')
     }
-    return database.registrations
+    const query = search.trim().toLowerCase()
+    return paginate(database.registrations
       .filter((registration) => registration.eventId === eventId)
       .map((registration) => {
         const student = database.users.find(
@@ -734,7 +783,10 @@ export const mockApi: EventManagementApi = {
         }
       })
       .filter((item): item is EventRegistrant => item !== null)
-      .sort((left, right) => left.name.localeCompare(right.name))
+      .filter((item) =>
+        (!query || item.name.toLowerCase().includes(query) || item.email.toLowerCase().includes(query)) &&
+        (attended === undefined || item.attended === attended))
+      .sort((left, right) => left.name.localeCompare(right.name)), page, pageSize)
   },
 
   // TODO: replace with PUT /api/events/{id}/attendance.
@@ -753,9 +805,12 @@ export const mockApi: EventManagementApi = {
   },
 
   // TODO: replace with GET /api/admin/users.
-  async getUsers(): Promise<User[]> {
+  async getUsers(page = 1, pageSize = 20, search = '', role?: Role): Promise<Page<User>> {
     await pause()
-    return getDatabase().users.map(publicUser)
+    const query = search.trim().toLowerCase()
+    return paginate(getDatabase().users.map(publicUser).filter((user) =>
+      (!query || user.name.toLowerCase().includes(query) || user.email.toLowerCase().includes(query)) &&
+      (!role || user.role === role)), page, pageSize)
   },
 
   // TODO: replace with PATCH /api/admin/users/{id}/role.
@@ -803,12 +858,16 @@ export const mockApi: EventManagementApi = {
   },
 
   // TODO: replace with GET /api/admin/events.
-  async getAllEvents(): Promise<EventItem[]> {
+  async getAllEvents(page = 1, pageSize = 20, filters: EventFilters = {}): Promise<Page<EventItem>> {
     await pause()
     const database = getDatabase()
-    return database.events
+    const query = filters.search?.trim().toLowerCase()
+    return paginate(database.events
+      .filter((event) =>
+        (!query || event.title.toLowerCase().includes(query) || event.organizerName.toLowerCase().includes(query)) &&
+        (!filters.category || event.category === filters.category))
       .sort((left, right) => left.date.localeCompare(right.date))
-      .map((event) => eventWithCount(database, event))
+      .map((event) => eventWithCount(database, event)), page, pageSize)
   },
 
   // TODO: replace with GET /api/admin/reports/summary.
@@ -872,14 +931,14 @@ export const mockApi: EventManagementApi = {
     return 'Your organizer request has been received.'
   },
 
-  async getBookingRequests(): Promise<BookingRequest[]> {
+  async getBookingRequests(page = 1, pageSize = 20): Promise<Page<BookingRequest>> {
     await pause()
-    return []
+    return paginate([], page, pageSize)
   },
 
-  async getAssignedBookingRequests(): Promise<BookingRequest[]> {
+  async getAssignedBookingRequests(page = 1, pageSize = 20): Promise<Page<BookingRequest>> {
     await pause()
-    return []
+    return paginate([], page, pageSize)
   },
 
   async assignBookingRequest(): Promise<BookingRequest> {

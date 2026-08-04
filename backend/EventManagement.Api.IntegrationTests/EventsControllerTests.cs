@@ -24,7 +24,8 @@ public sealed class EventsControllerTests(ApiIntegrationFixture fixture)
                 location = "Draft Hall",
                 capacity = 10,
                 category = "Technology",
-                isPublished = false
+                isPublished = false,
+                version = 1
             });
         unpublish.EnsureSuccessStatusCode();
 
@@ -67,14 +68,14 @@ public sealed class EventsControllerTests(ApiIntegrationFixture fixture)
         using var client = CreateAuthenticatedClient(owner.Token);
         using var unpublish = await client.PutAsJsonAsync(
             $"/api/events/{eventId}",
-            EventUpdatePayload("Past draft", DateTimeOffset.UtcNow.AddDays(7), false));
+            EventUpdatePayload("Past draft", DateTimeOffset.UtcNow.AddDays(7), false, 1));
         unpublish.EnsureSuccessStatusCode();
         var pastDate = DateTimeOffset.UtcNow.AddDays(-1);
         await Fixture.SetEventDateAsync(eventId, pastDate);
 
         using var publish = await client.PutAsJsonAsync(
             $"/api/events/{eventId}",
-            EventUpdatePayload("Past draft", pastDate, true));
+            EventUpdatePayload("Past draft", pastDate, true, 2));
 
         Assert.Equal(HttpStatusCode.BadRequest, publish.StatusCode);
         Assert.False((await Fixture.GetEventStateAsync(eventId)).IsPublished);
@@ -167,7 +168,7 @@ public sealed class EventsControllerTests(ApiIntegrationFixture fixture)
         using var response = operation == "update"
             ? await adminClient.PutAsJsonAsync(
                 $"/api/events/{eventId}",
-                EventPayload("Admin updated event", 10))
+                EventUpdatePayload("Admin updated event", DateTimeOffset.UtcNow.AddDays(7), true, 1))
             : await adminClient.DeleteAsync($"/api/events/{eventId}");
 
         Assert.Equal(
@@ -204,6 +205,35 @@ public sealed class EventsControllerTests(ApiIntegrationFixture fixture)
         Assert.Equal(HttpStatusCode.Conflict, second.StatusCode);
         Assert.Equal(1, await Fixture.CountRegistrationsAsync(eventId));
         Assert.Equal(1, await Fixture.CountEmailOutboxMessagesAsync("RegistrationConfirmation"));
+    }
+
+    [Fact]
+    public async Task Concurrent_event_edits_reject_the_stale_version()
+    {
+        await ResetAsync();
+        var organizer = await CreateActorAsync("concurrent-event-editor@example.test", "Organizer");
+        var eventId = await CreateEventAsync(organizer.Token, "Concurrent event", 10);
+        using var firstClient = CreateAuthenticatedClient(organizer.Token);
+        using var secondClient = CreateAuthenticatedClient(organizer.Token);
+        var gate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var first = SendAfterGateAsync(gate.Task, () => firstClient.PutAsJsonAsync(
+            $"/api/events/{eventId}",
+            EventUpdatePayload("First edit", DateTimeOffset.UtcNow.AddDays(8), true, 1)));
+        var second = SendAfterGateAsync(gate.Task, () => secondClient.PutAsJsonAsync(
+            $"/api/events/{eventId}",
+            EventUpdatePayload("Second edit", DateTimeOffset.UtcNow.AddDays(9), true, 1)));
+
+        gate.SetResult();
+        var responses = await Task.WhenAll(first, second);
+        try
+        {
+            Assert.Single(responses, response => response.StatusCode == HttpStatusCode.OK);
+            Assert.Single(responses, response => response.StatusCode == HttpStatusCode.Conflict);
+        }
+        finally
+        {
+            foreach (var response in responses) response.Dispose();
+        }
     }
 
     [Fact]
@@ -324,7 +354,11 @@ public sealed class EventsControllerTests(ApiIntegrationFixture fixture)
         Assert.Equal(HttpStatusCode.OK, allowed.StatusCode);
     }
 
-    private static object EventUpdatePayload(string title, DateTimeOffset date, bool isPublished) => new
+    private static object EventUpdatePayload(
+        string title,
+        DateTimeOffset date,
+        bool isPublished,
+        int version) => new
     {
         title,
         description = "A sufficiently detailed integration-test event description.",
@@ -332,6 +366,7 @@ public sealed class EventsControllerTests(ApiIntegrationFixture fixture)
         location = "Integration Test Hall",
         capacity = 10,
         category = "Technology",
-        isPublished
+        isPublished,
+        version
     };
 }

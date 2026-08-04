@@ -21,6 +21,7 @@ public interface IOrganizerApplicationService
         CancellationToken cancellationToken);
     Task<PaginatedResponse<OrganizerApplicationResponse>> GetAsync(
         ApplicationStatus? status,
+        string? search,
         int page,
         int pageSize,
         CancellationToken cancellationToken);
@@ -35,10 +36,7 @@ public interface IOrganizerApplicationService
         CancellationToken cancellationToken);
 }
 
-public sealed class OrganizerApplicationService(
-    AppDbContext dbContext,
-    IEmailService emailService,
-    ILogger<OrganizerApplicationService> logger)
+public sealed class OrganizerApplicationService(AppDbContext dbContext)
     : IOrganizerApplicationService
 {
     public async Task<OrganizerApplicationResponse> SubmitAsync(
@@ -106,6 +104,7 @@ public sealed class OrganizerApplicationService(
 
     public async Task<PaginatedResponse<OrganizerApplicationResponse>> GetAsync(
         ApplicationStatus? status,
+        string? search,
         int page,
         int pageSize,
         CancellationToken cancellationToken)
@@ -116,6 +115,14 @@ public sealed class OrganizerApplicationService(
             .Include(application => application.ReviewedByAdmin)
             .AsQueryable();
         if (status.HasValue) query = query.Where(application => application.Status == status.Value);
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var term = search.Trim().ToLowerInvariant();
+            query = query.Where(application =>
+                application.User.Name.ToLower().Contains(term) ||
+                application.User.Email.ToLower().Contains(term) ||
+                application.Reason.ToLower().Contains(term));
+        }
         var totalCount = await query.CountAsync(cancellationToken);
         var items = await query
             .OrderByDescending(application => application.SubmittedAt)
@@ -176,21 +183,18 @@ public sealed class OrganizerApplicationService(
         application.ReviewedByAdminId = adminId;
         application.RejectionReason = status == ApplicationStatus.Rejected ? rejectionReason : null;
         if (status == ApplicationStatus.Approved) application.User.Role = UserRole.Organizer;
-        await dbContext.SaveChangesAsync(cancellationToken);
-        await transaction.CommitAsync(cancellationToken);
-
-        application.ReviewedByAdmin = await dbContext.Users.AsNoTracking()
-            .SingleAsync(user => user.Id == adminId, cancellationToken);
-
-        try
-        {
-            var decision = status == ApplicationStatus.Approved ? "approved" : "rejected";
-            var decisionDetails = status == ApplicationStatus.Approved
-                ? "You can sign in again to receive an Organizer access token."
-                : string.IsNullOrWhiteSpace(rejectionReason)
-                    ? "Contact an administrator if you would like more information."
-                    : $"Reason: {rejectionReason}";
-            await emailService.SendEmailAsync(
+        var decision = status == ApplicationStatus.Approved ? "approved" : "rejected";
+        var decisionDetails = status == ApplicationStatus.Approved
+            ? "You can sign in again to receive an Organizer access token."
+            : string.IsNullOrWhiteSpace(rejectionReason)
+                ? "Contact an administrator if you would like more information."
+                : $"Reason: {rejectionReason}";
+        EmailOutbox.Enqueue(
+            dbContext,
+            $"organizer-application-decision:{application.Id}",
+            EmailOutbox.OrganizerApplicationDecisionKind,
+            application.Id,
+            new EmailOutboxPayload(
                 application.User.Email,
                 application.User.Name,
                 $"Your Organizer application was {decision}",
@@ -200,18 +204,12 @@ public sealed class OrganizerApplicationService(
                     ["StudentName"] = application.User.Name,
                     ["Decision"] = decision,
                     ["DecisionDetails"] = decisionDetails
-                },
-                cancellationToken);
-        }
-        catch (Exception exception)
-        {
-            // The review and any role change are already committed. Email failure
-            // is logged without changing the successful application outcome.
-            logger.LogError(
-                exception,
-                "Organizer application {ApplicationId} was reviewed, but its decision email failed.",
-                application.Id);
-        }
+                }));
+        await dbContext.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+
+        application.ReviewedByAdmin = await dbContext.Users.AsNoTracking()
+            .SingleAsync(user => user.Id == adminId, cancellationToken);
 
         return application.ToResponse();
     }

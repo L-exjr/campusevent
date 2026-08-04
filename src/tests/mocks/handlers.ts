@@ -9,6 +9,8 @@ export const handlers = [
   http.get(`${apiUrl}/events/all`, () => HttpResponse.json(paginated([apiEvent()]))),
   http.get(`${apiUrl}/events/:id`, () => HttpResponse.json(apiEvent())),
   http.get(`${apiUrl}/events/:id/management`, () => HttpResponse.json(apiEvent())),
+  http.get(`${apiUrl}/events/:id/registration-status`, () =>
+    HttpResponse.json({ isRegistered: false })),
   http.get(`${apiUrl}/students/:id/registrations`, () => HttpResponse.json(paginated([]))),
   http.get(`${apiUrl}/organizer-applications/mine`, () => HttpResponse.json(null)),
   http.get(`${apiUrl}/events/:id/registrants`, () => HttpResponse.json(paginated([

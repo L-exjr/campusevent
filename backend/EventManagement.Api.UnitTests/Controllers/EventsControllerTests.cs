@@ -98,5 +98,7 @@ public sealed class EventsControllerTests
         "Organizer",
         0,
         DateTimeOffset.UtcNow,
-        null);
+        null,
+        true,
+        1);
 }

@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useState } from 'react'
 import Alert from 'react-bootstrap/Alert'
 import Badge from 'react-bootstrap/Badge'
 import Button from 'react-bootstrap/Button'
@@ -13,6 +13,7 @@ import EmptyState from '../../components/shared/EmptyState'
 import ErrorState from '../../components/shared/ErrorState'
 import LoadingState from '../../components/shared/LoadingState'
 import PageHeader from '../../components/shared/PageHeader'
+import PaginationControls from '../../components/shared/PaginationControls'
 import { useApiResource } from '../../hooks/useApiResource'
 import { formatDateTime, getInitials } from '../../utils/formatters'
 import type { OrganizerApplication } from '../../types'
@@ -27,22 +28,20 @@ export default function AdminOrganizerApplicationsPage() {
   const [busyApplicationId, setBusyApplicationId] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
-  const loadApplications = useCallback(() => api.getPendingOrganizerApplications(), [])
-  const { data: applications, loading, error, reload, setData } = useApiResource(loadApplications)
-
-  const filteredApplications = useMemo(() => {
-    const query = search.trim().toLowerCase()
-    return (applications ?? []).filter(
-      (application) =>
-        !query ||
-        application.userName.toLowerCase().includes(query) ||
-        application.userEmail.toLowerCase().includes(query) ||
-        application.reason.toLowerCase().includes(query),
-    )
-  }, [applications, search])
+  const [page, setPage] = useState(1)
+  const loadApplications = useCallback(
+    () => api.getPendingOrganizerApplications(page, 20, search),
+    [page, search],
+  )
+  const { data: applicationPage, loading, error, reload, setData } = useApiResource(loadApplications)
+  const applications = applicationPage?.items
 
   const removeFromQueue = (applicationId: string) => {
-    setData((current) => (current ?? []).filter((application) => application.id !== applicationId))
+    setData((current) => current ? {
+      ...current,
+      items: current.items.filter((application) => application.id !== applicationId),
+      totalCount: Math.max(current.totalCount - 1, 0),
+    } : current)
   }
 
   const approveApplication = async () => {
@@ -106,7 +105,7 @@ export default function AdminOrganizerApplicationsPage() {
         action={
           applications ? (
             <Badge bg="warning" text="dark" pill className="pending-count-badge">
-              {applications.length} pending
+              {applicationPage?.totalCount ?? applications.length} pending
             </Badge>
           ) : undefined
         }
@@ -130,7 +129,7 @@ export default function AdminOrganizerApplicationsPage() {
                     <Form.Control
                       value={search}
                       placeholder="Applicant name, email, or application reason"
-                      onChange={(event) => setSearch(event.target.value)}
+                      onChange={(event) => { setSearch(event.target.value); setPage(1) }}
                     />
                   </Form.Group>
                 </Col>
@@ -139,7 +138,7 @@ export default function AdminOrganizerApplicationsPage() {
                     variant="light"
                     className="w-100"
                     disabled={!search}
-                    onClick={() => setSearch('')}
+                    onClick={() => { setSearch(''); setPage(1) }}
                   >
                     Reset
                   </Button>
@@ -148,9 +147,10 @@ export default function AdminOrganizerApplicationsPage() {
             </Card.Body>
           </Card>
 
-          {filteredApplications.length ? (
+          {applications.length ? (
+            <>
             <div className="d-grid gap-3">
-              {filteredApplications.map((application) => (
+              {applications.map((application) => (
                 <Card key={application.id} className="admin-application-card border-0">
                   <Card.Body className="p-4">
                     <div className="d-flex flex-column flex-md-row justify-content-between gap-3 mb-4">
@@ -199,6 +199,10 @@ export default function AdminOrganizerApplicationsPage() {
                 </Card>
               ))}
             </div>
+            {applicationPage && (
+              <PaginationControls {...applicationPage} label="applications" onPageChange={setPage} />
+            )}
+            </>
           ) : (
             <EmptyState
               title="No matching applications"

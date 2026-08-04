@@ -62,6 +62,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
             entity.Property(eventEntity => eventEntity.Category).HasMaxLength(100).IsRequired();
             entity.Property(eventEntity => eventEntity.ImageUrl).HasMaxLength(2048);
             entity.Property(eventEntity => eventEntity.ImageObjectKey).HasMaxLength(1024);
+            entity.Property(eventEntity => eventEntity.Version).HasDefaultValue(1).IsConcurrencyToken();
             entity.HasIndex(eventEntity => eventEntity.Date);
             entity.HasIndex(eventEntity => eventEntity.Category);
             entity.HasOne(eventEntity => eventEntity.Organizer)

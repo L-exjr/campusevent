@@ -17,8 +17,8 @@ export default function StudentDashboardPage() {
   const { user } = useAuth()
   const loadDashboard = useCallback(
     async () => ({
-      events: await api.getEvents(),
-      registrations: await api.getStudentRegistrations(user!.id),
+      events: await api.getEvents({}, 1, 3),
+      registrations: await api.getStudentRegistrations(user!.id, 1, 1),
     }),
     [user],
   )
@@ -27,7 +27,7 @@ export default function StudentDashboardPage() {
   if (loading) return <LoadingState label="Preparing your dashboard" />
   if (error || !data) return <ErrorState message={error ?? 'No data returned.'} onRetry={() => void reload()} />
 
-  const nextEvent = data.registrations[0]?.event
+  const nextEvent = data.registrations.items[0]?.event
 
   return (
     <>
@@ -45,10 +45,10 @@ export default function StudentDashboardPage() {
       </section>
       <Row className="g-3 mb-5">
         <Col md={4}>
-          <StatCard label="My registrations" value={data.registrations.length} note="Across upcoming events" />
+          <StatCard label="My registrations" value={data.registrations.totalCount} note="Across upcoming events" />
         </Col>
         <Col md={4}>
-          <StatCard label="Events to discover" value={data.events.length} note="Open for registration" tone="success" />
+          <StatCard label="Events to discover" value={data.events.totalCount} note="Open for registration" tone="success" />
         </Col>
         <Col md={4}>
           <StatCard
@@ -68,9 +68,9 @@ export default function StudentDashboardPage() {
           View all
         </LinkButton>
       </div>
-      {data.events.length ? (
+      {data.events.items.length ? (
         <Row className="g-4">
-          {data.events.slice(0, 3).map((event) => (
+          {data.events.items.map((event) => (
             <Col lg={4} md={6} key={event.id}>
               <EventCard event={event} />
             </Col>

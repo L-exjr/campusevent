@@ -1,4 +1,4 @@
-import { useCallback } from 'react'
+import { useCallback, useState } from 'react'
 import Badge from 'react-bootstrap/Badge'
 import { Navigate, useParams } from 'react-router-dom'
 import { api } from '../../api'
@@ -8,6 +8,7 @@ import ErrorState from '../../components/shared/ErrorState'
 import LoadingState from '../../components/shared/LoadingState'
 import LinkButton from '../../components/shared/LinkButton'
 import PageHeader from '../../components/shared/PageHeader'
+import PaginationControls from '../../components/shared/PaginationControls'
 import { useApiResource } from '../../hooks/useApiResource'
 import { useAuth } from '../../hooks/useAuth'
 import { canManageEvent } from '../../utils/permissions'
@@ -15,12 +16,13 @@ import { canManageEvent } from '../../utils/permissions'
 export default function AttendancePage() {
   const { id = '' } = useParams()
   const { user } = useAuth()
+  const [page, setPage] = useState(1)
   const loadData = useCallback(
     async () => ({
       event: await api.getManagementEvent(id),
-      registrants: await api.getEventRegistrants(id),
+      registrants: await api.getEventRegistrants(id, page, 50),
     }),
-    [id],
+    [id, page],
   )
   const { data, loading, error, reload } = useApiResource(loadData)
 
@@ -35,15 +37,18 @@ export default function AttendancePage() {
         eyebrow="Attendance"
         title={data.event.title}
         description="Check each student who attended, then save the completed list."
-        action={<Badge bg="success" className="summary-badge">{data.registrants.filter((item) => item.attended).length} present</Badge>}
+        action={<Badge bg="success" className="summary-badge">{data.registrants.items.filter((item) => item.attended).length} present on this page</Badge>}
       />
-      {data.registrants.length ? (
+      {data.registrants.items.length ? (
+        <>
         <AttendanceChecklist
-          key={data.registrants.map((item) => `${item.registrationId}-${item.attended}`).join('|')}
+          key={data.registrants.items.map((item) => `${item.registrationId}-${item.attended}`).join('|')}
           eventId={id}
-          registrants={data.registrants}
+          registrants={data.registrants.items}
           onSaved={reload}
         />
+        <PaginationControls {...data.registrants} label="registrants" onPageChange={setPage} />
+        </>
       ) : (
         <EmptyState title="No one to mark yet" message="Attendance becomes available after students register." />
       )}

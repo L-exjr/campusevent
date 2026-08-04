@@ -10,6 +10,7 @@ import EmptyState from '../../components/shared/EmptyState'
 import ErrorState from '../../components/shared/ErrorState'
 import LoadingState from '../../components/shared/LoadingState'
 import PageHeader from '../../components/shared/PageHeader'
+import PaginationControls from '../../components/shared/PaginationControls'
 import { useApiResource } from '../../hooks/useApiResource'
 import { useAuth } from '../../hooks/useAuth'
 import type { EventInput, EventItem } from '../../types'
@@ -22,8 +23,9 @@ export default function ManageEventsPage() {
   const [busy, setBusy] = useState(false)
   const [actionError, setActionError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
-  const loadEvents = useCallback(() => api.getOrganizerEvents(user!.id), [user])
-  const { data: events, loading, error, reload } = useApiResource(loadEvents)
+  const [page, setPage] = useState(1)
+  const loadEvents = useCallback(() => api.getOrganizerEvents(user!.id, false, page, 20), [page, user])
+  const { data: eventPage, loading, error, reload } = useApiResource(loadEvents)
 
   const openCreate = () => {
     setEditing(null)
@@ -86,8 +88,11 @@ export default function ManageEventsPage() {
         <LoadingState label="Loading your events" />
       ) : error ? (
         <ErrorState message={error} onRetry={() => void reload()} />
-      ) : events?.length ? (
-        <OrganizerEventTable events={events} onEdit={openEdit} onDelete={setDeleting} />
+      ) : eventPage?.items.length ? (
+        <>
+          <OrganizerEventTable events={eventPage.items} onEdit={openEdit} onDelete={setDeleting} />
+          <PaginationControls {...eventPage} label="events" onPageChange={setPage} />
+        </>
       ) : (
         <EmptyState title="Build your first event" message="Create an event and student registrations will appear here." action={<Button onClick={openCreate}>Create event</Button>} />
       )}

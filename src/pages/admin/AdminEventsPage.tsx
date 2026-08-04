@@ -14,6 +14,7 @@ import EmptyState from '../../components/shared/EmptyState'
 import ErrorState from '../../components/shared/ErrorState'
 import LoadingState from '../../components/shared/LoadingState'
 import PageHeader from '../../components/shared/PageHeader'
+import PaginationControls from '../../components/shared/PaginationControls'
 import { useApiResource } from '../../hooks/useApiResource'
 import type { EventInput, EventItem } from '../../types'
 import { EVENT_CATEGORIES } from '../../types'
@@ -27,16 +28,12 @@ export default function AdminEventsPage() {
   const [busy, setBusy] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
-  const loadEvents = useCallback(() => api.getAllEvents(), [])
-  const { data: events, loading, error, reload } = useApiResource(loadEvents)
-
-  const filteredEvents = (events ?? []).filter((event) => {
-    const query = search.trim().toLowerCase()
-    return (
-      (!query || event.title.toLowerCase().includes(query) || event.organizerName.toLowerCase().includes(query)) &&
-      (!category || event.category === category)
-    )
-  })
+  const [page, setPage] = useState(1)
+  const loadEvents = useCallback(
+    () => api.getAllEvents(page, 20, { search, category }),
+    [category, page, search],
+  )
+  const { data: eventPage, loading, error, reload } = useApiResource(loadEvents)
 
   const openCreate = () => {
     setEditing(null)
@@ -103,20 +100,20 @@ export default function AdminEventsPage() {
             <Col md={7}>
               <Form.Group controlId="admin-event-search">
                 <Form.Label>Search events</Form.Label>
-                <Form.Control value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Event title or organizer" />
+                <Form.Control value={search} onChange={(event) => { setSearch(event.target.value); setPage(1) }} placeholder="Event title or organizer" />
               </Form.Group>
             </Col>
             <Col md={4}>
               <Form.Group controlId="admin-event-category">
                 <Form.Label>Category</Form.Label>
-                <Form.Select value={category} onChange={(event) => setCategory(event.target.value)}>
+                <Form.Select value={category} onChange={(event) => { setCategory(event.target.value); setPage(1) }}>
                   <option value="">All categories</option>
                   {EVENT_CATEGORIES.map((item) => <option key={item}>{item}</option>)}
                 </Form.Select>
               </Form.Group>
             </Col>
             <Col md={1}>
-              <Button variant="light" className="w-100" onClick={() => { setSearch(''); setCategory('') }}>Reset</Button>
+              <Button variant="light" className="w-100" onClick={() => { setSearch(''); setCategory(''); setPage(1) }}>Reset</Button>
             </Col>
           </Row>
         </Card.Body>
@@ -125,13 +122,16 @@ export default function AdminEventsPage() {
         <LoadingState label="Loading all events" />
       ) : error ? (
         <ErrorState message={error} onRetry={() => void reload()} />
-      ) : filteredEvents.length ? (
-        <AdminEventTable events={filteredEvents} onEdit={openEdit} onDelete={setDeleting} />
+      ) : eventPage?.items.length ? (
+        <>
+          <AdminEventTable events={eventPage.items} onEdit={openEdit} onDelete={setDeleting} />
+          <PaginationControls {...eventPage} label="events" onPageChange={setPage} />
+        </>
       ) : (
         <EmptyState
-          title={events?.length ? 'No matching events' : 'Create the first event'}
-          message={events?.length ? 'Try a different title, organizer, or category.' : 'Create an event to make it available to Students.'}
-          action={!events?.length ? <Button onClick={openCreate}>Create event</Button> : undefined}
+          title={search || category ? 'No matching events' : 'Create the first event'}
+          message={search || category ? 'Try a different title, organizer, or category.' : 'Create an event to make it available to Students.'}
+          action={!search && !category ? <Button onClick={openCreate}>Create event</Button> : undefined}
         />
       )}
       <Modal

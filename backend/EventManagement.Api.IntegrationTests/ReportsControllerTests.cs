@@ -44,6 +44,7 @@ public sealed class ReportsControllerTests(ApiIntegrationFixture fixture)
         var organizer = await LoginAsync("former-organizer@example.test");
         var eventId = await CreateEventAsync(organizer.Token, "Historical report event", 10);
         await RegisterForEventAsync(attendee.Token, eventId);
+        await Fixture.SetEventDateAsync(eventId, DateTimeOffset.UtcNow.AddDays(-1));
         await SetRoleAsync(admin.Token, candidate.UserId, "Student");
         using var client = CreateAuthenticatedClient(admin.Token);
 

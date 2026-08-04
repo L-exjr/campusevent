@@ -1,4 +1,4 @@
-import { useCallback } from 'react'
+import { useCallback, useState } from 'react'
 import Badge from 'react-bootstrap/Badge'
 import Table from 'react-bootstrap/Table'
 import { api } from '../../api'
@@ -7,15 +7,17 @@ import ErrorState from '../../components/shared/ErrorState'
 import LoadingState from '../../components/shared/LoadingState'
 import LinkButton from '../../components/shared/LinkButton'
 import PageHeader from '../../components/shared/PageHeader'
+import PaginationControls from '../../components/shared/PaginationControls'
 import { useApiResource } from '../../hooks/useApiResource'
 import { useAuth } from '../../hooks/useAuth'
 import { formatDateTime } from '../../utils/formatters'
 
 export default function MyRegistrationsPage() {
   const { user } = useAuth()
+  const [page, setPage] = useState(1)
   const loadRegistrations = useCallback(
-    () => api.getStudentRegistrations(user!.id),
-    [user],
+    () => api.getStudentRegistrations(user!.id, page, 20),
+    [page, user],
   )
   const { data: registrations, loading, error, reload } = useApiResource(loadRegistrations)
 
@@ -31,7 +33,8 @@ export default function MyRegistrationsPage() {
         <LoadingState label="Loading registrations" />
       ) : error ? (
         <ErrorState message={error} onRetry={() => void reload()} />
-      ) : registrations?.length ? (
+      ) : registrations?.items.length ? (
+        <>
         <div className="table-shell">
           <Table responsive hover className="align-middle mb-0">
             <thead>
@@ -44,7 +47,7 @@ export default function MyRegistrationsPage() {
               </tr>
             </thead>
             <tbody>
-              {registrations.map(({ event, registration }) => (
+              {registrations.items.map(({ event, registration }) => (
                 <tr key={registration.id}>
                   <td>
                     <div className="fw-semibold">{event.title}</div>
@@ -67,6 +70,8 @@ export default function MyRegistrationsPage() {
             </tbody>
           </Table>
         </div>
+        <PaginationControls {...registrations} label="registrations" onPageChange={setPage} />
+        </>
       ) : (
         <EmptyState
           title="Your calendar is wide open"

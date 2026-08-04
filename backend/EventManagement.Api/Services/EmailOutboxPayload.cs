@@ -16,6 +16,7 @@ public static class EmailOutbox
     public const string EventReminderKind = "EventReminder";
     public const string RegistrationConfirmationKind = "RegistrationConfirmation";
     public const string PasswordResetKind = "PasswordReset";
+    public const string OrganizerApplicationDecisionKind = "OrganizerApplicationDecision";
 
     public static void Enqueue(
         AppDbContext dbContext,

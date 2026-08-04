@@ -16,12 +16,13 @@ import { formatDateTime } from '../../utils/formatters'
 
 export default function OrganizerDashboardPage() {
   const { user } = useAuth()
-  const loadEvents = useCallback(() => api.getOrganizerEvents(user!.id, true), [user])
-  const { data: events, loading, error, reload } = useApiResource(loadEvents)
+  const loadEvents = useCallback(() => api.getOrganizerEvents(user!.id, true, 1, 4), [user])
+  const { data: eventPage, loading, error, reload } = useApiResource(loadEvents)
 
   if (loading) return <LoadingState label="Preparing organizer workspace" />
-  if (error || !events) return <ErrorState message={error ?? 'No events returned.'} onRetry={() => void reload()} />
+  if (error || !eventPage) return <ErrorState message={error ?? 'No events returned.'} onRetry={() => void reload()} />
 
+  const events = eventPage.items
   const registrations = events.reduce((total, event) => total + event.registeredCount, 0)
   const capacity = events.reduce((total, event) => total + event.capacity, 0)
   const nextEvent = events[0]
@@ -38,7 +39,7 @@ export default function OrganizerDashboardPage() {
       </section>
       <Row className="g-3 mb-5">
         <Col md={4}>
-          <StatCard label="Events managed" value={events.length} note="All of your events" />
+          <StatCard label="Upcoming events" value={eventPage.totalCount} note="Your future schedule" />
         </Col>
         <Col md={4}>
           <StatCard label="Total registrations" value={registrations} note="Across your portfolio" tone="success" />

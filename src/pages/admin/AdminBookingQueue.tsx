@@ -7,6 +7,7 @@ import EmptyState from '../../components/shared/EmptyState'
 import ErrorState from '../../components/shared/ErrorState'
 import LoadingState from '../../components/shared/LoadingState'
 import PageHeader from '../../components/shared/PageHeader'
+import PaginationControls from '../../components/shared/PaginationControls'
 import { useApiResource } from '../../hooks/useApiResource'
 
 const assignableStatuses = new Set<BookingRequest['status']>([
@@ -16,7 +17,8 @@ const assignableStatuses = new Set<BookingRequest['status']>([
 ])
 
 export default function AdminBookingQueue() {
-  const load = useCallback(() => api.getBookingRequests(), [])
+  const [page, setPage] = useState(1)
+  const load = useCallback(() => api.getBookingRequests(page, 20), [page])
   const { data, loading, error, reload, setData } = useApiResource(load)
   const [organizers, setOrganizers] = useState<User[]>([])
   const [selected, setSelected] = useState<Record<string, string>>({})
@@ -25,17 +27,18 @@ export default function AdminBookingQueue() {
   const [actionError, setActionError] = useState<string | null>(null)
 
   useEffect(() => {
-    void api.getUsers()
-      .then((users) => setOrganizers(users.filter(
+    void api.getUsers(1, 100, '', 'organizer')
+      .then((result) => setOrganizers(result.items.filter(
         (user) => user.role === 'organizer' && user.active,
       )))
       .catch(() => setActionError('Organizers could not be loaded.'))
   }, [])
 
   const replaceRequest = (updated: BookingRequest) => {
-    setData((current) => (current ?? []).map(
-      (item) => item.id === updated.id ? updated : item,
-    ))
+    setData((current) => current ? {
+      ...current,
+      items: current.items.map((item) => item.id === updated.id ? updated : item),
+    } : current)
   }
 
   const assign = async (request: BookingRequest) => {
@@ -83,9 +86,10 @@ export default function AdminBookingQueue() {
         <LoadingState label="Loading booking requests" />
       ) : error ? (
         <ErrorState message={error} onRetry={() => void reload()} />
-      ) : data?.length ? (
+      ) : data?.items.length ? (
+        <>
         <div className="d-grid gap-3">
-          {data.map((request) => {
+          {data.items.map((request) => {
             const canAssign = assignableStatuses.has(request.status)
             const busy = busyId === request.id
             return (
@@ -106,6 +110,8 @@ export default function AdminBookingQueue() {
             )
           })}
         </div>
+        <PaginationControls {...data} label="requests" onPageChange={setPage} />
+        </>
       ) : (
         <EmptyState title="No booking requests" message="New public requests will appear here." />
       )}

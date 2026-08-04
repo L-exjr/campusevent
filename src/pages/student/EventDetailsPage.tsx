@@ -27,9 +27,9 @@ export default function EventDetailsPage() {
   const loadDetails = useCallback(
     async () => ({
       event: await api.getEvent(id),
-      registrations: user?.role === 'student'
-        ? await api.getStudentRegistrations(user.id)
-        : [],
+      isRegistered: user?.role === 'student'
+        ? await api.isRegisteredForEvent(id)
+        : false,
     }),
     [id, user],
   )
@@ -57,7 +57,7 @@ export default function EventDetailsPage() {
   if (loading) return <LoadingState label="Loading event details" />
   if (error || !data) return <ErrorState message={error ?? 'No event returned.'} onRetry={() => void reload()} />
 
-  const isRegistered = data.registrations.some((item) => item.event.id === id)
+  const isRegistered = data.isRegistered
   const isFull = data.event.registeredCount >= data.event.capacity
   const registrationClosed = new Date(data.event.date).getTime() <= currentTime
   const spotsLeft = Math.max(data.event.capacity - data.event.registeredCount, 0)

@@ -9,11 +9,13 @@ import EmptyState from '../../components/shared/EmptyState'
 import ErrorState from '../../components/shared/ErrorState'
 import LoadingState from '../../components/shared/LoadingState'
 import PageHeader from '../../components/shared/PageHeader'
+import PaginationControls from '../../components/shared/PaginationControls'
 import { useApiResource } from '../../hooks/useApiResource'
 import type { BookingRequest } from '../../types'
 
 export default function OrganizerBookingRequestsPage() {
-  const loadRequests = useCallback(() => api.getAssignedBookingRequests(), [])
+  const [page, setPage] = useState(1)
+  const loadRequests = useCallback(() => api.getAssignedBookingRequests(page, 20), [page])
   const { data, loading, error, reload, setData } = useApiResource(loadRequests)
   const [notes, setNotes] = useState<Record<string, string>>({})
   const [busyId, setBusyId] = useState<string | null>(null)
@@ -26,7 +28,10 @@ export default function OrganizerBookingRequestsPage() {
     setNotice(null)
     try {
       const updated = await api.respondToBookingRequest(request.id, accept, notes[request.id])
-      setData((current) => (current ?? []).map((item) => item.id === updated.id ? updated : item))
+      setData((current) => current ? {
+        ...current,
+        items: current.items.map((item) => item.id === updated.id ? updated : item),
+      } : current)
       setNotice(accept
         ? 'Request accepted. An unpublished event draft is ready in Manage events.'
         : 'Request declined.')
@@ -50,9 +55,10 @@ export default function OrganizerBookingRequestsPage() {
         <LoadingState label="Loading assigned booking requests" />
       ) : error ? (
         <ErrorState message={error} onRetry={() => void reload()} />
-      ) : data?.length ? (
+      ) : data?.items.length ? (
+        <>
         <div className="d-grid gap-3">
-          {data.map((request) => {
+          {data.items.map((request) => {
             const awaitingResponse = request.status === 'sentToOrganizer'
             const busy = busyId === request.id
             return (
@@ -107,6 +113,8 @@ export default function OrganizerBookingRequestsPage() {
             )
           })}
         </div>
+        <PaginationControls {...data} label="requests" onPageChange={setPage} />
+        </>
       ) : (
         <EmptyState
           title="No assigned requests"

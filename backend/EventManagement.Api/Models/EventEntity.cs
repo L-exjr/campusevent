@@ -13,6 +13,7 @@ public sealed class EventEntity
     public string? ImageObjectKey { get; set; }
     public Guid OrganizerId { get; set; }
     public bool IsPublished { get; set; } = true;
+    public int Version { get; set; } = 1;
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
 
     public User Organizer { get; set; } = null!;

@@ -12,7 +12,8 @@ ASP.NET Core 10 Web API using Entity Framework Core 10, PostgreSQL through Npgsq
 - Active account state and the current database role are checked for every authenticated request. A deactivated user or stale role token receives `401`.
 - JWTs expire after 75 minutes and carry the user's current session version. Password resets increment that version, immediately rejecting previously issued access tokens. Refresh tokens are intentionally not implemented; the client returns to login whenever an access token expires or the API rejects a stale session or role.
 - Event registration uses a serializable database transaction for capacity enforcement and a unique `(EventId, StudentId)` database index for duplicate prevention.
-- Registration confirmations and password resets are committed to the PostgreSQL email outbox in the same transaction as their domain changes. The background worker retries provider failures and clears stored payloads after terminal delivery status.
+- Registration confirmations, password resets, and organizer-application decisions are committed to the PostgreSQL email outbox in the same transaction as their domain changes. Message-specific handlers revalidate time-sensitive state, the dispatcher retries provider failures, and stored payloads are cleared after terminal delivery status.
+- Event updates require the `version` returned by the latest event response. Concurrent stale edits receive `409` rather than silently overwriting newer changes.
 - A filtered unique index prevents more than one pending organizer application per Student.
 
 All API failures use:
@@ -72,7 +73,7 @@ Every list response contains `items`, `page`, `pageSize`, `totalCount`, and `tot
 | POST | `/api/auth/login` | Public | Validate credentials and issue a 75-minute JWT |
 | POST | `/api/organizer-applications` | Student | Submit an Organizer application |
 | GET | `/api/organizer-applications/mine` | Student | View the current Student's latest application and review status |
-| GET | `/api/organizer-applications?status=Pending&page=1&pageSize=20` | Admin | Paginated application queue |
+| GET | `/api/organizer-applications?status=Pending&search=&page=1&pageSize=20` | Admin | Paginated, searchable application queue |
 | PUT | `/api/organizer-applications/{id}/approve` | Admin | Approve and promote the applicant |
 | PUT | `/api/organizer-applications/{id}/reject` | Admin | Reject with an optional reason |
 | GET | `/api/users?search=&role=&isActive=&page=1&pageSize=20` | Admin | Paginated user management list |
@@ -81,11 +82,13 @@ Every list response contains `items`, `page`, `pageSize`, `totalCount`, and `tot
 | GET | `/api/events?search=&category=&from=&to=&page=1&pageSize=20` | Public | Paginated filtered event list |
 | GET | `/api/events/{id}` | Public | Event detail |
 | GET | `/api/events/mine?page=1&pageSize=20` | Organizer, Admin | Events created by the current user |
+| GET | `/api/events/all?search=&category=&page=1&pageSize=20` | Admin | Paginated event-management list including drafts |
 | POST | `/api/events` | Organizer, Admin | Create an event |
 | PUT | `/api/events/{id}` | Owner Organizer, Admin | Update an event |
 | DELETE | `/api/events/{id}` | Owner Organizer, Admin | Delete an event and its registrations |
 | POST | `/api/events/{id}/register` | Student | Register with duplicate/capacity enforcement |
-| GET | `/api/events/{id}/registrants?page=1&pageSize=20` | Owner Organizer, Admin | View paginated registrants |
+| GET | `/api/events/{id}/registration-status` | Student | Check registration without scanning the Student's history |
+| GET | `/api/events/{id}/registrants?search=&attended=&page=1&pageSize=20` | Owner Organizer, Admin | View paginated, filtered registrants |
 | PUT | `/api/events/{id}/attendance` | Owner Organizer, Admin | Bulk-update attendance |
 | GET | `/api/students/{id}/registrations?page=1&pageSize=20` | Same Student only | View paginated own registrations |
 | GET | `/api/booking-requests?status=&page=1&pageSize=20` | Admin | Paginated booking-request queue |
@@ -157,9 +160,13 @@ Create or update an event:
   "date": "2026-09-18T14:00:00Z",
   "location": "Innovation Hall",
   "capacity": 120,
-  "category": "Technology"
+  "category": "Technology",
+  "version": 3
 }
 ```
+
+Omit `version` when creating an event. For updates, send the value from the
+latest event response; every successful update increments it.
 
 Bulk attendance:
 

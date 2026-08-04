@@ -6,6 +6,7 @@ using EventManagement.Api.Infrastructure;
 using EventManagement.Api.Mappings;
 using EventManagement.Api.Models;
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
 
 namespace EventManagement.Api.Services;
 
@@ -26,6 +27,8 @@ public interface IEventService
         int pageSize,
         CancellationToken cancellationToken);
     Task<PaginatedResponse<EventResponse>> GetAllAsync(
+        string? search,
+        string? category,
         int page,
         int pageSize,
         CancellationToken cancellationToken);
@@ -54,10 +57,13 @@ public interface IEventService
         Guid eventId,
         Guid studentId,
         CancellationToken cancellationToken);
+    Task<bool> IsRegisteredAsync(Guid eventId, Guid studentId, CancellationToken cancellationToken);
     Task<PaginatedResponse<EventRegistrantResponse>> GetRegistrantsAsync(
         Guid eventId,
         Guid actorId,
         UserRole actorRole,
+        string? search,
+        bool? attended,
         int page,
         int pageSize,
         CancellationToken cancellationToken);
@@ -130,14 +136,15 @@ public sealed class EventService(
     }
 
     public Task<PaginatedResponse<EventResponse>> GetAllAsync(
+        string? search,
+        string? category,
         int page,
         int pageSize,
-        CancellationToken cancellationToken) =>
-        PaginateEventsAsync(
-            dbContext.Events.AsNoTracking(),
-            page,
-            pageSize,
-            cancellationToken);
+        CancellationToken cancellationToken)
+    {
+        var query = ApplyEventFilters(dbContext.Events.AsNoTracking(), search, category);
+        return PaginateEventsAsync(query, page, pageSize, cancellationToken);
+    }
 
     public async Task<EventResponse> GetByIdAsync(
         Guid eventId,
@@ -168,6 +175,7 @@ public sealed class EventService(
         EventUpsertRequest request,
         CancellationToken cancellationToken)
     {
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
         var input = NormalizeRequest(request);
         StateTransitionRules.EnsureEventPublicationTransition(
             null,
@@ -175,9 +183,9 @@ public sealed class EventService(
             default,
             input.Date,
             DateTimeOffset.UtcNow);
-        var organizer = await dbContext.Users.SingleOrDefaultAsync(
-            user => user.Id == actorId,
-            cancellationToken)
+        var organizer = await dbContext.Users
+            .FromSqlInterpolated($"SELECT * FROM \"Users\" WHERE \"Id\" = {actorId} FOR UPDATE")
+            .SingleOrDefaultAsync(cancellationToken)
             ?? throw new ApiException(StatusCodes.Status404NotFound, "Creating user not found.");
         if (organizer.Role is not (UserRole.Organizer or UserRole.Admin))
             throw new ApiException(StatusCodes.Status403Forbidden, "Only Organizers or Admins can create events.");
@@ -204,6 +212,7 @@ public sealed class EventService(
         };
         dbContext.Events.Add(eventEntity);
         await dbContext.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
         return eventEntity.ToResponse(0);
     }
 
@@ -221,6 +230,12 @@ public sealed class EventService(
             .SingleOrDefaultAsync(item => item.Id == eventId, cancellationToken)
             ?? throw new ApiException(StatusCodes.Status404NotFound, "Event not found.");
         authorizationService.EnsureCanManage(eventEntity.OrganizerId, actorId, actorRole);
+        if (!request.Version.HasValue)
+            throw new ApiException(StatusCodes.Status400BadRequest, "Refresh the event before saving changes.");
+        if (request.Version.Value != eventEntity.Version)
+            throw new ApiException(
+                StatusCodes.Status409Conflict,
+                "This event changed after you opened it. Refresh and try again.");
         var registrationCount = await dbContext.EventRegistrations.CountAsync(
             registration => registration.EventId == eventId,
             cancellationToken);
@@ -253,6 +268,7 @@ public sealed class EventService(
         eventEntity.ImageUrl = image.Url;
         eventEntity.ImageObjectKey = image.ObjectKey;
         eventEntity.IsPublished = targetPublished;
+        eventEntity.Version += 1;
         if (eventEntity.IsPublished)
         {
             var acceptedStatus = BookingRequestStatus.Accepted.ToString();
@@ -266,7 +282,16 @@ public sealed class EventService(
                 bookingRequest.UpdatedAt = DateTimeOffset.UtcNow;
             }
         }
-        await dbContext.SaveChangesAsync(cancellationToken);
+        try
+        {
+            await dbContext.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            throw new ApiException(
+                StatusCodes.Status409Conflict,
+                "This event changed after you opened it. Refresh and try again.");
+        }
         await transaction.CommitAsync(cancellationToken);
         return eventEntity.ToResponse(registrationCount);
     }
@@ -355,7 +380,12 @@ public sealed class EventService(
             await dbContext.SaveChangesAsync(cancellationToken);
             await transaction.CommitAsync(cancellationToken);
         }
-        catch (DbUpdateException)
+        catch (DbUpdateException exception) when (
+            exception.InnerException is PostgresException
+            {
+                SqlState: PostgresErrorCodes.UniqueViolation,
+                ConstraintName: "IX_EventRegistrations_EventId_StudentId"
+            })
         {
             throw new ApiException(StatusCodes.Status409Conflict, "You are already registered for this event.");
         }
@@ -367,10 +397,20 @@ public sealed class EventService(
             eventEntity.ToResponse(registrationCount + 1));
     }
 
+    public Task<bool> IsRegisteredAsync(
+        Guid eventId,
+        Guid studentId,
+        CancellationToken cancellationToken) =>
+        dbContext.EventRegistrations.AsNoTracking().AnyAsync(
+            registration => registration.EventId == eventId && registration.StudentId == studentId,
+            cancellationToken);
+
     public async Task<PaginatedResponse<EventRegistrantResponse>> GetRegistrantsAsync(
         Guid eventId,
         Guid actorId,
         UserRole actorRole,
+        string? search,
+        bool? attended,
         int page,
         int pageSize,
         CancellationToken cancellationToken)
@@ -383,6 +423,15 @@ public sealed class EventService(
         (page, pageSize) = Pagination.Normalize(page, pageSize);
         var query = dbContext.EventRegistrations.AsNoTracking()
             .Where(registration => registration.EventId == eventId);
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var term = search.Trim().ToLowerInvariant();
+            query = query.Where(registration =>
+                registration.Student.Name.ToLower().Contains(term) ||
+                registration.Student.Email.ToLower().Contains(term));
+        }
+        if (attended.HasValue)
+            query = query.Where(registration => registration.Attended == attended.Value);
         var totalCount = await query.CountAsync(cancellationToken);
         var items = await query
             .OrderBy(registration => registration.Student.Name)
@@ -466,7 +515,8 @@ public sealed class EventService(
                     registration.Event.Registrations.Count,
                     registration.Event.CreatedAt,
                     registration.Event.ImageUrl,
-                    registration.Event.IsPublished)))
+                    registration.Event.IsPublished,
+                    registration.Event.Version)))
             .ToListAsync(cancellationToken);
         return new PaginatedResponse<StudentRegistrationResponse>(
             items, page, pageSize, totalCount, Pagination.TotalPages(totalCount, pageSize));
@@ -486,7 +536,28 @@ public sealed class EventService(
             eventEntity.Registrations.Count,
             eventEntity.CreatedAt,
             eventEntity.ImageUrl,
-            eventEntity.IsPublished));
+            eventEntity.IsPublished,
+            eventEntity.Version));
+
+    private static IQueryable<EventEntity> ApplyEventFilters(
+        IQueryable<EventEntity> query,
+        string? search,
+        string? category)
+    {
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var term = search.Trim().ToLowerInvariant();
+            query = query.Where(eventEntity =>
+                eventEntity.Title.ToLower().Contains(term) ||
+                eventEntity.Organizer.Name.ToLower().Contains(term));
+        }
+        if (!string.IsNullOrWhiteSpace(category))
+        {
+            var normalizedCategory = category.Trim().ToLowerInvariant();
+            query = query.Where(eventEntity => eventEntity.Category.ToLower() == normalizedCategory);
+        }
+        return query;
+    }
 
     private static async Task<PaginatedResponse<EventResponse>> PaginateEventsAsync(
         IQueryable<EventEntity> query,

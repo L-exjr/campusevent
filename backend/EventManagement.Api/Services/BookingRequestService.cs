@@ -101,10 +101,11 @@ public sealed class BookingRequestService(AppDbContext dbContext) : IBookingRequ
         CancellationToken cancellationToken)
     {
         await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
-        var organizer = await dbContext.Users.SingleOrDefaultAsync(
-            user => user.Id == organizerId && user.IsActive,
-            cancellationToken);
-        if (organizer is null || organizer.Role != UserRole.Organizer)
+        var organizer = await dbContext.Users
+            .FromSqlInterpolated(
+                $"SELECT * FROM \"Users\" WHERE \"Id\" = {organizerId} FOR UPDATE")
+            .SingleOrDefaultAsync(cancellationToken);
+        if (organizer is null || !organizer.IsActive || organizer.Role != UserRole.Organizer)
             throw new ApiException(StatusCodes.Status400BadRequest, "Choose an active Organizer.");
         var request = await FindForUpdateAsync(id, cancellationToken);
         if (request.Status != BookingRequestStatus.SentToOrganizer)

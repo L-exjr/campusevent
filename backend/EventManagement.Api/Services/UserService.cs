@@ -75,12 +75,14 @@ public sealed class UserService(
     {
         if (role is not (UserRole.Student or UserRole.Organizer))
             throw new ApiException(StatusCodes.Status400BadRequest, "This endpoint only promotes or demotes Organizer access.");
-        var user = await dbContext.Users.SingleOrDefaultAsync(
-            item => item.Id == userId,
-            cancellationToken)
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
+        var user = await FindForUpdateAsync(userId, cancellationToken)
             ?? throw new ApiException(StatusCodes.Status404NotFound, "User account not found.");
         if (user.Role == UserRole.Admin)
             throw new ApiException(StatusCodes.Status400BadRequest, "Admin roles cannot be changed through this endpoint.");
+
+        if (user.Role == UserRole.Organizer && role == UserRole.Student)
+            await EnsureOrganizerHasNoActiveWorkAsync(userId, cancellationToken);
 
         user.Role = role;
         if (role == UserRole.Organizer)
@@ -98,6 +100,7 @@ public sealed class UserService(
             }
         }
         await dbContext.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
         return user.ToResponse();
     }
 
@@ -134,12 +137,40 @@ public sealed class UserService(
     {
         if (userId == adminId)
             throw new ApiException(StatusCodes.Status400BadRequest, "You cannot deactivate your own account.");
-        var user = await dbContext.Users.SingleOrDefaultAsync(
-            item => item.Id == userId,
-            cancellationToken)
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
+        var user = await FindForUpdateAsync(userId, cancellationToken)
             ?? throw new ApiException(StatusCodes.Status404NotFound, "User account not found.");
         if (!user.IsActive) return;
+        if (user.Role == UserRole.Organizer)
+            await EnsureOrganizerHasNoActiveWorkAsync(userId, cancellationToken);
         user.IsActive = false;
         await dbContext.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+    }
+
+    private async Task<User?> FindForUpdateAsync(Guid userId, CancellationToken cancellationToken) =>
+        await dbContext.Users
+            .FromSqlInterpolated($"SELECT * FROM \"Users\" WHERE \"Id\" = {userId} FOR UPDATE")
+            .SingleOrDefaultAsync(cancellationToken);
+
+    private async Task EnsureOrganizerHasNoActiveWorkAsync(
+        Guid organizerId,
+        CancellationToken cancellationToken)
+    {
+        var now = DateTimeOffset.UtcNow;
+        var hasUpcomingEvents = await dbContext.Events.AnyAsync(
+            eventEntity => eventEntity.OrganizerId == organizerId && eventEntity.Date > now,
+            cancellationToken);
+        var hasAssignedRequests = await dbContext.BookingRequests.AnyAsync(
+            request => request.AssignedOrganizerId == organizerId &&
+                       (request.Status == BookingRequestStatus.SentToOrganizer ||
+                        request.Status == BookingRequestStatus.Accepted),
+            cancellationToken);
+        if (hasUpcomingEvents || hasAssignedRequests)
+        {
+            throw new ApiException(
+                StatusCodes.Status409Conflict,
+                "Resolve assigned booking requests and remove or complete this Organizer's upcoming events first.");
+        }
     }
 }

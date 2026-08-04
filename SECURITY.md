@@ -70,6 +70,8 @@ record. While delivery is pending, its payload necessarily contains the one-time
 reset URL. The worker clears that payload after successful delivery, permanent
 failure, or discard; database access and backups must therefore be protected as
 sensitive data.
+Before delivery, the reset handler verifies that the account is active and the
+token is still unused and unexpired, so superseded queued links are discarded.
 
 `Frontend:BaseUrl` controls the non-secret origin used to build reset links. Keep it
 at `http://localhost:5173` locally and set `Frontend__BaseUrl` to the deployed HTTPS

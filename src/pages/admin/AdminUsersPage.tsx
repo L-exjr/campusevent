@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useState } from 'react'
 import Alert from 'react-bootstrap/Alert'
 import Button from 'react-bootstrap/Button'
 import Card from 'react-bootstrap/Card'
@@ -12,6 +12,7 @@ import EmptyState from '../../components/shared/EmptyState'
 import ErrorState from '../../components/shared/ErrorState'
 import LoadingState from '../../components/shared/LoadingState'
 import PageHeader from '../../components/shared/PageHeader'
+import PaginationControls from '../../components/shared/PaginationControls'
 import { useApiResource } from '../../hooks/useApiResource'
 import type { Role, User } from '../../types'
 
@@ -22,17 +23,12 @@ export default function AdminUsersPage() {
   const [statusTarget, setStatusTarget] = useState<User | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
-  const loadUsers = useCallback(() => api.getUsers(), [])
-  const { data: users, loading, error, reload } = useApiResource(loadUsers)
-
-  const filteredUsers = useMemo(() => {
-    const query = search.trim().toLowerCase()
-    return (users ?? []).filter(
-      (user) =>
-        (!query || user.name.toLowerCase().includes(query) || user.email.toLowerCase().includes(query)) &&
-        (!role || user.role === role),
-    )
-  }, [role, search, users])
+  const [page, setPage] = useState(1)
+  const loadUsers = useCallback(
+    () => api.getUsers(page, 20, search, role ? role as Role : undefined),
+    [page, role, search],
+  )
+  const { data: userPage, loading, error, reload } = useApiResource(loadUsers)
 
   const changeRole = async (user: User, nextRole: Exclude<Role, 'admin'>) => {
     setBusyUserId(user.id)
@@ -79,13 +75,13 @@ export default function AdminUsersPage() {
             <Col md={8}>
               <Form.Group controlId="user-search">
                 <Form.Label>Search accounts</Form.Label>
-                <Form.Control value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Name or email address" />
+                <Form.Control value={search} onChange={(event) => { setSearch(event.target.value); setPage(1) }} placeholder="Name or email address" />
               </Form.Group>
             </Col>
             <Col md={3}>
               <Form.Group controlId="user-role-filter">
                 <Form.Label>Role</Form.Label>
-                <Form.Select value={role} onChange={(event) => setRole(event.target.value)}>
+                <Form.Select value={role} onChange={(event) => { setRole(event.target.value); setPage(1) }}>
                   <option value="">All roles</option>
                   <option value="student">Students</option>
                   <option value="organizer">Organizers</option>
@@ -94,7 +90,7 @@ export default function AdminUsersPage() {
               </Form.Group>
             </Col>
             <Col md={1}>
-              <Button variant="light" className="w-100" onClick={() => { setSearch(''); setRole('') }}>Reset</Button>
+              <Button variant="light" className="w-100" onClick={() => { setSearch(''); setRole(''); setPage(1) }}>Reset</Button>
             </Col>
           </Row>
         </Card.Body>
@@ -103,13 +99,16 @@ export default function AdminUsersPage() {
         <LoadingState label="Loading user accounts" />
       ) : error ? (
         <ErrorState message={error} onRetry={() => void reload()} />
-      ) : filteredUsers.length ? (
+      ) : userPage?.items.length ? (
+        <>
         <AdminUserTable
-          users={filteredUsers}
+          users={userPage.items}
           busyUserId={busyUserId}
           onRoleChange={(user, nextRole) => void changeRole(user, nextRole)}
           onStatusChange={setStatusTarget}
         />
+        <PaginationControls {...userPage} label="accounts" onPageChange={setPage} />
+        </>
       ) : (
         <EmptyState title="No matching accounts" message="Try a different name, email, or role filter." />
       )}

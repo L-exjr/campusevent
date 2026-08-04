@@ -44,6 +44,7 @@ export const event: EventItem = {
   registeredCount: 1,
   imageUrl: null,
   isPublished: true,
+  version: 1,
 }
 
 export function apiEvent(overrides: Partial<EventItem> = {}) {
@@ -61,6 +62,8 @@ export function apiEvent(overrides: Partial<EventItem> = {}) {
     createdAt: item.createdAt,
     registrationCount: item.registeredCount,
     imageUrl: item.imageUrl,
+    isPublished: item.isPublished,
+    version: item.version,
   }
 }
 

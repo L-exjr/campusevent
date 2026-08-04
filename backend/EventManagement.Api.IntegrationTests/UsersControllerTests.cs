@@ -38,4 +38,33 @@ public sealed class UsersControllerTests(ApiIntegrationFixture fixture)
 
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
     }
+
+    [Theory]
+    [InlineData("demote")]
+    [InlineData("deactivate")]
+    public async Task Organizer_with_upcoming_events_cannot_lose_organizer_access(string operation)
+    {
+        await ResetAsync();
+        var organizer = await CreateActorAsync($"busy-{operation}-organizer@example.test", "Organizer");
+        using (var organizerClient = CreateAuthenticatedClient(organizer.Token))
+        using (var created = await organizerClient.PostAsJsonAsync(
+                   "/api/events",
+                   EventPayload("Organizer lifecycle event", 20)))
+        {
+            created.EnsureSuccessStatusCode();
+        }
+        var admin = await LoginAdminAsync();
+        using var adminClient = CreateAuthenticatedClient(admin.Token);
+
+        using var response = operation == "demote"
+            ? await adminClient.PutAsJsonAsync(
+                $"/api/users/{organizer.UserId}/role",
+                new { role = "Student" })
+            : await adminClient.PutAsync(
+                $"/api/users/{organizer.UserId}/deactivate",
+                null);
+
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+        Assert.Contains("Resolve assigned", (await ReadJsonAsync(response)).GetProperty("error").GetString());
+    }
 }

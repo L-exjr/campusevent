@@ -153,8 +153,8 @@ wildcard Vercel preview origins.
 
 1. Merge only additive, reviewed EF migrations into `main`. The email outbox,
    image lifecycle, and distributed auth limiter each add an independent table;
-   later additive migrations add the user session version and nullable email
-   outbox payload. The image migration also adds nullable `ImageObjectKey`
+   later additive migrations add the user session version, nullable email
+   outbox payload, and event concurrency version. The image migration also adds nullable `ImageObjectKey`
    columns to `Users` and `Events`.
 2. Confirm both GitHub test jobs pass and both deploy jobs succeed.
 3. In Railway logs, confirm `EF Core database migrations are up to date`, the

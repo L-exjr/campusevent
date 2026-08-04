@@ -2,7 +2,6 @@ import type { EventManagementApi } from './EventManagementApi'
 import {
   apiRequest,
   clearStoredSession,
-  fetchAllPages,
   readStoredSession,
   writeStoredSession,
 } from './httpClient'
@@ -20,6 +19,7 @@ import type {
   OrganizerApplication,
   OrganizerApplicationStatus,
   OrganizerReport,
+  Page,
   Role,
   StudentRegistration,
   User,
@@ -55,6 +55,7 @@ interface ApiEvent {
   createdAt: string
   imageUrl: string | null
   isPublished: boolean
+  version: number
 }
 
 interface ApiStudentRegistration {
@@ -165,6 +166,7 @@ function mapEvent(event: ApiEvent): EventItem {
     registeredCount: event.registrationCount,
     imageUrl: event.imageUrl,
     isPublished: event.isPublished ?? true,
+    version: event.version,
   }
 }
 
@@ -175,6 +177,18 @@ function mapBookingRequest(
     ...request,
     status: `${request.status[0].toLowerCase()}${request.status.slice(1)}` as BookingRequest['status'],
   }
+}
+
+function mapPage<TSource, TTarget>(
+  source: PaginatedResponse<TSource>,
+  mapper: (item: TSource) => TTarget,
+): Page<TTarget> {
+  return { ...source, items: source.items.map(mapper) }
+}
+
+function pageQuery(path: string, page: number, pageSize: number) {
+  const separator = path.includes('?') ? '&' : '?'
+  return `${path}${separator}page=${page}&pageSize=${pageSize}`
 }
 
 function eventPayload(input: EventInput) {
@@ -277,8 +291,13 @@ export const realApi: EventManagementApi = {
     clearStoredSession()
   },
 
-  async getEvents(filters = {}) {
-    return (await fetchAllPages<ApiEvent>(buildEventQuery(filters, true))).map(mapEvent)
+  async getEvents(filters = {}, page = 1, pageSize = 20) {
+    return mapPage(
+      await apiRequest<PaginatedResponse<ApiEvent>>(
+        pageQuery(buildEventQuery(filters, true), page, pageSize),
+      ),
+      mapEvent,
+    )
   },
 
   async getEvent(id) {
@@ -293,11 +312,19 @@ export const realApi: EventManagementApi = {
     await apiRequest(`/events/${eventId}/register`, { method: 'POST' })
   },
 
-  async getStudentRegistrations(studentId) {
-    const registrations = await fetchAllPages<ApiStudentRegistration>(
-      `/students/${studentId}/registrations`,
+  async isRegisteredForEvent(eventId) {
+    const response = await apiRequest<{ isRegistered: boolean }>(
+      `/events/${eventId}/registration-status`,
     )
-    return registrations.map<StudentRegistration>((registration) => ({
+    return response.isRegistered
+  },
+
+  async getStudentRegistrations(studentId, page = 1, pageSize = 20) {
+    return mapPage(
+      await apiRequest<PaginatedResponse<ApiStudentRegistration>>(
+        `/students/${studentId}/registrations?page=${page}&pageSize=${pageSize}`,
+      ),
+      (registration): StudentRegistration => ({
       registration: {
         id: registration.registrationId,
         eventId: registration.event.id,
@@ -306,7 +333,8 @@ export const realApi: EventManagementApi = {
         attended: registration.attended,
       },
       event: mapEvent(registration.event),
-    }))
+      }),
+    )
   },
 
   async getMyOrganizerApplication() {
@@ -324,11 +352,19 @@ export const realApi: EventManagementApi = {
     return mapOrganizerApplication(application)
   },
 
-  async getPendingOrganizerApplications() {
-    const applications = await fetchAllPages<ApiOrganizerApplication>(
-      '/organizer-applications?status=Pending',
+  async getPendingOrganizerApplications(page = 1, pageSize = 20, search = '') {
+    const query = new URLSearchParams({
+      status: 'Pending',
+      page: String(page),
+      pageSize: String(pageSize),
+    })
+    if (search.trim()) query.set('search', search.trim())
+    return mapPage(
+      await apiRequest<PaginatedResponse<ApiOrganizerApplication>>(
+        `/organizer-applications?${query}`,
+      ),
+      mapOrganizerApplication,
     )
-    return applications.map(mapOrganizerApplication)
   },
 
   async approveOrganizerApplication(id) {
@@ -350,10 +386,12 @@ export const realApi: EventManagementApi = {
     return mapOrganizerApplication(application)
   },
 
-  async getOrganizerEvents(_organizerId, upcomingOnly = false) {
-    return (await fetchAllPages<ApiEvent>(
-      upcomingOnly ? '/events/mine?upcoming=true' : '/events/mine',
-    )).map(mapEvent)
+  async getOrganizerEvents(_organizerId, upcomingOnly = false, page = 1, pageSize = 20) {
+    const path = upcomingOnly ? '/events/mine?upcoming=true' : '/events/mine'
+    return mapPage(
+      await apiRequest<PaginatedResponse<ApiEvent>>(pageQuery(path, page, pageSize)),
+      mapEvent,
+    )
   },
 
   async createEvent(input) {
@@ -374,16 +412,23 @@ export const realApi: EventManagementApi = {
     await apiRequest(`/events/${id}`, { method: 'DELETE' })
   },
 
-  async getEventRegistrants(eventId) {
-    const registrants = await fetchAllPages<ApiRegistrant>(`/events/${eventId}/registrants`)
-    return registrants.map<EventRegistrant>((registrant) => ({
+  async getEventRegistrants(eventId, page = 1, pageSize = 20, search = '', attended) {
+    const query = new URLSearchParams({ page: String(page), pageSize: String(pageSize) })
+    if (search.trim()) query.set('search', search.trim())
+    if (attended !== undefined) query.set('attended', String(attended))
+    return mapPage(
+      await apiRequest<PaginatedResponse<ApiRegistrant>>(
+        `/events/${eventId}/registrants?${query}`,
+      ),
+      (registrant): EventRegistrant => ({
       registrationId: registrant.registrationId,
       userId: registrant.studentId,
       name: registrant.studentName,
       email: registrant.studentEmail,
       registeredAt: registrant.registeredAt,
       attended: registrant.attended,
-    }))
+      }),
+    )
   },
 
   async updateAttendance(eventId, attendance) {
@@ -398,8 +443,14 @@ export const realApi: EventManagementApi = {
     })
   },
 
-  async getUsers() {
-    return (await fetchAllPages<ApiUser>('/users')).map(mapUser)
+  async getUsers(page = 1, pageSize = 20, search = '', role) {
+    const query = new URLSearchParams({ page: String(page), pageSize: String(pageSize) })
+    if (search.trim()) query.set('search', search.trim())
+    if (role) query.set('role', `${role[0].toUpperCase()}${role.slice(1)}`)
+    return mapPage(
+      await apiRequest<PaginatedResponse<ApiUser>>(`/users?${query}`),
+      mapUser,
+    )
   },
 
   async updateUserRole(id, role) {
@@ -424,8 +475,16 @@ export const realApi: EventManagementApi = {
     return mapUser(apiUser)
   },
 
-  async getAllEvents() {
-    return (await fetchAllPages<ApiEvent>('/events/all')).map(mapEvent)
+  async getAllEvents(page = 1, pageSize = 20, filters = {}) {
+    const query = new URLSearchParams({ page: String(page), pageSize: String(pageSize) })
+    if (filters.search?.trim()) query.set('search', filters.search.trim())
+    if (filters.category) query.set('category', filters.category)
+    return mapPage(
+      await apiRequest<PaginatedResponse<ApiEvent>>(
+        `/events/all?${query}`,
+      ),
+      mapEvent,
+    )
   },
 
   async getReports(page = 1, pageSize = 20) {
@@ -434,7 +493,7 @@ export const realApi: EventManagementApi = {
       apiRequest<PaginatedResponse<ApiEventReport>>(
         `/reports/events?page=${page}&pageSize=${pageSize}`,
       ),
-      fetchAllPages<ApiOrganizerReport>('/reports/organizers'),
+      apiRequest<PaginatedResponse<ApiOrganizerReport>>('/reports/organizers?page=1&pageSize=20'),
     ])
     const events = eventPage.items.map<EventReport>((report) => ({
       eventId: report.eventId,
@@ -444,7 +503,7 @@ export const realApi: EventManagementApi = {
       attended: report.attendanceCount,
       attendanceRate: report.attendanceRate,
     }))
-    const organizers = apiOrganizers.map<OrganizerReport>((organizer) => ({
+    const organizers = apiOrganizers.items.map<OrganizerReport>((organizer) => ({
       organizerId: organizer.organizerId,
       organizerName: organizer.organizerName,
       events: organizer.eventCount,
@@ -472,18 +531,22 @@ export const realApi: EventManagementApi = {
     return response.message
   },
 
-  async getBookingRequests() {
-    const requests = await fetchAllPages<Omit<BookingRequest, 'status'> & { status: string }>(
-      '/booking-requests',
+  async getBookingRequests(page = 1, pageSize = 20) {
+    return mapPage(
+      await apiRequest<PaginatedResponse<Omit<BookingRequest, 'status'> & { status: string }>>(
+        `/booking-requests?page=${page}&pageSize=${pageSize}`,
+      ),
+      mapBookingRequest,
     )
-    return requests.map(mapBookingRequest)
   },
 
-  async getAssignedBookingRequests() {
-    const requests = await fetchAllPages<Omit<BookingRequest, 'status'> & { status: string }>(
-      '/booking-requests/assigned',
+  async getAssignedBookingRequests(page = 1, pageSize = 20) {
+    return mapPage(
+      await apiRequest<PaginatedResponse<Omit<BookingRequest, 'status'> & { status: string }>>(
+        `/booking-requests/assigned?page=${page}&pageSize=${pageSize}`,
+      ),
+      mapBookingRequest,
     )
-    return requests.map(mapBookingRequest)
   },
 
   async assignBookingRequest(id, organizerId) {

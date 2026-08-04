@@ -22,6 +22,14 @@ export interface User {
   imageUrl: string | null
 }
 
+export interface Page<T> {
+  items: T[]
+  page: number
+  pageSize: number
+  totalCount: number
+  totalPages: number
+}
+
 export interface EventItem {
   id: string
   title: string
@@ -36,6 +44,7 @@ export interface EventItem {
   registeredCount: number
   imageUrl: string | null
   isPublished: boolean
+  version: number
 }
 
 export interface EventInput {
@@ -47,6 +56,7 @@ export interface EventInput {
   location: string
   imageUrl: string | null
   isPublished?: boolean
+  version?: number
 }
 
 export interface BookingRequestInput {

@@ -71,28 +71,6 @@ export async function apiRequest<T>(path: string, options: RequestInit = {}): Pr
   return body as T
 }
 
-export async function fetchAllPages<T>(path: string): Promise<T[]> {
-  const separator = path.includes('?') ? '&' : '?'
-  const first = await apiRequest<PaginatedResponse<T>>(`${path}${separator}page=1&pageSize=100`)
-  if (first.totalPages <= 1) return first.items
-  const remainingPageCount = first.totalPages - 1
-  const remaining = new Array<PaginatedResponse<T>>(remainingPageCount)
-  let nextPageIndex = 0
-  const worker = async () => {
-    while (nextPageIndex < remainingPageCount) {
-      const pageIndex = nextPageIndex
-      nextPageIndex += 1
-      remaining[pageIndex] = await apiRequest<PaginatedResponse<T>>(
-        `${path}${separator}page=${pageIndex + 2}&pageSize=100`,
-      )
-    }
-  }
-  await Promise.all(
-    Array.from({ length: Math.min(4, remainingPageCount) }, () => worker()),
-  )
-  return [first, ...remaining].flatMap((page) => page.items)
-}
-
 export interface PaginatedResponse<T> {
   items: T[]
   page: number

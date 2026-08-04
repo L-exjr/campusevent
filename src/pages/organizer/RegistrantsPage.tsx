@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import Badge from 'react-bootstrap/Badge'
 import Button from 'react-bootstrap/Button'
 import Card from 'react-bootstrap/Card'
@@ -13,6 +13,7 @@ import ErrorState from '../../components/shared/ErrorState'
 import LoadingState from '../../components/shared/LoadingState'
 import LinkButton from '../../components/shared/LinkButton'
 import PageHeader from '../../components/shared/PageHeader'
+import PaginationControls from '../../components/shared/PaginationControls'
 import { useApiResource } from '../../hooks/useApiResource'
 import { useAuth } from '../../hooks/useAuth'
 import { canManageEvent } from '../../utils/permissions'
@@ -22,31 +23,20 @@ export default function RegistrantsPage() {
   const { user } = useAuth()
   const [search, setSearch] = useState('')
   const [attendance, setAttendance] = useState('')
+  const [page, setPage] = useState(1)
   const loadData = useCallback(
     async () => {
       const event = await api.getManagementEvent(id)
       if (!user || !canManageEvent(user, event)) {
         return { event, registrants: null }
       }
-      return { event, registrants: await api.getEventRegistrants(id) }
+      const attended = attendance ? attendance === 'attended' : undefined
+      return { event, registrants: await api.getEventRegistrants(id, page, 50, search, attended) }
     },
-    [id, user],
+    [attendance, id, page, search, user],
   )
   const { data, loading, error, reload } = useApiResource(loadData)
-  const registrants = useMemo(() => data?.registrants ?? [], [data?.registrants])
-  const filteredRegistrants = useMemo(() => {
-    const query = search.trim().toLowerCase()
-    return registrants.filter((registrant) => {
-      const matchesSearch =
-        !query ||
-        registrant.name.toLowerCase().includes(query) ||
-        registrant.email.toLowerCase().includes(query)
-      const matchesAttendance =
-        !attendance ||
-        (attendance === 'attended' ? registrant.attended : !registrant.attended)
-      return matchesSearch && matchesAttendance
-    })
-  }, [attendance, registrants, search])
+  const registrants = data?.registrants?.items ?? []
 
   useEffect(() => {
     if (!data?.event.title) return
@@ -59,6 +49,7 @@ export default function RegistrantsPage() {
   const clearFilters = () => {
     setSearch('')
     setAttendance('')
+    setPage(1)
   }
 
   if (loading) return <LoadingState label="Loading registrants" />
@@ -79,8 +70,8 @@ export default function RegistrantsPage() {
         description="Review everyone currently registered for this event."
         action={(
           <div className="d-flex flex-wrap gap-2">
-            <Badge bg="primary" className="summary-badge">{registrants.length} registered</Badge>
-            <Badge bg="success" className="summary-badge">{attendedCount} attended</Badge>
+            <Badge bg="primary" className="summary-badge">{data.event.registeredCount} registered</Badge>
+            <Badge bg="success" className="summary-badge">{attendedCount} attended on this page</Badge>
           </div>
         )}
       />
@@ -94,7 +85,7 @@ export default function RegistrantsPage() {
                     <Form.Label>Search registrants</Form.Label>
                     <Form.Control
                       value={search}
-                      onChange={(event) => setSearch(event.target.value)}
+                      onChange={(event) => { setSearch(event.target.value); setPage(1) }}
                       placeholder="Name or email address"
                     />
                   </Form.Group>
@@ -104,7 +95,7 @@ export default function RegistrantsPage() {
                     <Form.Label>Attendance status</Form.Label>
                     <Form.Select
                       value={attendance}
-                      onChange={(event) => setAttendance(event.target.value)}
+                      onChange={(event) => { setAttendance(event.target.value); setPage(1) }}
                     >
                       <option value="">All registrants</option>
                       <option value="attended">Attended</option>
@@ -125,8 +116,11 @@ export default function RegistrantsPage() {
               </Row>
             </Card.Body>
           </Card>
-          {filteredRegistrants.length ? (
-            <RegistrantTable registrants={filteredRegistrants} />
+          {registrants.length ? (
+            <>
+              <RegistrantTable registrants={registrants} />
+              <PaginationControls {...data.registrants} label="registrants" onPageChange={setPage} />
+            </>
           ) : (
             <EmptyState
               title="No matching registrants"

@@ -34,6 +34,7 @@ function initialValues(event?: EventItem | null): EventInput {
         location: event.location,
         imageUrl: event.imageUrl,
         isPublished: event.isPublished,
+        version: event.version,
       }
     : {
         title: '',

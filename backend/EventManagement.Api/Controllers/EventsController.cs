@@ -47,10 +47,12 @@ public sealed class EventsController(IEventService eventService) : ControllerBas
     [Authorize(Roles = "Admin")]
     [HttpGet("all")]
     public async Task<ActionResult<PaginatedResponse<EventResponse>>> GetAll(
+        [FromQuery] string? search,
+        [FromQuery] string? category,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 20,
         CancellationToken cancellationToken = default) =>
-        Ok(await eventService.GetAllAsync(page, pageSize, cancellationToken));
+        Ok(await eventService.GetAllAsync(search, category, page, pageSize, cancellationToken));
 
     [AllowAnonymous]
     [HttpGet("{id:guid}")]
@@ -121,17 +123,31 @@ public sealed class EventsController(IEventService eventService) : ControllerBas
         return StatusCode(StatusCodes.Status201Created, registration);
     }
 
+    [Authorize(Roles = "Student")]
+    [HttpGet("{id:guid}/registration-status")]
+    public async Task<ActionResult<RegistrationStatusResponse>> GetRegistrationStatus(
+        Guid id,
+        CancellationToken cancellationToken) =>
+        Ok(new RegistrationStatusResponse(await eventService.IsRegisteredAsync(
+            id,
+            User.GetRequiredUserId(),
+            cancellationToken)));
+
     [Authorize(Roles = "Organizer,Admin")]
     [HttpGet("{id:guid}/registrants")]
     public async Task<ActionResult<PaginatedResponse<EventRegistrantResponse>>> GetRegistrants(
         Guid id,
+        [FromQuery] string? search = null,
+        [FromQuery] bool? attended = null,
         [FromQuery] int page = 1,
-        [FromQuery] int pageSize = 100,
+        [FromQuery] int pageSize = 20,
         CancellationToken cancellationToken = default) =>
         Ok(await eventService.GetRegistrantsAsync(
             id,
             User.GetRequiredUserId(),
             User.GetRequiredRole(),
+            search,
+            attended,
             page,
             pageSize,
             cancellationToken));
