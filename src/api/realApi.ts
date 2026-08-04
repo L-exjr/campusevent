@@ -98,6 +98,8 @@ interface ApiEventReport {
   registrationCount: number
   attendanceCount: number
   attendanceRate: number
+  organizerId: string
+  organizerName: string
 }
 
 interface ApiOrganizerReport {
@@ -161,6 +163,15 @@ function mapEvent(event: ApiEvent): EventItem {
     registeredCount: event.registrationCount,
     imageUrl: event.imageUrl,
     isPublished: event.isPublished ?? true,
+  }
+}
+
+function mapBookingRequest(
+  request: Omit<BookingRequest, 'status'> & { status: string },
+): BookingRequest {
+  return {
+    ...request,
+    status: `${request.status[0].toLowerCase()}${request.status.slice(1)}` as BookingRequest['status'],
   }
 }
 
@@ -272,6 +283,10 @@ export const realApi: EventManagementApi = {
     return mapEvent(await apiRequest<ApiEvent>(`/events/${id}`))
   },
 
+  async getManagementEvent(id) {
+    return mapEvent(await apiRequest<ApiEvent>(`/events/${id}/management`))
+  },
+
   async registerForEvent(eventId) {
     await apiRequest(`/events/${eventId}/register`, { method: 'POST' })
   },
@@ -333,8 +348,10 @@ export const realApi: EventManagementApi = {
     return mapOrganizerApplication(application)
   },
 
-  async getOrganizerEvents() {
-    return (await fetchAllPages<ApiEvent>('/events/mine')).map(mapEvent)
+  async getOrganizerEvents(_organizerId, upcomingOnly = false) {
+    return (await fetchAllPages<ApiEvent>(
+      upcomingOnly ? '/events/mine?upcoming=true' : '/events/mine',
+    )).map(mapEvent)
   },
 
   async createEvent(input) {
@@ -410,22 +427,16 @@ export const realApi: EventManagementApi = {
   },
 
   async getReports() {
-    const [summary, apiEvents, apiOrganizers, users] = await Promise.all([
+    const [summary, apiEventReports, apiOrganizers, users] = await Promise.all([
       apiRequest<ApiSummaryReport>('/reports/summary'),
-      fetchAllPages<ApiEvent>('/events/all'),
+      fetchAllPages<ApiEventReport>('/reports/events'),
       apiRequest<ApiOrganizerReport[]>('/reports/organizers'),
       fetchAllPages<ApiUser>('/users'),
     ])
-    const apiEventReports = await Promise.all(
-      apiEvents.map((event) =>
-        apiRequest<ApiEventReport>(`/reports/events/${event.id}`),
-      ),
-    )
-    const eventById = new Map(apiEvents.map((event) => [event.id, event]))
     const events = apiEventReports.map<EventReport>((report) => ({
       eventId: report.eventId,
       title: report.eventTitle,
-      organizerName: eventById.get(report.eventId)?.organizerName ?? 'Unknown organizer',
+      organizerName: report.organizerName,
       registrations: report.registrationCount,
       attended: report.attendanceCount,
       attendanceRate: report.attendanceRate,
@@ -456,10 +467,14 @@ export const realApi: EventManagementApi = {
 
   async getBookingRequests() {
     const requests = await apiRequest<Array<Omit<BookingRequest, 'status'> & { status: string }>>('/booking-requests')
-    return requests.map((request) => ({
-      ...request,
-      status: `${request.status[0].toLowerCase()}${request.status.slice(1)}` as BookingRequest['status'],
-    }))
+    return requests.map(mapBookingRequest)
+  },
+
+  async getAssignedBookingRequests() {
+    const requests = await apiRequest<Array<Omit<BookingRequest, 'status'> & { status: string }>>(
+      '/booking-requests/assigned',
+    )
+    return requests.map(mapBookingRequest)
   },
 
   async assignBookingRequest(id, organizerId) {
@@ -467,6 +482,17 @@ export const realApi: EventManagementApi = {
       `/booking-requests/${id}/assign`,
       { method: 'PUT', body: JSON.stringify({ organizerId }) },
     )
-    return { ...request, status: `${request.status[0].toLowerCase()}${request.status.slice(1)}` as BookingRequest['status'] }
+    return mapBookingRequest(request)
+  },
+
+  async respondToBookingRequest(id, accept, note) {
+    const request = await apiRequest<Omit<BookingRequest, 'status'> & { status: string }>(
+      `/booking-requests/${id}/respond`,
+      {
+        method: 'PUT',
+        body: JSON.stringify({ accept, note: note?.trim() || null }),
+      },
+    )
+    return mapBookingRequest(request)
   },
 }

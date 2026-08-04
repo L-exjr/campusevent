@@ -24,7 +24,7 @@ export default function RegistrantsPage() {
   const [attendance, setAttendance] = useState('')
   const loadData = useCallback(
     async () => {
-      const event = await api.getEvent(id)
+      const event = await api.getManagementEvent(id)
       if (!user || !canManageEvent(user, event)) {
         return { event, registrants: null }
       }

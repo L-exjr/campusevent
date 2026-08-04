@@ -8,6 +8,7 @@ export const handlers = [
   http.get(`${apiUrl}/events/mine`, () => HttpResponse.json(paginated([apiEvent()]))),
   http.get(`${apiUrl}/events/all`, () => HttpResponse.json(paginated([apiEvent()]))),
   http.get(`${apiUrl}/events/:id`, () => HttpResponse.json(apiEvent())),
+  http.get(`${apiUrl}/events/:id/management`, () => HttpResponse.json(apiEvent())),
   http.get(`${apiUrl}/students/:id/registrations`, () => HttpResponse.json([])),
   http.get(`${apiUrl}/organizer-applications/mine`, () => HttpResponse.json(null)),
   http.get(`${apiUrl}/events/:id/registrants`, () => HttpResponse.json([
@@ -41,6 +42,15 @@ export const handlers = [
     attendanceCount: 0,
     attendanceRate: 0,
   })),
+  http.get(`${apiUrl}/reports/events`, () => HttpResponse.json(paginated([{
+    eventId: event.id,
+    eventTitle: event.title,
+    organizerId: users.organizer.id,
+    organizerName: users.organizer.name,
+    registrationCount: 1,
+    attendanceCount: 0,
+    attendanceRate: 0,
+  }]))),
   http.get(`${apiUrl}/users`, () => HttpResponse.json(paginated([
     {
       id: users.student.id,

@@ -18,6 +18,7 @@ describe('AppNavbar', () => {
     renderWithAuth(<AppNavbar />, { user: users.organizer })
 
     expect(screen.getByRole('link', { name: 'Manage events' })).toBeVisible()
+    expect(screen.getByRole('link', { name: 'Booking requests' })).toBeVisible()
     expect(screen.getByRole('link', { name: 'Explore events' })).toBeVisible()
     expect(screen.queryByRole('link', { name: 'Request an Organizer' })).not.toBeInTheDocument()
     expect(screen.queryByRole('link', { name: 'My registrations' })).not.toBeInTheDocument()

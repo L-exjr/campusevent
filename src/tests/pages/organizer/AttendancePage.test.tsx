@@ -11,7 +11,7 @@ describe('AttendancePage organizer flow', () => {
     let attended = false
     let savedBody: unknown
     server.use(
-      http.get('http://localhost:5080/api/events/:id', () => HttpResponse.json(apiEvent())),
+      http.get('http://localhost:5080/api/events/:id/management', () => HttpResponse.json(apiEvent())),
       http.get('http://localhost:5080/api/events/:id/registrants', () =>
         HttpResponse.json([{
           registrationId: 'registration-1',

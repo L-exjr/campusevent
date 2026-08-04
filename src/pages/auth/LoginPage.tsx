@@ -114,7 +114,7 @@ export default function LoginPage() {
                       onChange={(event) => setEmail(event.target.value)}
                     />
                   </Form.Group>
-                  <Form.Group className="mb-4" controlId="login-password">
+                  <Form.Group className="mb-4">
                     <div className="d-flex justify-content-between"><Form.Label htmlFor="login-password">Password</Form.Label></div>
                     <PasswordInput id="login-password" autoComplete="current-password" value={password} onChange={setPassword} />
                     <Link to="/forgot-password">Forgot password?</Link>

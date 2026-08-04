@@ -1,5 +1,6 @@
 using EventManagement.Api.Data;
 using EventManagement.Api.DTOs.Reports;
+using EventManagement.Api.DTOs.Common;
 using EventManagement.Api.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 
@@ -9,6 +10,10 @@ public interface IReportService
 {
     Task<ReportSummaryResponse> GetSummaryAsync(CancellationToken cancellationToken);
     Task<EventReportResponse> GetEventAsync(Guid eventId, CancellationToken cancellationToken);
+    Task<PaginatedResponse<EventReportListItemResponse>> GetEventsAsync(
+        int page,
+        int pageSize,
+        CancellationToken cancellationToken);
     Task<IReadOnlyList<OrganizerReportResponse>> GetOrganizersAsync(CancellationToken cancellationToken);
 }
 
@@ -46,6 +51,41 @@ public sealed class ReportService(AppDbContext dbContext) : IReportService
                         2)))
             .SingleOrDefaultAsync(cancellationToken)
             ?? throw new ApiException(StatusCodes.Status404NotFound, "Event not found.");
+    }
+
+    public async Task<PaginatedResponse<EventReportListItemResponse>> GetEventsAsync(
+        int page,
+        int pageSize,
+        CancellationToken cancellationToken)
+    {
+        (page, pageSize) = Pagination.Normalize(page, pageSize);
+        var query = dbContext.Events.AsNoTracking();
+        var totalCount = await query.CountAsync(cancellationToken);
+        var items = await query
+            .OrderByDescending(eventEntity => eventEntity.Date)
+            .ThenBy(eventEntity => eventEntity.Id)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .Select(eventEntity => new EventReportListItemResponse(
+                eventEntity.Id,
+                eventEntity.Title,
+                eventEntity.OrganizerId,
+                eventEntity.Organizer.Name,
+                eventEntity.Registrations.Count,
+                eventEntity.Registrations.Count(registration => registration.Attended),
+                eventEntity.Registrations.Count == 0
+                    ? 0
+                    : Math.Round(
+                        eventEntity.Registrations.Count(registration => registration.Attended) * 100m /
+                        eventEntity.Registrations.Count,
+                        2)))
+            .ToListAsync(cancellationToken);
+        return new PaginatedResponse<EventReportListItemResponse>(
+            items,
+            page,
+            pageSize,
+            totalCount,
+            Pagination.TotalPages(totalCount, pageSize));
     }
 
     public async Task<IReadOnlyList<OrganizerReportResponse>> GetOrganizersAsync(

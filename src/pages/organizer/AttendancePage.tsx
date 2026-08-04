@@ -17,7 +17,7 @@ export default function AttendancePage() {
   const { user } = useAuth()
   const loadData = useCallback(
     async () => ({
-      event: await api.getEvent(id),
+      event: await api.getManagementEvent(id),
       registrants: await api.getEventRegistrants(id),
     }),
     [id],

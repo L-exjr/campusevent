@@ -12,6 +12,15 @@ public sealed record EventReportResponse(
     int AttendanceCount,
     decimal AttendanceRate);
 
+public sealed record EventReportListItemResponse(
+    Guid EventId,
+    string EventTitle,
+    Guid OrganizerId,
+    string OrganizerName,
+    int RegistrationCount,
+    int AttendanceCount,
+    decimal AttendanceRate);
+
 public sealed record OrganizerReportResponse(
     Guid OrganizerId,
     string OrganizerName,

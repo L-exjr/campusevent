@@ -7,6 +7,44 @@ public sealed class EventsControllerTests(ApiIntegrationFixture fixture)
     : IntegrationTestBase(fixture), IClassFixture<ApiIntegrationFixture>
 {
     [Fact]
+    public async Task Unpublished_management_detail_is_limited_to_owner_or_admin()
+    {
+        await ResetAsync();
+        var owner = await CreateActorAsync("draft-owner@example.test", "Organizer");
+        var other = await CreateActorAsync("draft-other@example.test", "Organizer");
+        var eventId = await CreateEventAsync(owner.Token, "Management-only draft", 10);
+        using var ownerClient = CreateAuthenticatedClient(owner.Token);
+        using var unpublish = await ownerClient.PutAsJsonAsync(
+            $"/api/events/{eventId}",
+            new
+            {
+                title = "Management-only draft",
+                description = "An unpublished event used to verify management detail authorization.",
+                date = DateTimeOffset.UtcNow.AddDays(7),
+                location = "Draft Hall",
+                capacity = 10,
+                category = "Technology",
+                isPublished = false
+            });
+        unpublish.EnsureSuccessStatusCode();
+
+        using var publicClient = Fixture.CreateClient();
+        using var publicResponse = await publicClient.GetAsync($"/api/events/{eventId}");
+        using var ownerResponse = await ownerClient.GetAsync($"/api/events/{eventId}/management");
+        using var otherClient = CreateAuthenticatedClient(other.Token);
+        using var otherResponse = await otherClient.GetAsync($"/api/events/{eventId}/management");
+        var admin = await LoginAdminAsync();
+        using var adminClient = CreateAuthenticatedClient(admin.Token);
+        using var adminResponse = await adminClient.GetAsync($"/api/events/{eventId}/management");
+
+        Assert.Equal(HttpStatusCode.NotFound, publicResponse.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, ownerResponse.StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, otherResponse.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, adminResponse.StatusCode);
+        Assert.False((await ReadJsonAsync(ownerResponse)).GetProperty("isPublished").GetBoolean());
+    }
+
+    [Fact]
     public async Task Non_admin_cannot_list_unpublished_events()
     {
         await ResetAsync();
@@ -18,6 +56,46 @@ public sealed class EventsControllerTests(ApiIntegrationFixture fixture)
 
         Assert.Equal(HttpStatusCode.Unauthorized, anonymous.StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, studentResponse.StatusCode);
+    }
+
+    [Fact]
+    public async Task Past_dated_draft_cannot_be_published()
+    {
+        await ResetAsync();
+        var owner = await CreateActorAsync("past-draft-owner@example.test", "Organizer");
+        var eventId = await CreateEventAsync(owner.Token, "Past draft", 10);
+        using var client = CreateAuthenticatedClient(owner.Token);
+        using var unpublish = await client.PutAsJsonAsync(
+            $"/api/events/{eventId}",
+            EventUpdatePayload("Past draft", DateTimeOffset.UtcNow.AddDays(7), false));
+        unpublish.EnsureSuccessStatusCode();
+        var pastDate = DateTimeOffset.UtcNow.AddDays(-1);
+        await Fixture.SetEventDateAsync(eventId, pastDate);
+
+        using var publish = await client.PutAsJsonAsync(
+            $"/api/events/{eventId}",
+            EventUpdatePayload("Past draft", pastDate, true));
+
+        Assert.Equal(HttpStatusCode.BadRequest, publish.StatusCode);
+        Assert.False((await Fixture.GetEventStateAsync(eventId)).IsPublished);
+    }
+
+    [Fact]
+    public async Task Upcoming_mine_filter_excludes_past_events()
+    {
+        await ResetAsync();
+        var organizer = await CreateActorAsync("upcoming-owner@example.test", "Organizer");
+        var pastEvent = await CreateEventAsync(organizer.Token, "Past organizer event", 10);
+        var futureEvent = await CreateEventAsync(organizer.Token, "Future organizer event", 10);
+        await Fixture.SetEventDateAsync(pastEvent, DateTimeOffset.UtcNow.AddDays(-1));
+        using var client = CreateAuthenticatedClient(organizer.Token);
+
+        using var response = await client.GetAsync("/api/events/mine?upcoming=true");
+
+        response.EnsureSuccessStatusCode();
+        var items = (await ReadJsonAsync(response)).GetProperty("items").EnumerateArray().ToList();
+        Assert.Single(items);
+        Assert.Equal(futureEvent, items[0].GetProperty("id").GetGuid());
     }
 
     [Fact]
@@ -244,4 +322,15 @@ public sealed class EventsControllerTests(ApiIntegrationFixture fixture)
         Assert.Equal(HttpStatusCode.Forbidden, forbidden.StatusCode);
         Assert.Equal(HttpStatusCode.OK, allowed.StatusCode);
     }
+
+    private static object EventUpdatePayload(string title, DateTimeOffset date, bool isPublished) => new
+    {
+        title,
+        description = "A sufficiently detailed integration-test event description.",
+        date,
+        location = "Integration Test Hall",
+        capacity = 10,
+        category = "Technology",
+        isPublished
+    };
 }

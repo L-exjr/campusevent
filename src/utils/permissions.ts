@@ -49,6 +49,7 @@ const ROLE_NAVIGATION: Record<Role, NavigationItem[]> = {
   organizer: [
     { label: 'Overview', to: '/organizer' },
     { label: 'Manage events', to: '/organizer/events' },
+    { label: 'Booking requests', to: '/organizer/booking-requests' },
   ],
   admin: [
     { label: 'Reports', to: '/admin' },

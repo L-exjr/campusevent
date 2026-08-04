@@ -21,6 +21,7 @@ public interface IEventService
         CancellationToken cancellationToken);
     Task<PaginatedResponse<EventResponse>> GetMineAsync(
         Guid userId,
+        bool upcoming,
         int page,
         int pageSize,
         CancellationToken cancellationToken);
@@ -29,6 +30,11 @@ public interface IEventService
         int pageSize,
         CancellationToken cancellationToken);
     Task<EventResponse> GetByIdAsync(Guid eventId, CancellationToken cancellationToken);
+    Task<EventResponse> GetManagementByIdAsync(
+        Guid eventId,
+        Guid actorId,
+        UserRole actorRole,
+        CancellationToken cancellationToken);
     Task<EventResponse> CreateAsync(
         Guid actorId,
         EventUpsertRequest request,
@@ -106,14 +112,20 @@ public sealed class EventService(
 
     public Task<PaginatedResponse<EventResponse>> GetMineAsync(
         Guid userId,
+        bool upcoming,
         int page,
         int pageSize,
-        CancellationToken cancellationToken) =>
-        PaginateEventsAsync(
-            dbContext.Events.AsNoTracking().Where(eventEntity => eventEntity.OrganizerId == userId),
-            page,
-            pageSize,
-            cancellationToken);
+        CancellationToken cancellationToken)
+    {
+        var query = dbContext.Events.AsNoTracking()
+            .Where(eventEntity => eventEntity.OrganizerId == userId);
+        if (upcoming)
+        {
+            var now = DateTimeOffset.UtcNow;
+            query = query.Where(eventEntity => eventEntity.Date > now);
+        }
+        return PaginateEventsAsync(query, page, pageSize, cancellationToken);
+    }
 
     public Task<PaginatedResponse<EventResponse>> GetAllAsync(
         int page,
@@ -135,14 +147,32 @@ public sealed class EventService(
             ?? throw new ApiException(StatusCodes.Status404NotFound, "Event not found.");
     }
 
+    public async Task<EventResponse> GetManagementByIdAsync(
+        Guid eventId,
+        Guid actorId,
+        UserRole actorRole,
+        CancellationToken cancellationToken)
+    {
+        var response = await ProjectEvents(
+                dbContext.Events.AsNoTracking().Where(item => item.Id == eventId))
+            .SingleOrDefaultAsync(cancellationToken)
+            ?? throw new ApiException(StatusCodes.Status404NotFound, "Event not found.");
+        authorizationService.EnsureCanManage(response.OrganizerId, actorId, actorRole);
+        return response;
+    }
+
     public async Task<EventResponse> CreateAsync(
         Guid actorId,
         EventUpsertRequest request,
         CancellationToken cancellationToken)
     {
         var input = NormalizeRequest(request);
-        if (input.Date <= DateTimeOffset.UtcNow)
-            throw new ApiException(StatusCodes.Status400BadRequest, "New events must be scheduled in the future.");
+        StateTransitionRules.EnsureEventPublicationTransition(
+            null,
+            request.IsPublished ?? true,
+            default,
+            input.Date,
+            DateTimeOffset.UtcNow);
         var organizer = await dbContext.Users.SingleOrDefaultAsync(
             user => user.Id == actorId,
             cancellationToken)
@@ -196,6 +226,14 @@ public sealed class EventService(
                 StatusCodes.Status409Conflict,
                 $"Capacity cannot be lower than the current {registrationCount} registrations.");
 
+        var targetPublished = request.IsPublished ?? eventEntity.IsPublished;
+        StateTransitionRules.EnsureEventPublicationTransition(
+            eventEntity.IsPublished,
+            targetPublished,
+            eventEntity.Date,
+            input.Date,
+            DateTimeOffset.UtcNow);
+
         eventEntity.Title = input.Title;
         eventEntity.Description = input.Description;
         eventEntity.Date = input.Date;
@@ -211,7 +249,7 @@ public sealed class EventService(
             cancellationToken);
         eventEntity.ImageUrl = image.Url;
         eventEntity.ImageObjectKey = image.ObjectKey;
-        eventEntity.IsPublished = request.IsPublished ?? eventEntity.IsPublished;
+        eventEntity.IsPublished = targetPublished;
         if (eventEntity.IsPublished)
         {
             var bookingRequest = await dbContext.BookingRequests.SingleOrDefaultAsync(

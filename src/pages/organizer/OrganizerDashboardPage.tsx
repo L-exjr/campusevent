@@ -16,7 +16,7 @@ import { formatDateTime } from '../../utils/formatters'
 
 export default function OrganizerDashboardPage() {
   const { user } = useAuth()
-  const loadEvents = useCallback(() => api.getOrganizerEvents(user!.id), [user])
+  const loadEvents = useCallback(() => api.getOrganizerEvents(user!.id, true), [user])
   const { data: events, loading, error, reload } = useApiResource(loadEvents)
 
   if (loading) return <LoadingState label="Preparing organizer workspace" />

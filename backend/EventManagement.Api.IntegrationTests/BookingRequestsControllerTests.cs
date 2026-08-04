@@ -64,6 +64,27 @@ public sealed class BookingRequestsControllerTests(ApiIntegrationFixture fixture
     }
 
     [Fact]
+    public async Task Closed_request_cannot_return_to_under_review()
+    {
+        await ResetAsync();
+        using var publicClient = Fixture.CreateClient();
+        using var submission = await publicClient.PostAsJsonAsync("/api/booking-requests", Payload());
+        var bookingId = (await ReadJsonAsync(submission)).GetProperty("id").GetGuid();
+        var admin = await LoginAdminAsync();
+        using var client = CreateAuthenticatedClient(admin.Token);
+        using var closed = await client.PutAsJsonAsync(
+            $"/api/booking-requests/{bookingId}/status",
+            new { status = "Closed" });
+        closed.EnsureSuccessStatusCode();
+
+        using var invalid = await client.PutAsJsonAsync(
+            $"/api/booking-requests/{bookingId}/status",
+            new { status = "UnderReview" });
+
+        Assert.Equal(HttpStatusCode.Conflict, invalid.StatusCode);
+    }
+
+    [Fact]
     public async Task Two_simultaneous_accepts_create_one_draft_and_one_conflict()
     {
         await ResetAsync();

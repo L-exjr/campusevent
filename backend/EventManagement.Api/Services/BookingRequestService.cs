@@ -74,8 +74,10 @@ public sealed class BookingRequestService(AppDbContext dbContext) : IBookingRequ
         if (organizer is null || organizer.Role != UserRole.Organizer)
             throw new ApiException(StatusCodes.Status400BadRequest, "Choose an active Organizer.");
         var request = await FindAsync(id, cancellationToken);
-        if (request.Status is BookingRequestStatus.Accepted or BookingRequestStatus.Declined or BookingRequestStatus.Converted or BookingRequestStatus.Closed)
-            throw new ApiException(StatusCodes.Status409Conflict, "This request can no longer be assigned.");
+        if (request.Status != BookingRequestStatus.SentToOrganizer)
+            StateTransitionRules.EnsureBookingTransition(
+                request.Status,
+                BookingRequestStatus.SentToOrganizer);
 
         request.AssignedOrganizerId = organizerId;
         request.AssignedOrganizer = organizer;
@@ -100,18 +102,20 @@ public sealed class BookingRequestService(AppDbContext dbContext) : IBookingRequ
             ?? throw new ApiException(StatusCodes.Status404NotFound, "Booking request not found.");
         if (request.AssignedOrganizerId != organizerId)
             throw new ApiException(StatusCodes.Status403Forbidden, "Only the assigned Organizer can respond.");
-        if (request.Status != BookingRequestStatus.SentToOrganizer)
-            throw new ApiException(StatusCodes.Status409Conflict, "This request is not awaiting an Organizer response.");
+        var responseStatus = response.Accept
+            ? BookingRequestStatus.Accepted
+            : BookingRequestStatus.Declined;
+        StateTransitionRules.EnsureBookingTransition(request.Status, responseStatus);
 
         request.OrganizerResponseNote = NormalizeOptional(response.Note);
         request.UpdatedAt = DateTimeOffset.UtcNow;
         if (!response.Accept)
         {
-            request.Status = BookingRequestStatus.Declined;
+            request.Status = responseStatus;
         }
         else
         {
-            request.Status = BookingRequestStatus.Accepted;
+            request.Status = responseStatus;
             var draft = new EventEntity
             {
                 Title = $"{request.OrganizationName}: {request.EventType}"[..Math.Min(200, $"{request.OrganizationName}: {request.EventType}".Length)],
@@ -140,8 +144,7 @@ public sealed class BookingRequestService(AppDbContext dbContext) : IBookingRequ
         if (status is not (BookingRequestStatus.UnderReview or BookingRequestStatus.Converted or BookingRequestStatus.Closed))
             throw new ApiException(StatusCodes.Status400BadRequest, "Admin may only mark requests UnderReview, Converted, or Closed here.");
         var request = await FindAsync(id, cancellationToken);
-        if (status == BookingRequestStatus.Converted && request.Status != BookingRequestStatus.Accepted)
-            throw new ApiException(StatusCodes.Status409Conflict, "Only an accepted request can be converted.");
+        StateTransitionRules.EnsureBookingTransition(request.Status, status);
         request.Status = status;
         request.UpdatedAt = DateTimeOffset.UtcNow;
         await dbContext.SaveChangesAsync(cancellationToken);

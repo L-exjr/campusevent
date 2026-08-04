@@ -1,4 +1,5 @@
 using EventManagement.Api.DTOs.Reports;
+using EventManagement.Api.DTOs.Common;
 using EventManagement.Api.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -20,6 +21,13 @@ public sealed class ReportsController(IReportService reportService) : Controller
         Guid id,
         CancellationToken cancellationToken) =>
         Ok(await reportService.GetEventAsync(id, cancellationToken));
+
+    [HttpGet("events")]
+    public async Task<ActionResult<PaginatedResponse<EventReportListItemResponse>>> GetEvents(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20,
+        CancellationToken cancellationToken = default) =>
+        Ok(await reportService.GetEventsAsync(page, pageSize, cancellationToken));
 
     [HttpGet("organizers")]
     public async Task<ActionResult<IReadOnlyList<OrganizerReportResponse>>> GetOrganizers(

@@ -18,6 +18,7 @@ import AttendancePage from './pages/organizer/AttendancePage'
 import ManageEventsPage from './pages/organizer/ManageEventsPage'
 import OrganizerDashboardPage from './pages/organizer/OrganizerDashboardPage'
 import RegistrantsPage from './pages/organizer/RegistrantsPage'
+import OrganizerBookingRequestsPage from './pages/organizer/OrganizerBookingRequestsPage'
 import EventDetailsPage from './pages/student/EventDetailsPage'
 import EventsPage from './pages/student/EventsPage'
 import MyRegistrationsPage from './pages/student/MyRegistrationsPage'
@@ -58,6 +59,7 @@ export default function App() {
           <Route element={<ProtectedRoute allowedRoles={ROUTE_ROLES.organizer} />}>
             <Route path="/organizer" element={<OrganizerDashboardPage />} />
             <Route path="/organizer/events" element={<ManageEventsPage />} />
+            <Route path="/organizer/booking-requests" element={<OrganizerBookingRequestsPage />} />
             <Route path="/organizer/events/:id/registrants" element={<RegistrantsPage />} />
             <Route path="/organizer/events/:id/attendance" element={<AttendancePage />} />
           </Route>

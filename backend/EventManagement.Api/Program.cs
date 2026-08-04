@@ -76,13 +76,7 @@ builder.Services.AddAuthorization();
 builder.Services.AddHealthChecks();
 builder.Services.Configure<ForwardedHeadersOptions>(options =>
 {
-    // Railway terminates TLS at its reverse proxy. Trust exactly the nearest hop
-    // so rate-limit partitions see the original client address and request scheme.
-    options.ForwardedHeaders =
-        ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
-    options.ForwardLimit = 1;
-    options.KnownIPNetworks.Clear();
-    options.KnownProxies.Clear();
+    ForwardedHeadersConfiguration.Configure(options);
 });
 builder.Services.AddRateLimiter(options =>
 {

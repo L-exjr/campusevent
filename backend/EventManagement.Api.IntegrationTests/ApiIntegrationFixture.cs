@@ -157,6 +157,14 @@ public sealed class ApiIntegrationFixture : IAsyncLifetime
         return (item.IsPublished, item.OrganizerId);
     }
 
+    public async Task SetEventDateAsync(Guid eventId, DateTimeOffset date)
+    {
+        await using var dbContext = CreateDbContext();
+        var item = await dbContext.Events.SingleAsync(eventEntity => eventEntity.Id == eventId);
+        item.Date = date;
+        await dbContext.SaveChangesAsync();
+    }
+
     private AppDbContext CreateDbContext()
     {
         var options = new DbContextOptionsBuilder<AppDbContext>()

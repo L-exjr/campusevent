@@ -33,11 +33,13 @@ public sealed class EventsController(IEventService eventService) : ControllerBas
     [Authorize(Roles = "Organizer,Admin")]
     [HttpGet("mine")]
     public async Task<ActionResult<PaginatedResponse<EventResponse>>> GetMine(
+        [FromQuery] bool upcoming = false,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 20,
         CancellationToken cancellationToken = default) =>
         Ok(await eventService.GetMineAsync(
             User.GetRequiredUserId(),
+            upcoming,
             page,
             pageSize,
             cancellationToken));
@@ -56,6 +58,17 @@ public sealed class EventsController(IEventService eventService) : ControllerBas
         Guid id,
         CancellationToken cancellationToken) =>
         Ok(await eventService.GetByIdAsync(id, cancellationToken));
+
+    [Authorize(Roles = "Organizer,Admin")]
+    [HttpGet("{id:guid}/management")]
+    public async Task<ActionResult<EventResponse>> GetManagementById(
+        Guid id,
+        CancellationToken cancellationToken) =>
+        Ok(await eventService.GetManagementByIdAsync(
+            id,
+            User.GetRequiredUserId(),
+            User.GetRequiredRole(),
+            cancellationToken));
 
     [Authorize(Roles = "Organizer,Admin")]
     [HttpPost]

@@ -484,6 +484,18 @@ export const mockApi: EventManagementApi = {
     return eventWithCount(database, event)
   },
 
+  async getManagementEvent(id: string): Promise<EventItem> {
+    await pause()
+    const database = getDatabase()
+    const event = database.events.find((item) => item.id === id)
+    if (!event) throw new Error('Event not found.')
+    const currentUser = getCurrentUser(database)
+    if (currentUser.role !== 'admin' && event.organizerId !== currentUser.id) {
+      throw new Error('You do not have permission to manage this event.')
+    }
+    return eventWithCount(database, event)
+  },
+
   // TODO: replace with POST /api/events/{id}/registrations.
   async registerForEvent(eventId: string, studentId: string) {
     await pause()
@@ -639,11 +651,12 @@ export const mockApi: EventManagementApi = {
   },
 
   // TODO: replace with organizer-scoped GET /api/events/mine.
-  async getOrganizerEvents(organizerId: string): Promise<EventItem[]> {
+  async getOrganizerEvents(organizerId: string, upcomingOnly = false): Promise<EventItem[]> {
     await pause()
     const database = getDatabase()
+    const now = new Date().toISOString()
     return database.events
-      .filter((event) => event.organizerId === organizerId)
+      .filter((event) => event.organizerId === organizerId && (!upcomingOnly || event.date > now))
       .sort((left, right) => left.date.localeCompare(right.date))
       .map((event) => eventWithCount(database, event))
   },
@@ -860,7 +873,16 @@ export const mockApi: EventManagementApi = {
     return []
   },
 
+  async getAssignedBookingRequests(): Promise<BookingRequest[]> {
+    await pause()
+    return []
+  },
+
   async assignBookingRequest(): Promise<BookingRequest> {
     throw new Error('No mock booking request is available to assign.')
+  },
+
+  async respondToBookingRequest(): Promise<BookingRequest> {
+    throw new Error('No mock booking request is available to respond to.')
   },
 }

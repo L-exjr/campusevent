@@ -23,6 +23,7 @@ export interface EventManagementApi {
   logout(): Promise<void>
   getEvents(filters?: EventFilters): Promise<EventItem[]>
   getEvent(id: string): Promise<EventItem>
+  getManagementEvent(id: string): Promise<EventItem>
   registerForEvent(eventId: string, studentId: string): Promise<void>
   getStudentRegistrations(studentId: string): Promise<StudentRegistration[]>
   getMyOrganizerApplication(): Promise<OrganizerApplication | null>
@@ -30,7 +31,7 @@ export interface EventManagementApi {
   getPendingOrganizerApplications(): Promise<OrganizerApplication[]>
   approveOrganizerApplication(id: string): Promise<OrganizerApplication>
   rejectOrganizerApplication(id: string, reason?: string): Promise<OrganizerApplication>
-  getOrganizerEvents(organizerId: string): Promise<EventItem[]>
+  getOrganizerEvents(organizerId: string, upcomingOnly?: boolean): Promise<EventItem[]>
   createEvent(input: EventInput): Promise<EventItem>
   updateEvent(id: string, input: EventInput): Promise<EventItem>
   deleteEvent(id: string): Promise<void>
@@ -44,5 +45,7 @@ export interface EventManagementApi {
   getReports(): Promise<ReportsData>
   submitBookingRequest(input: BookingRequestInput): Promise<string>
   getBookingRequests(): Promise<BookingRequest[]>
+  getAssignedBookingRequests(): Promise<BookingRequest[]>
   assignBookingRequest(id: string, organizerId: string): Promise<BookingRequest>
+  respondToBookingRequest(id: string, accept: boolean, note?: string): Promise<BookingRequest>
 }

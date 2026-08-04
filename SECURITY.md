@@ -98,6 +98,16 @@ response as a legitimate submission but is not stored. This avoids CAPTCHA track
 keys, and user friction at the current scale. Revisit a privacy-reviewed CAPTCHA if
 targeted bot traffic starts bypassing the honeypot.
 
+## Trusted reverse proxies
+
+The API accepts Railway's documented `X-Real-IP` and `X-Forwarded-Proto` only from ASP.NET
+Core's loopback defaults and Railway's documented internal proxy network
+(`100.0.0.0/8`). Do not clear `KnownIPNetworks`/`KnownProxies` or trust arbitrary
+forwarding hops: the authentication and public-booking rate limits partition by
+the resolved client address. If the deployment platform changes, confirm its
+official proxy network before updating
+`Infrastructure/ForwardedHeadersConfiguration.cs`.
+
 ## Exposed-key history
 
 The former development key must be treated as compromised because removing it
