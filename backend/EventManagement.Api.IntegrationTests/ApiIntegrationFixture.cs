@@ -2,6 +2,8 @@ using EventManagement.Api.Data;
 using EventManagement.Api.Models;
 using EventManagement.Api.Services;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
+using Npgsql;
 using System.Security.Cryptography;
 using System.Text;
 
@@ -44,6 +46,7 @@ public sealed class ApiIntegrationFixture : IAsyncLifetime
             """
             TRUNCATE TABLE
                 "AuthRateLimitBuckets",
+                "AdminAuditLogs",
                 "EmailOutboxMessages",
                 "EventRegistrations",
                 "OrganizerApplications",
@@ -104,6 +107,13 @@ public sealed class ApiIntegrationFixture : IAsyncLifetime
         return await dbContext.EmailOutboxMessages.CountAsync(message => message.Kind == kind);
     }
 
+    public async Task<bool> EmailOutboxPayloadExistsAsync(string kind)
+    {
+        await using var dbContext = CreateDbContext();
+        return await dbContext.EmailOutboxMessages.AnyAsync(
+            message => message.Kind == kind && message.PayloadJson != null);
+    }
+
     public async Task<Guid> CreateFailedEmailOutboxMessageAsync(string kind, string? payloadJson)
     {
         await using var dbContext = CreateDbContext();
@@ -115,6 +125,7 @@ public sealed class ApiIntegrationFixture : IAsyncLifetime
             PayloadJson = payloadJson,
             Status = EmailOutboxStatus.Failed,
             AttemptCount = 8,
+            LifetimeAttemptCount = 8,
             LastError = "Provider unavailable"
         };
         dbContext.EmailOutboxMessages.Add(message);
@@ -122,15 +133,74 @@ public sealed class ApiIntegrationFixture : IAsyncLifetime
         return message.Id;
     }
 
-    public async Task<(EmailOutboxStatus Status, int AttemptCount)> GetEmailOutboxStateAsync(Guid id)
+    public async Task<(
+        EmailOutboxStatus Status,
+        int AttemptCount,
+        int LifetimeAttemptCount,
+        int ManualRetryCount)> GetEmailOutboxStateAsync(Guid id)
     {
         await using var dbContext = CreateDbContext();
         return await dbContext.EmailOutboxMessages
             .Where(message => message.Id == id)
-            .Select(message => new ValueTuple<EmailOutboxStatus, int>(
+            .Select(message => new ValueTuple<EmailOutboxStatus, int, int, int>(
                 message.Status,
-                message.AttemptCount))
+                message.AttemptCount,
+                message.LifetimeAttemptCount,
+                message.ManualRetryCount))
             .SingleAsync();
+    }
+
+    public async Task<Guid> CreateTerminalEmailOutboxMessageAsync(
+        EmailOutboxStatus status,
+        DateTimeOffset createdAt)
+    {
+        await using var dbContext = CreateDbContext();
+        var message = new EmailOutboxMessage
+        {
+            IdempotencyKey = $"integration-terminal:{Guid.NewGuid():N}",
+            Kind = EmailOutbox.EventReminderKind,
+            AggregateId = Guid.NewGuid(),
+            Status = status,
+            CreatedAt = createdAt
+        };
+        dbContext.EmailOutboxMessages.Add(message);
+        await dbContext.SaveChangesAsync();
+        return message.Id;
+    }
+
+    public async Task<bool> EmailOutboxMessageExistsAsync(Guid id)
+    {
+        await using var dbContext = CreateDbContext();
+        return await dbContext.EmailOutboxMessages.AnyAsync(message => message.Id == id);
+    }
+
+    public async Task ApplyEmailOutboxRetentionAsync()
+    {
+        await using var dbContext = CreateDbContext();
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Email:Outbox:DeliveredRetentionDays"] = "30",
+                ["Email:Outbox:FailedRetentionDays"] = "90"
+            })
+            .Build();
+        await new EmailOutboxRetentionService(dbContext, configuration)
+            .ApplyAsync(CancellationToken.None);
+    }
+
+    public async Task<bool> AdminAuditMutationIsRejectedAsync(Guid id)
+    {
+        await using var dbContext = CreateDbContext();
+        try
+        {
+            await dbContext.Database.ExecuteSqlInterpolatedAsync(
+                $"UPDATE \"AdminAuditLogs\" SET \"Action\" = 'Tampered' WHERE \"Id\" = {id}");
+            return false;
+        }
+        catch (PostgresException exception) when (exception.SqlState == PostgresErrorCodes.RaiseException)
+        {
+            return true;
+        }
     }
 
     public async Task SetAuthRateLimitCountAsync(

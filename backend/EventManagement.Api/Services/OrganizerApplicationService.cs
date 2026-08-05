@@ -36,7 +36,9 @@ public interface IOrganizerApplicationService
         CancellationToken cancellationToken);
 }
 
-public sealed class OrganizerApplicationService(AppDbContext dbContext)
+public sealed class OrganizerApplicationService(
+    AppDbContext dbContext,
+    AdminAuditService auditService)
     : IOrganizerApplicationService
 {
     public async Task<OrganizerApplicationResponse> SubmitAsync(
@@ -183,28 +185,19 @@ public sealed class OrganizerApplicationService(AppDbContext dbContext)
         application.ReviewedByAdminId = adminId;
         application.RejectionReason = status == ApplicationStatus.Rejected ? rejectionReason : null;
         if (status == ApplicationStatus.Approved) application.User.Role = UserRole.Organizer;
-        var decision = status == ApplicationStatus.Approved ? "approved" : "rejected";
-        var decisionDetails = status == ApplicationStatus.Approved
-            ? "You can sign in again to receive an Organizer access token."
-            : string.IsNullOrWhiteSpace(rejectionReason)
-                ? "Contact an administrator if you would like more information."
-                : $"Reason: {rejectionReason}";
-        EmailOutbox.Enqueue(
+        EmailOutbox.EnqueueDomainMessage(
             dbContext,
             $"organizer-application-decision:{application.Id}",
             EmailOutbox.OrganizerApplicationDecisionKind,
+            application.Id);
+        auditService.Append(
+            adminId,
+            status == ApplicationStatus.Approved
+                ? "OrganizerApplicationApproved"
+                : "OrganizerApplicationRejected",
+            "OrganizerApplication",
             application.Id,
-            new EmailOutboxPayload(
-                application.User.Email,
-                application.User.Name,
-                $"Your Organizer application was {decision}",
-                "OrganizerApplicationDecision.html",
-                new Dictionary<string, string?>
-                {
-                    ["StudentName"] = application.User.Name,
-                    ["Decision"] = decision,
-                    ["DecisionDetails"] = decisionDetails
-                }));
+            new { application.UserId, Status = status.ToString() });
         await dbContext.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
 

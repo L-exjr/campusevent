@@ -15,12 +15,16 @@ public interface IBookingRequestService
     Task<PaginatedResponse<BookingRequestResponse>> GetAssignedAsync(
         Guid organizerId, BookingRequestStatus? status, int page, int pageSize,
         CancellationToken cancellationToken);
-    Task<BookingRequestResponse> AssignAsync(Guid id, Guid organizerId, CancellationToken cancellationToken);
+    Task<BookingRequestResponse> AssignAsync(
+        Guid id, Guid organizerId, Guid adminId, CancellationToken cancellationToken);
     Task<BookingRequestResponse> RespondAsync(Guid id, Guid organizerId, RespondToBookingRequest request, CancellationToken cancellationToken);
-    Task<BookingRequestResponse> UpdateStatusAsync(Guid id, BookingRequestStatus status, CancellationToken cancellationToken);
+    Task<BookingRequestResponse> UpdateStatusAsync(
+        Guid id, BookingRequestStatus status, Guid adminId, CancellationToken cancellationToken);
 }
 
-public sealed class BookingRequestService(AppDbContext dbContext) : IBookingRequestService
+public sealed class BookingRequestService(
+    AppDbContext dbContext,
+    AdminAuditService auditService) : IBookingRequestService
 {
     private const string SubmissionMessage = "Your organizer request has been received.";
 
@@ -98,6 +102,7 @@ public sealed class BookingRequestService(AppDbContext dbContext) : IBookingRequ
     public async Task<BookingRequestResponse> AssignAsync(
         Guid id,
         Guid organizerId,
+        Guid adminId,
         CancellationToken cancellationToken)
     {
         await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
@@ -113,10 +118,19 @@ public sealed class BookingRequestService(AppDbContext dbContext) : IBookingRequ
                 request.Status,
                 BookingRequestStatus.SentToOrganizer);
 
+        var previousOrganizerId = request.AssignedOrganizerId;
         request.AssignedOrganizerId = organizerId;
         request.AssignedOrganizer = organizer;
         request.Status = BookingRequestStatus.SentToOrganizer;
         request.UpdatedAt = DateTimeOffset.UtcNow;
+        auditService.Append(
+            adminId,
+            previousOrganizerId.HasValue
+                ? "BookingRequestReassigned"
+                : "BookingRequestAssigned",
+            "BookingRequest",
+            request.Id,
+            new { PreviousOrganizerId = previousOrganizerId, NewOrganizerId = organizerId });
         await dbContext.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return ToResponse(request);
@@ -174,15 +188,27 @@ public sealed class BookingRequestService(AppDbContext dbContext) : IBookingRequ
     public async Task<BookingRequestResponse> UpdateStatusAsync(
         Guid id,
         BookingRequestStatus status,
+        Guid adminId,
         CancellationToken cancellationToken)
     {
         if (status is not (BookingRequestStatus.UnderReview or BookingRequestStatus.Converted or BookingRequestStatus.Closed))
             throw new ApiException(StatusCodes.Status400BadRequest, "Admin may only mark requests UnderReview, Converted, or Closed here.");
         await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
         var request = await FindForUpdateAsync(id, cancellationToken);
-        StateTransitionRules.EnsureBookingTransition(request.Status, status);
+        var previousStatus = request.Status;
+        StateTransitionRules.EnsureBookingTransition(previousStatus, status);
         request.Status = status;
         request.UpdatedAt = DateTimeOffset.UtcNow;
+        auditService.Append(
+            adminId,
+            "BookingRequestStatusChanged",
+            "BookingRequest",
+            request.Id,
+            new
+            {
+                PreviousStatus = previousStatus.ToString(),
+                NewStatus = status.ToString()
+            });
         await dbContext.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return ToResponse(request);

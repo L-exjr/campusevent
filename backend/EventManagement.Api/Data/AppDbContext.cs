@@ -14,6 +14,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
     public DbSet<EmailOutboxMessage> EmailOutboxMessages => Set<EmailOutboxMessage>();
     public DbSet<ImageUpload> ImageUploads => Set<ImageUpload>();
     public DbSet<AuthRateLimitBucket> AuthRateLimitBuckets => Set<AuthRateLimitBucket>();
+    public DbSet<AdminAuditLog> AdminAuditLogs => Set<AdminAuditLog>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -160,6 +161,21 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
             entity.HasKey(bucket => bucket.Key);
             entity.Property(bucket => bucket.Key).HasMaxLength(160);
             entity.HasIndex(bucket => bucket.UpdatedAt);
+        });
+
+        modelBuilder.Entity<AdminAuditLog>(entity =>
+        {
+            entity.HasKey(log => log.Id);
+            entity.Property(log => log.Action).HasMaxLength(100).IsRequired();
+            entity.Property(log => log.TargetType).HasMaxLength(100).IsRequired();
+            entity.Property(log => log.TargetId).HasMaxLength(200).IsRequired();
+            entity.Property(log => log.DetailsJson).HasColumnType("jsonb").IsRequired();
+            entity.HasIndex(log => log.CreatedAt);
+            entity.HasIndex(log => new { log.TargetType, log.TargetId });
+            entity.HasOne(log => log.ActorUser)
+                .WithMany()
+                .HasForeignKey(log => log.ActorUserId)
+                .OnDelete(DeleteBehavior.Restrict);
         });
     }
 }

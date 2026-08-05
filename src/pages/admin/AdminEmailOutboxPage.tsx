@@ -69,7 +69,14 @@ export default function AdminEmailOutboxPage() {
                       <small className="text-secondary">{message.aggregateId}</small>
                     </td>
                     <td>{formatDateTime(message.createdAt)}</td>
-                    <td>{message.attemptCount}</td>
+                    <td>
+                      {message.attemptCount} this cycle · {message.lifetimeAttemptCount} lifetime
+                      {message.manualRetryCount > 0 && (
+                        <small className="d-block text-secondary">
+                          {message.manualRetryCount} manual retries
+                        </small>
+                      )}
+                    </td>
                     <td>{message.lastError ?? 'No provider error recorded'}</td>
                     <td className="text-end">
                       {message.canRetry ? (

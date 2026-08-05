@@ -44,7 +44,11 @@ public sealed class BookingRequestsController(IBookingRequestService service) : 
     [HttpPut("{id:guid}/assign")]
     public async Task<ActionResult<BookingRequestResponse>> Assign(
         Guid id, AssignBookingRequest request, CancellationToken cancellationToken) =>
-        Ok(await service.AssignAsync(id, request.OrganizerId, cancellationToken));
+        Ok(await service.AssignAsync(
+            id,
+            request.OrganizerId,
+            User.GetRequiredUserId(),
+            cancellationToken));
 
     [Authorize(Roles = "Organizer")]
     [HttpPut("{id:guid}/respond")]
@@ -56,5 +60,9 @@ public sealed class BookingRequestsController(IBookingRequestService service) : 
     [HttpPut("{id:guid}/status")]
     public async Task<ActionResult<BookingRequestResponse>> UpdateStatus(
         Guid id, UpdateBookingRequestStatus request, CancellationToken cancellationToken) =>
-        Ok(await service.UpdateStatusAsync(id, request.Status, cancellationToken));
+        Ok(await service.UpdateStatusAsync(
+            id,
+            request.Status,
+            User.GetRequiredUserId(),
+            cancellationToken));
 }

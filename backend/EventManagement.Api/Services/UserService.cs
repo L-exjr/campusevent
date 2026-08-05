@@ -32,7 +32,8 @@ public interface IUserService
 
 public sealed class UserService(
     AppDbContext dbContext,
-    IImageLifecycleService imageLifecycleService) : IUserService
+    IImageLifecycleService imageLifecycleService,
+    AdminAuditService auditService) : IUserService
 {
     public async Task<PaginatedResponse<UserResponse>> GetAsync(
         string? search,
@@ -84,6 +85,7 @@ public sealed class UserService(
         if (user.Role == UserRole.Organizer && role == UserRole.Student)
             await EnsureOrganizerHasNoActiveWorkAsync(userId, cancellationToken);
 
+        var previousRole = user.Role;
         user.Role = role;
         if (role == UserRole.Organizer)
         {
@@ -99,6 +101,12 @@ public sealed class UserService(
                 application.RejectionReason = null;
             }
         }
+        auditService.Append(
+            adminId,
+            "UserRoleChanged",
+            "User",
+            user.Id,
+            new { PreviousRole = previousRole.ToString(), NewRole = role.ToString() });
         await dbContext.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return user.ToResponse();
@@ -144,6 +152,12 @@ public sealed class UserService(
         if (user.Role == UserRole.Organizer)
             await EnsureOrganizerHasNoActiveWorkAsync(userId, cancellationToken);
         user.IsActive = false;
+        auditService.Append(
+            adminId,
+            "UserDeactivated",
+            "User",
+            user.Id,
+            new { Role = user.Role.ToString() });
         await dbContext.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
     }

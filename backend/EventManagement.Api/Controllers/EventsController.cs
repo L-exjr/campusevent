@@ -104,7 +104,11 @@ public sealed class EventsController(IEventService eventService) : ControllerBas
         Guid id,
         TransferEventOwnershipRequest request,
         CancellationToken cancellationToken) =>
-        Ok(await eventService.TransferOwnershipAsync(id, request, cancellationToken));
+        Ok(await eventService.TransferOwnershipAsync(
+            id,
+            User.GetRequiredUserId(),
+            request,
+            cancellationToken));
 
     [Authorize(Roles = "Organizer,Admin")]
     [HttpDelete("{id:guid}")]

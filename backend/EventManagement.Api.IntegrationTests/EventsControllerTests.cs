@@ -248,6 +248,7 @@ public sealed class EventsControllerTests(ApiIntegrationFixture fixture)
         Assert.Equal(HttpStatusCode.Conflict, second.StatusCode);
         Assert.Equal(1, await Fixture.CountRegistrationsAsync(eventId));
         Assert.Equal(1, await Fixture.CountEmailOutboxMessagesAsync("RegistrationConfirmation"));
+        Assert.False(await Fixture.EmailOutboxPayloadExistsAsync("RegistrationConfirmation"));
     }
 
     [Fact]

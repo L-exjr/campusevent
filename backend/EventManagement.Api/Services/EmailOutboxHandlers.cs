@@ -33,9 +33,7 @@ public sealed class PayloadEmailOutboxHandler(
 {
     private static readonly IReadOnlySet<string> SupportedKinds = new HashSet<string>
     {
-        EmailOutbox.PasswordResetKind,
-        EmailOutbox.RegistrationConfirmationKind,
-        EmailOutbox.OrganizerApplicationDecisionKind
+        EmailOutbox.PasswordResetKind
     };
 
     public bool CanHandle(string kind) => SupportedKinds.Contains(kind);
@@ -61,22 +59,6 @@ public sealed class PayloadEmailOutboxHandler(
                     "The password reset token is no longer valid.");
             }
         }
-        else if (message.Kind == EmailOutbox.RegistrationConfirmationKind)
-        {
-            var registration = await dbContext.EventRegistrations.AsNoTracking()
-                .Where(item => item.Id == message.AggregateId)
-                .Select(item => new { StudentIsActive = item.Student.IsActive })
-                .SingleOrDefaultAsync(cancellationToken);
-            if (!RegistrationConfirmationEmailPolicy.ShouldDeliver(
-                    registration is not null,
-                    registration?.StudentIsActive ?? false))
-            {
-                return new EmailOutboxHandlingResult(
-                    EmailOutboxOutcome.Discard,
-                    "The registration confirmation is no longer valid.");
-            }
-        }
-
         EmailOutboxPayload? payload;
         try
         {
@@ -98,6 +80,109 @@ public sealed class PayloadEmailOutboxHandler(
             payload.Subject,
             payload.TemplateName,
             payload.TemplateValues,
+            cancellationToken);
+        return sent
+            ? new EmailOutboxHandlingResult(EmailOutboxOutcome.Sent)
+            : new EmailOutboxHandlingResult(
+                EmailOutboxOutcome.Retry,
+                "The email provider did not accept the message.");
+    }
+}
+
+public sealed class RegistrationConfirmationEmailOutboxHandler(
+    AppDbContext dbContext,
+    IEmailService emailService) : IEmailOutboxHandler
+{
+    public bool CanHandle(string kind) => kind == EmailOutbox.RegistrationConfirmationKind;
+
+    public async Task<EmailOutboxHandlingResult> HandleAsync(
+        EmailOutboxMessage message,
+        CancellationToken cancellationToken)
+    {
+        var registration = await dbContext.EventRegistrations.AsNoTracking()
+            .Where(item => item.Id == message.AggregateId)
+            .Select(item => new
+            {
+                StudentIsActive = item.Student.IsActive,
+                StudentEmail = item.Student.Email,
+                StudentName = item.Student.Name,
+                EventTitle = item.Event.Title,
+                EventDate = item.Event.Date,
+                EventLocation = item.Event.Location
+            })
+            .SingleOrDefaultAsync(cancellationToken);
+        if (!RegistrationConfirmationEmailPolicy.ShouldDeliver(
+                registration is not null,
+                registration?.StudentIsActive ?? false))
+        {
+            return new EmailOutboxHandlingResult(
+                EmailOutboxOutcome.Discard,
+                "The registration confirmation is no longer valid.");
+        }
+
+        var sent = await emailService.SendEmailAsync(
+            registration!.StudentEmail,
+            registration.StudentName,
+            $"Registration confirmed: {registration.EventTitle}",
+            "RegistrationConfirmation.html",
+            new Dictionary<string, string?>
+            {
+                ["StudentName"] = registration.StudentName,
+                ["EventTitle"] = registration.EventTitle,
+                ["EventDate"] = registration.EventDate.ToString("f"),
+                ["EventLocation"] = registration.EventLocation
+            },
+            cancellationToken);
+        return sent
+            ? new EmailOutboxHandlingResult(EmailOutboxOutcome.Sent)
+            : new EmailOutboxHandlingResult(
+                EmailOutboxOutcome.Retry,
+                "The email provider did not accept the message.");
+    }
+}
+
+public sealed class OrganizerApplicationDecisionEmailOutboxHandler(
+    AppDbContext dbContext,
+    IEmailService emailService) : IEmailOutboxHandler
+{
+    public bool CanHandle(string kind) => kind == EmailOutbox.OrganizerApplicationDecisionKind;
+
+    public async Task<EmailOutboxHandlingResult> HandleAsync(
+        EmailOutboxMessage message,
+        CancellationToken cancellationToken)
+    {
+        var application = await dbContext.OrganizerApplications.AsNoTracking()
+            .Where(item => item.Id == message.AggregateId)
+            .Select(item => new
+            {
+                item.Status,
+                item.RejectionReason,
+                UserEmail = item.User.Email,
+                UserName = item.User.Name
+            })
+            .SingleOrDefaultAsync(cancellationToken);
+        if (application is null || application.Status == ApplicationStatus.Pending)
+            return new EmailOutboxHandlingResult(
+                EmailOutboxOutcome.Discard,
+                "The Organizer application has no final decision.");
+
+        var decision = application.Status == ApplicationStatus.Approved ? "approved" : "rejected";
+        var decisionDetails = application.Status == ApplicationStatus.Approved
+            ? "You can sign in again to receive an Organizer access token."
+            : string.IsNullOrWhiteSpace(application.RejectionReason)
+                ? "Contact an administrator if you would like more information."
+                : $"Reason: {application.RejectionReason}";
+        var sent = await emailService.SendEmailAsync(
+            application.UserEmail,
+            application.UserName,
+            $"Your Organizer application was {decision}",
+            "OrganizerApplicationDecision.html",
+            new Dictionary<string, string?>
+            {
+                ["StudentName"] = application.UserName,
+                ["Decision"] = decision,
+                ["DecisionDetails"] = decisionDetails
+            },
             cancellationToken);
         return sent
             ? new EmailOutboxHandlingResult(EmailOutboxOutcome.Sent)

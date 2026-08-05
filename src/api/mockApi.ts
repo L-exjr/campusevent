@@ -1,6 +1,10 @@
 import type {
+  AdminAuditLog,
   AuthSession,
   BookingRequest,
+  BookingRequestInput,
+  BookingRequestStatus,
+  EmailDeadLetter,
   EventFilters,
   EventInput,
   EventItem,
@@ -28,6 +32,9 @@ interface MockDatabase {
   events: StoredEvent[]
   registrations: Registration[]
   organizerApplications: OrganizerApplication[]
+  bookingRequests: BookingRequest[]
+  emailDeadLetters: EmailDeadLetter[]
+  adminAuditLogs: AdminAuditLog[]
 }
 
 const DB_KEY = 'campus_events_mock_db'
@@ -256,7 +263,75 @@ function createSeedDatabase(): MockDatabase {
     },
   ]
 
-  return { users, events, registrations, organizerApplications }
+  const bookingRequests: BookingRequest[] = [
+    {
+      id: 'booking-request-1',
+      organizationName: 'Engineering Society',
+      contactName: 'Ama Mensah',
+      email: 'ama@example.com',
+      phone: '+233 20 000 0000',
+      eventType: 'Industry workshop',
+      proposedDate: daysFromNow(35, 14),
+      alternativeDates: undefined,
+      flexibilityNote: 'Weekday afternoons are preferred.',
+      estimatedAttendance: 80,
+      preferredOrganizer: undefined,
+      description: 'A practical engineering careers workshop with alumni and industry mentors.',
+      status: 'submitted',
+      assignedOrganizerId: null,
+      assignedOrganizerName: null,
+      organizerResponseNote: null,
+      draftEventId: null,
+      submittedAt: daysFromNow(-1, 10),
+      updatedAt: daysFromNow(-1, 10),
+    },
+    {
+      id: 'booking-request-2',
+      organizationName: 'Community Health Club',
+      contactName: 'Kojo Asare',
+      email: 'kojo@example.com',
+      phone: '+233 24 000 0000',
+      eventType: 'Wellness seminar',
+      proposedDate: daysFromNow(42, 11),
+      alternativeDates: undefined,
+      flexibilityNote: undefined,
+      estimatedAttendance: 55,
+      preferredOrganizer: 'Alex Morgan',
+      description: 'A student wellness seminar focused on sustainable healthy routines.',
+      status: 'sentToOrganizer',
+      assignedOrganizerId: 'user-organizer-1',
+      assignedOrganizerName: 'Alex Morgan',
+      organizerResponseNote: null,
+      draftEventId: null,
+      submittedAt: daysFromNow(-3, 9),
+      updatedAt: daysFromNow(-2, 9),
+    },
+  ]
+
+  const emailDeadLetters: EmailDeadLetter[] = [
+    {
+      id: 'email-dead-letter-1',
+      kind: 'EventReminder',
+      aggregateId: 'registration-1',
+      attemptCount: 8,
+      lifetimeAttemptCount: 8,
+      manualRetryCount: 0,
+      lastRetriedAt: null,
+      lastError: 'The email provider did not accept the message.',
+      createdAt: daysFromNow(-1, 8),
+      canRetry: true,
+    },
+  ]
+
+  return {
+    users,
+    events,
+    registrations,
+    organizerApplications,
+    bookingRequests,
+    emailDeadLetters,
+    adminAuditLogs: [],
+  }
 }
 
 function migrateEmailDomain(email: string) {
@@ -270,6 +345,9 @@ function getDatabase() {
   if (saved) {
     const database = JSON.parse(saved) as MockDatabase
     database.organizerApplications ??= []
+    database.bookingRequests ??= []
+    database.emailDeadLetters ??= []
+    database.adminAuditLogs ??= []
     database.users.forEach((user) => { user.imageUrl ??= null })
     database.events.forEach((event) => {
       event.imageUrl ??= null
@@ -342,6 +420,41 @@ function getCurrentUser(database: MockDatabase) {
   const user = database.users.find((item) => item.id === session.user.id)
   if (!user?.active) throw new Error('Your account is unavailable.')
   return user
+}
+
+function appendAdminAudit(
+  database: MockDatabase,
+  actor: StoredUser,
+  action: string,
+  targetType: string,
+  targetId: string,
+  details: object,
+) {
+  database.adminAuditLogs.push({
+    id: makeId('audit'),
+    actorUserId: actor.id,
+    actorName: actor.name,
+    action,
+    targetType,
+    targetId,
+    detailsJson: JSON.stringify(details),
+    createdAt: new Date().toISOString(),
+  })
+}
+
+const bookingTransitions: Record<BookingRequestStatus, BookingRequestStatus[]> = {
+  submitted: ['underReview', 'sentToOrganizer', 'closed'],
+  underReview: ['sentToOrganizer', 'closed'],
+  sentToOrganizer: ['accepted', 'declined', 'closed'],
+  accepted: ['converted', 'closed'],
+  declined: ['closed'],
+  converted: ['closed'],
+  closed: [],
+}
+
+function ensureBookingTransition(current: BookingRequestStatus, target: BookingRequestStatus) {
+  if (bookingTransitions[current].includes(target)) return
+  throw new Error(`A booking request cannot move from ${current} to ${target}.`)
 }
 
 function normalizeEventInput(input: EventInput, requireFutureDate: boolean): EventInput {
@@ -657,6 +770,14 @@ export const mockApi: EventManagementApi = {
     application.reviewedByAdminName = admin.name
     application.rejectionReason = null
     applicant.role = 'organizer'
+    appendAdminAudit(
+      database,
+      admin,
+      'OrganizerApplicationApproved',
+      'OrganizerApplication',
+      application.id,
+      { userId: applicant.id, status: 'approved' },
+    )
     saveDatabase(database)
     return application
   },
@@ -683,6 +804,14 @@ export const mockApi: EventManagementApi = {
     application.reviewedByAdminId = admin.id
     application.reviewedByAdminName = admin.name
     application.rejectionReason = normalizedReason
+    appendAdminAudit(
+      database,
+      admin,
+      'OrganizerApplicationRejected',
+      'OrganizerApplication',
+      application.id,
+      { userId: applicant.id, status: 'rejected' },
+    )
     saveDatabase(database)
     return application
   },
@@ -716,6 +845,16 @@ export const mockApi: EventManagementApi = {
       version: 1,
     }
     database.events.push(event)
+    if (organizer.role === 'admin') {
+      appendAdminAudit(
+        database,
+        organizer,
+        'EventCreated',
+        'Event',
+        event.id,
+        { title: event.title, isPublished: event.isPublished ?? true },
+      )
+    }
     saveDatabase(database)
     return eventWithCount(database, event)
   },
@@ -731,6 +870,17 @@ export const mockApi: EventManagementApi = {
     }
     Object.assign(event, normalizeEventInput(input, false))
     event.version = (event.version ?? 1) + 1
+    const actor = getCurrentUser(database)
+    if (actor.role === 'admin') {
+      appendAdminAudit(
+        database,
+        actor,
+        'EventUpdated',
+        'Event',
+        event.id,
+        { title: event.title, isPublished: event.isPublished, version: event.version },
+      )
+    }
     saveDatabase(database)
     return eventWithCount(database, event)
   },
@@ -756,9 +906,25 @@ export const mockApi: EventManagementApi = {
       throw new Error('Event ownership can only be transferred to an active Organizer.')
     }
     if (event.organizerId === organizer.id) throw new Error('This Organizer already owns the event.')
+    const previousOrganizerId = event.organizerId
     event.organizerId = organizer.id
     event.organizerName = organizer.name
     event.version = (event.version ?? 1) + 1
+    database.bookingRequests
+      .filter((request) => request.draftEventId === event.id && request.status === 'accepted')
+      .forEach((request) => {
+        request.assignedOrganizerId = organizer.id
+        request.assignedOrganizerName = organizer.name
+        request.updatedAt = new Date().toISOString()
+      })
+    appendAdminAudit(
+      database,
+      actor,
+      'EventOwnershipTransferred',
+      'Event',
+      event.id,
+      { previousOrganizerId, newOrganizerId: organizer.id },
+    )
     saveDatabase(database)
     return eventWithCount(database, event)
   },
@@ -767,6 +933,18 @@ export const mockApi: EventManagementApi = {
   async deleteEvent(id: string) {
     await pause()
     const database = getDatabase()
+    const actor = getCurrentUser(database)
+    const event = database.events.find((item) => item.id === id)
+    if (actor.role === 'admin' && event) {
+      appendAdminAudit(
+        database,
+        actor,
+        'EventDeleted',
+        'Event',
+        id,
+        { title: event.title, organizerId: event.organizerId },
+      )
+    }
     database.events = database.events.filter((event) => event.id !== id)
     database.registrations = database.registrations.filter(
       (registration) => registration.eventId !== id,
@@ -858,9 +1036,10 @@ export const mockApi: EventManagementApi = {
     const user = database.users.find((item) => item.id === id)
     if (!user) throw new Error('User account could not be found.')
     if (user.role === 'admin') throw new Error('Admin roles cannot be changed here.')
+    const admin = getCurrentUser(database)
+    const previousRole = user.role
     user.role = role
     if (role === 'organizer') {
-      const admin = getCurrentUser(database)
       database.organizerApplications
         .filter((application) => application.userId === id && application.status === 'pending')
         .forEach((application) => {
@@ -871,6 +1050,14 @@ export const mockApi: EventManagementApi = {
           application.rejectionReason = null
         })
     }
+    appendAdminAudit(
+      database,
+      admin,
+      'UserRoleChanged',
+      'User',
+      user.id,
+      { previousRole, newRole: role },
+    )
     saveDatabase(database)
   },
 
@@ -881,7 +1068,18 @@ export const mockApi: EventManagementApi = {
     const user = database.users.find((item) => item.id === id)
     if (!user) throw new Error('User account could not be found.')
     if (user.role === 'admin') throw new Error('Admin accounts cannot be deactivated here.')
+    const admin = getCurrentUser(database)
     user.active = active
+    if (!active) {
+      appendAdminAudit(
+        database,
+        admin,
+        'UserDeactivated',
+        'User',
+        user.id,
+        { role: user.role },
+      )
+    }
     saveDatabase(database)
   },
 
@@ -966,37 +1164,202 @@ export const mockApi: EventManagementApi = {
 
   async getFailedEmails(page = 1, pageSize = 20) {
     await pause()
-    return { items: [], page, pageSize, totalCount: 0, totalPages: 0 }
+    const database = getDatabase()
+    const actor = getCurrentUser(database)
+    if (actor.role !== 'admin') throw new Error('Admin access is required.')
+    return paginate(
+      [...database.emailDeadLetters].sort((left, right) =>
+        right.createdAt.localeCompare(left.createdAt)),
+      page,
+      pageSize,
+    )
   },
 
-  async retryFailedEmail() {
+  async retryFailedEmail(id: string) {
     await pause()
+    const database = getDatabase()
+    const admin = getCurrentUser(database)
+    if (admin.role !== 'admin') throw new Error('Admin access is required.')
+    const message = database.emailDeadLetters.find((item) => item.id === id)
+    if (!message) throw new Error('Failed email message not found.')
+    if (!message.canRetry) {
+      throw new Error('This message cannot be retried safely. Generate a new domain action instead.')
+    }
+    message.manualRetryCount += 1
+    message.lastRetriedAt = new Date().toISOString()
+    database.emailDeadLetters = database.emailDeadLetters.filter((item) => item.id !== id)
+    appendAdminAudit(
+      database,
+      admin,
+      'EmailDeadLetterRetried',
+      'EmailOutboxMessage',
+      id,
+      { kind: message.kind, previousAttemptCount: message.attemptCount },
+    )
+    saveDatabase(database)
   },
 
-  async submitBookingRequest(): Promise<string> {
+  async getAdminAuditLogs(search = '', page = 1, pageSize = 20) {
     await pause()
+    const database = getDatabase()
+    const actor = getCurrentUser(database)
+    if (actor.role !== 'admin') throw new Error('Admin access is required.')
+    const query = search.trim().toLowerCase()
+    return paginate(database.adminAuditLogs
+      .filter((log) => !query ||
+        log.actorName.toLowerCase().includes(query) ||
+        log.action.toLowerCase().includes(query) ||
+        log.targetType.toLowerCase().includes(query) ||
+        log.targetId.toLowerCase().includes(query))
+      .sort((left, right) => right.createdAt.localeCompare(left.createdAt)), page, pageSize)
+  },
+
+  async submitBookingRequest(input: BookingRequestInput): Promise<string> {
+    await pause()
+    if (input.website.trim()) return 'Your organizer request has been received.'
+    if (new Date(input.proposedDate).getTime() <= Date.now()) {
+      throw new Error('The proposed date must be in the future.')
+    }
+    const database = getDatabase()
+    const now = new Date().toISOString()
+    database.bookingRequests.push({
+      id: makeId('booking-request'),
+      organizationName: input.organizationName.trim(),
+      contactName: input.contactName.trim(),
+      email: input.email.trim().toLowerCase(),
+      phone: input.phone.trim(),
+      eventType: input.eventType.trim(),
+      proposedDate: new Date(input.proposedDate).toISOString(),
+      alternativeDates: input.alternativeDates?.trim() || undefined,
+      flexibilityNote: input.flexibilityNote?.trim() || undefined,
+      estimatedAttendance: input.estimatedAttendance,
+      preferredOrganizer: input.preferredOrganizer?.trim() || undefined,
+      description: input.description.trim(),
+      status: 'submitted',
+      assignedOrganizerId: null,
+      assignedOrganizerName: null,
+      organizerResponseNote: null,
+      draftEventId: null,
+      submittedAt: now,
+      updatedAt: now,
+    })
+    saveDatabase(database)
     return 'Your organizer request has been received.'
   },
 
   async getBookingRequests(page = 1, pageSize = 20): Promise<Page<BookingRequest>> {
     await pause()
-    return paginate([], page, pageSize)
+    const database = getDatabase()
+    const actor = getCurrentUser(database)
+    if (actor.role !== 'admin') throw new Error('Admin access is required.')
+    return paginate([...database.bookingRequests].sort((left, right) =>
+      right.submittedAt.localeCompare(left.submittedAt)), page, pageSize)
   },
 
   async getAssignedBookingRequests(page = 1, pageSize = 20): Promise<Page<BookingRequest>> {
     await pause()
-    return paginate([], page, pageSize)
+    const database = getDatabase()
+    const organizer = getCurrentUser(database)
+    if (organizer.role !== 'organizer') throw new Error('Organizer access is required.')
+    return paginate(database.bookingRequests
+      .filter((request) => request.assignedOrganizerId === organizer.id)
+      .sort((left, right) => right.submittedAt.localeCompare(left.submittedAt)), page, pageSize)
   },
 
-  async assignBookingRequest(): Promise<BookingRequest> {
-    throw new Error('No mock booking request is available to assign.')
+  async assignBookingRequest(id: string, organizerId: string): Promise<BookingRequest> {
+    await pause()
+    const database = getDatabase()
+    const admin = getCurrentUser(database)
+    if (admin.role !== 'admin') throw new Error('Admin access is required.')
+    const request = database.bookingRequests.find((item) => item.id === id)
+    if (!request) throw new Error('Booking request not found.')
+    const organizer = database.users.find((user) =>
+      user.id === organizerId && user.role === 'organizer' && user.active)
+    if (!organizer) throw new Error('Choose an active Organizer.')
+    if (request.status !== 'sentToOrganizer') {
+      ensureBookingTransition(request.status, 'sentToOrganizer')
+    }
+    const previousOrganizerId = request.assignedOrganizerId
+    request.assignedOrganizerId = organizer.id
+    request.assignedOrganizerName = organizer.name
+    request.status = 'sentToOrganizer'
+    request.updatedAt = new Date().toISOString()
+    appendAdminAudit(
+      database,
+      admin,
+      previousOrganizerId ? 'BookingRequestReassigned' : 'BookingRequestAssigned',
+      'BookingRequest',
+      request.id,
+      { previousOrganizerId, newOrganizerId: organizer.id },
+    )
+    saveDatabase(database)
+    return request
   },
 
-  async updateBookingRequestStatus(): Promise<BookingRequest> {
-    throw new Error('No mock booking request is available to update.')
+  async updateBookingRequestStatus(
+    id: string,
+    status: Extract<BookingRequestStatus, 'underReview' | 'converted' | 'closed'>,
+  ): Promise<BookingRequest> {
+    await pause()
+    const database = getDatabase()
+    const admin = getCurrentUser(database)
+    if (admin.role !== 'admin') throw new Error('Admin access is required.')
+    const request = database.bookingRequests.find((item) => item.id === id)
+    if (!request) throw new Error('Booking request not found.')
+    const previousStatus = request.status
+    ensureBookingTransition(previousStatus, status)
+    request.status = status
+    request.updatedAt = new Date().toISOString()
+    appendAdminAudit(
+      database,
+      admin,
+      'BookingRequestStatusChanged',
+      'BookingRequest',
+      request.id,
+      { previousStatus, newStatus: status },
+    )
+    saveDatabase(database)
+    return request
   },
 
-  async respondToBookingRequest(): Promise<BookingRequest> {
-    throw new Error('No mock booking request is available to respond to.')
+  async respondToBookingRequest(
+    id: string,
+    accept: boolean,
+    note?: string,
+  ): Promise<BookingRequest> {
+    await pause()
+    const database = getDatabase()
+    const organizer = getCurrentUser(database)
+    if (organizer.role !== 'organizer') throw new Error('Organizer access is required.')
+    const request = database.bookingRequests.find((item) => item.id === id)
+    if (!request) throw new Error('Booking request not found.')
+    if (request.assignedOrganizerId !== organizer.id) {
+      throw new Error('Only the assigned Organizer can respond.')
+    }
+    const status = accept ? 'accepted' : 'declined'
+    ensureBookingTransition(request.status, status)
+    request.status = status
+    request.organizerResponseNote = note?.trim() || null
+    request.updatedAt = new Date().toISOString()
+    if (accept) {
+      const draft: StoredEvent = {
+        id: makeId('event'),
+        title: `${request.organizationName}: ${request.eventType}`.slice(0, 200),
+        description: request.description,
+        date: request.proposedDate,
+        location: 'To be confirmed',
+        capacity: request.estimatedAttendance,
+        category: 'Culture',
+        organizerId: organizer.id,
+        organizerName: organizer.name,
+        createdAt: new Date().toISOString(),
+        isPublished: false,
+        version: 1,
+      }
+      database.events.push(draft)
+      request.draftEventId = draft.id
+    }
+    saveDatabase(database)
+    return request
   },
 }

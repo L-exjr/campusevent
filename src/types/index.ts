@@ -167,9 +167,23 @@ export interface EmailDeadLetter {
   kind: string
   aggregateId: string
   attemptCount: number
+  lifetimeAttemptCount: number
+  manualRetryCount: number
+  lastRetriedAt: string | null
   lastError: string | null
   createdAt: string
   canRetry: boolean
+}
+
+export interface AdminAuditLog {
+  id: string
+  actorUserId: string
+  actorName: string
+  action: string
+  targetType: string
+  targetId: string
+  detailsJson: string
+  createdAt: string
 }
 
 export const EVENT_CATEGORIES: EventCategory[] = [

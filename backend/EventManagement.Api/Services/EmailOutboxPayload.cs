@@ -34,6 +34,20 @@ public static class EmailOutbox
         });
     }
 
+    public static void EnqueueDomainMessage(
+        AppDbContext dbContext,
+        string idempotencyKey,
+        string kind,
+        Guid aggregateId)
+    {
+        dbContext.EmailOutboxMessages.Add(new EmailOutboxMessage
+        {
+            IdempotencyKey = idempotencyKey,
+            Kind = kind,
+            AggregateId = aggregateId
+        });
+    }
+
     public static EmailOutboxPayload? Deserialize(string? payloadJson) =>
         string.IsNullOrWhiteSpace(payloadJson)
             ? null

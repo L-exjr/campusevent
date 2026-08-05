@@ -67,6 +67,7 @@ public sealed class OrganizerApplicationsControllerTests(ApiIntegrationFixture f
 
         Assert.Equal(HttpStatusCode.OK, approval.StatusCode);
         Assert.Equal(1, await Fixture.CountEmailOutboxMessagesAsync("OrganizerApplicationDecision"));
+        Assert.False(await Fixture.EmailOutboxPayloadExistsAsync("OrganizerApplicationDecision"));
         Assert.Equal("Organizer", principal.FindFirstValue(JwtClaimNames.Role));
         using var organizerClient = CreateAuthenticatedClient(refreshed.Token);
         using var createEvent = await organizerClient.PostAsJsonAsync(
@@ -91,6 +92,7 @@ public sealed class OrganizerApplicationsControllerTests(ApiIntegrationFixture f
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Equal(1, await Fixture.CountEmailOutboxMessagesAsync("OrganizerApplicationDecision"));
+        Assert.False(await Fixture.EmailOutboxPayloadExistsAsync("OrganizerApplicationDecision"));
         Assert.Equal("Student", ValidateToken(refreshed.Token).FindFirstValue(JwtClaimNames.Role));
     }
 

@@ -5,6 +5,9 @@ public sealed record FailedEmailOutboxResponse(
     string Kind,
     Guid AggregateId,
     int AttemptCount,
+    int LifetimeAttemptCount,
+    int ManualRetryCount,
+    DateTimeOffset? LastRetriedAt,
     string? LastError,
     DateTimeOffset CreatedAt,
     bool CanRetry);

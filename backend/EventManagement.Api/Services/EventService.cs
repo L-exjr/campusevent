@@ -50,6 +50,7 @@ public interface IEventService
         CancellationToken cancellationToken);
     Task<EventResponse> TransferOwnershipAsync(
         Guid eventId,
+        Guid adminId,
         TransferEventOwnershipRequest request,
         CancellationToken cancellationToken);
     Task DeleteAsync(
@@ -87,7 +88,8 @@ public interface IEventService
 public sealed class EventService(
     AppDbContext dbContext,
     IEventAuthorizationService authorizationService,
-    IImageLifecycleService imageLifecycleService) : IEventService
+    IImageLifecycleService imageLifecycleService,
+    AdminAuditService auditService) : IEventService
 {
     private static readonly string[] SupportedCategories =
         ["Academic", "Career", "Culture", "Sports", "Technology", "Wellness"];
@@ -215,6 +217,13 @@ public sealed class EventService(
             IsPublished = request.IsPublished ?? true
         };
         dbContext.Events.Add(eventEntity);
+        if (organizer.Role == UserRole.Admin)
+            auditService.Append(
+                actorId,
+                "EventCreated",
+                "Event",
+                eventEntity.Id,
+                new { eventEntity.Title, eventEntity.IsPublished });
         await dbContext.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return eventEntity.ToResponse(0);
@@ -273,6 +282,13 @@ public sealed class EventService(
         eventEntity.ImageObjectKey = image.ObjectKey;
         eventEntity.IsPublished = targetPublished;
         eventEntity.Version += 1;
+        if (actorRole == UserRole.Admin)
+            auditService.Append(
+                actorId,
+                "EventUpdated",
+                "Event",
+                eventEntity.Id,
+                new { eventEntity.Title, eventEntity.IsPublished, eventEntity.Version });
         if (eventEntity.IsPublished)
         {
             var acceptedStatus = BookingRequestStatus.Accepted.ToString();
@@ -302,6 +318,7 @@ public sealed class EventService(
 
     public async Task<EventResponse> TransferOwnershipAsync(
         Guid eventId,
+        Guid adminId,
         TransferEventOwnershipRequest request,
         CancellationToken cancellationToken)
     {
@@ -327,6 +344,7 @@ public sealed class EventService(
         if (eventEntity.OrganizerId == newOrganizer.Id)
             throw new ApiException(StatusCodes.Status409Conflict, "This Organizer already owns the event.");
 
+        var previousOrganizerId = eventEntity.OrganizerId;
         eventEntity.OrganizerId = newOrganizer.Id;
         eventEntity.Organizer = newOrganizer;
         eventEntity.Version += 1;
@@ -345,6 +363,12 @@ public sealed class EventService(
         var registrationCount = await dbContext.EventRegistrations.CountAsync(
             registration => registration.EventId == eventId,
             cancellationToken);
+        auditService.Append(
+            adminId,
+            "EventOwnershipTransferred",
+            "Event",
+            eventEntity.Id,
+            new { PreviousOrganizerId = previousOrganizerId, NewOrganizerId = newOrganizer.Id });
         try
         {
             await dbContext.SaveChangesAsync(cancellationToken);
@@ -373,6 +397,13 @@ public sealed class EventService(
         await imageLifecycleService.MarkForDeletionAsync(
             eventEntity.ImageObjectKey,
             cancellationToken);
+        if (actorRole == UserRole.Admin)
+            auditService.Append(
+                actorId,
+                "EventDeleted",
+                "Event",
+                eventEntity.Id,
+                new { eventEntity.Title, eventEntity.OrganizerId });
         dbContext.Events.Remove(eventEntity);
         await dbContext.SaveChangesAsync(cancellationToken);
     }
@@ -421,23 +452,11 @@ public sealed class EventService(
             Student = student
         };
         dbContext.EventRegistrations.Add(registration);
-        EmailOutbox.Enqueue(
+        EmailOutbox.EnqueueDomainMessage(
             dbContext,
             $"registration-confirmation:{registration.Id}",
             EmailOutbox.RegistrationConfirmationKind,
-            registration.Id,
-            new EmailOutboxPayload(
-                student.Email,
-                student.Name,
-                $"Registration confirmed: {eventEntity.Title}",
-                "RegistrationConfirmation.html",
-                new Dictionary<string, string?>
-                {
-                    ["StudentName"] = student.Name,
-                    ["EventTitle"] = eventEntity.Title,
-                    ["EventDate"] = eventEntity.Date.ToString("f"),
-                    ["EventLocation"] = eventEntity.Location
-                }));
+            registration.Id);
         try
         {
             await dbContext.SaveChangesAsync(cancellationToken);

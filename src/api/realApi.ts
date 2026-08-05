@@ -9,6 +9,7 @@ import type { PaginatedResponse } from './httpClient'
 import { readJwtSessionClaims } from './jwtSession'
 import type {
   AuthSession,
+  AdminAuditLog,
   BookingRequest,
   BookingRequestInput,
   EmailDeadLetter,
@@ -557,6 +558,15 @@ export const realApi: EventManagementApi = {
 
   async retryFailedEmail(id) {
     await apiRequest(`/email-outbox/${id}/retry`, { method: 'PUT' })
+  },
+
+  async getAdminAuditLogs(search = '', page = 1, pageSize = 20, signal) {
+    const query = new URLSearchParams({ page: String(page), pageSize: String(pageSize) })
+    if (search.trim()) query.set('search', search.trim())
+    return apiRequest<PaginatedResponse<AdminAuditLog>>(
+      `/admin-audit-logs?${query}`,
+      { signal },
+    )
   },
 
   async submitBookingRequest(input: BookingRequestInput) {

@@ -9,8 +9,6 @@ public sealed class ImageCleanupBackgroundService(
     IConfiguration configuration,
     ILogger<ImageCleanupBackgroundService> logger) : BackgroundService
 {
-    private readonly Guid _workerId = Guid.NewGuid();
-
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         await RunCycleAsync(stoppingToken);
@@ -26,9 +24,25 @@ public sealed class ImageCleanupBackgroundService(
     {
         try
         {
-            var uploads = await ClaimBatchAsync(cancellationToken);
-            foreach (var upload in uploads)
-                await DeleteAsync(upload, cancellationToken);
+            var batch = await ClaimBatchAsync(cancellationToken);
+            foreach (var upload in batch.Uploads)
+            {
+                try
+                {
+                    await DeleteAsync(upload, batch.ClaimId, cancellationToken);
+                }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                {
+                    throw;
+                }
+                catch (Exception exception)
+                {
+                    logger.LogError(
+                        exception,
+                        "Image cleanup item {UploadId} failed unexpectedly; continuing the batch.",
+                        upload.Id);
+                }
+            }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -40,7 +54,7 @@ public sealed class ImageCleanupBackgroundService(
         }
     }
 
-    private async Task<IReadOnlyList<ImageUpload>> ClaimBatchAsync(
+    private async Task<ClaimedImageBatch> ClaimBatchAsync(
         CancellationToken cancellationToken)
     {
         await using var scope = scopeFactory.CreateAsyncScope();
@@ -56,6 +70,7 @@ public sealed class ImageCleanupBackgroundService(
             configuration.GetValue("Images:Cleanup:BatchSize", 50),
             1,
             500);
+        var claimId = Guid.NewGuid();
 
         await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
         await dbContext.Database.ExecuteSqlInterpolatedAsync(
@@ -75,7 +90,7 @@ public sealed class ImageCleanupBackgroundService(
             )
             UPDATE "ImageUploads" AS upload
             SET "Status" = 'Deleting',
-                "DeletionClaimedBy" = {_workerId},
+                "DeletionClaimedBy" = {claimId},
                 "DeletionClaimedAt" = {now},
                 "DeleteAttemptCount" = upload."DeleteAttemptCount" + 1
             FROM candidates
@@ -84,15 +99,19 @@ public sealed class ImageCleanupBackgroundService(
             cancellationToken);
         await transaction.CommitAsync(cancellationToken);
 
-        return await dbContext.ImageUploads.AsNoTracking()
+        var uploads = await dbContext.ImageUploads.AsNoTracking()
             .Where(upload =>
-                upload.DeletionClaimedBy == _workerId &&
+                upload.DeletionClaimedBy == claimId &&
                 upload.Status == ImageUploadStatus.Deleting)
             .OrderBy(upload => upload.CreatedAt)
             .ToListAsync(cancellationToken);
+        return new ClaimedImageBatch(claimId, uploads);
     }
 
-    private async Task DeleteAsync(ImageUpload claimedUpload, CancellationToken cancellationToken)
+    private async Task DeleteAsync(
+        ImageUpload claimedUpload,
+        Guid claimId,
+        CancellationToken cancellationToken)
     {
         await using var scope = scopeFactory.CreateAsyncScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -103,7 +122,11 @@ public sealed class ImageCleanupBackgroundService(
                 claimedUpload.Bucket,
                 claimedUpload.ObjectKey,
                 cancellationToken);
-            var upload = await GetOwnedClaimAsync(dbContext, claimedUpload.Id, cancellationToken);
+            var upload = await GetOwnedClaimAsync(
+                dbContext,
+                claimedUpload.Id,
+                claimId,
+                cancellationToken);
             upload.Status = ImageUploadStatus.Deleted;
             upload.DeletedAt = DateTimeOffset.UtcNow;
             upload.DeletionClaimedAt = null;
@@ -122,7 +145,11 @@ public sealed class ImageCleanupBackgroundService(
                 "Deletion failed for image {ObjectKey} in {Bucket}.",
                 claimedUpload.ObjectKey,
                 claimedUpload.Bucket);
-            var upload = await GetOwnedClaimAsync(dbContext, claimedUpload.Id, cancellationToken);
+            var upload = await GetOwnedClaimAsync(
+                dbContext,
+                claimedUpload.Id,
+                claimId,
+                cancellationToken);
             var maxAttempts = Math.Max(
                 configuration.GetValue("Images:Cleanup:MaxAttempts", 8),
                 1);
@@ -141,11 +168,16 @@ public sealed class ImageCleanupBackgroundService(
     private async Task<ImageUpload> GetOwnedClaimAsync(
         AppDbContext dbContext,
         Guid uploadId,
+        Guid claimId,
         CancellationToken cancellationToken) =>
         await dbContext.ImageUploads.SingleAsync(
             upload =>
                 upload.Id == uploadId &&
-                upload.DeletionClaimedBy == _workerId &&
+                upload.DeletionClaimedBy == claimId &&
                 upload.Status == ImageUploadStatus.Deleting,
             cancellationToken);
+
+    private sealed record ClaimedImageBatch(
+        Guid ClaimId,
+        IReadOnlyList<ImageUpload> Uploads);
 }

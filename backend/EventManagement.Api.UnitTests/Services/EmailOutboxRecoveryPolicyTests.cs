@@ -10,23 +10,20 @@ public sealed class EmailOutboxRecoveryPolicyTests
         Assert.False(EmailOutboxRecoveryPolicy.ShouldRetainPayloadOnFailure(
             EmailOutbox.PasswordResetKind));
         Assert.False(EmailOutboxRecoveryPolicy.CanRetry(
-            EmailOutbox.PasswordResetKind,
-            hasPayload: true));
+            EmailOutbox.PasswordResetKind));
     }
 
     [Theory]
     [InlineData(EmailOutbox.RegistrationConfirmationKind)]
     [InlineData(EmailOutbox.OrganizerApplicationDecisionKind)]
-    public void Non_sensitive_payload_messages_can_be_retried_when_payload_exists(string kind)
+    public void Domain_derived_messages_can_be_retried_without_a_payload(string kind)
     {
-        Assert.True(EmailOutboxRecoveryPolicy.ShouldRetainPayloadOnFailure(kind));
-        Assert.True(EmailOutboxRecoveryPolicy.CanRetry(kind, hasPayload: true));
-        Assert.False(EmailOutboxRecoveryPolicy.CanRetry(kind, hasPayload: false));
+        Assert.False(EmailOutboxRecoveryPolicy.ShouldRetainPayloadOnFailure(kind));
+        Assert.True(EmailOutboxRecoveryPolicy.CanRetry(kind));
     }
 
     [Fact]
     public void Event_reminder_can_be_regenerated_from_domain_state() =>
         Assert.True(EmailOutboxRecoveryPolicy.CanRetry(
-            EmailOutbox.EventReminderKind,
-            hasPayload: false));
+            EmailOutbox.EventReminderKind));
 }

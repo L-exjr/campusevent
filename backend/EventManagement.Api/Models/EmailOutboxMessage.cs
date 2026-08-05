@@ -21,6 +21,9 @@ public sealed class EmailOutboxMessage
     public DateTimeOffset? ClaimedAt { get; set; }
     public Guid? ClaimedBy { get; set; }
     public int AttemptCount { get; set; }
+    public int LifetimeAttemptCount { get; set; }
+    public int ManualRetryCount { get; set; }
+    public DateTimeOffset? LastRetriedAt { get; set; }
     public DateTimeOffset? SentAt { get; set; }
     public string? LastError { get; set; }
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;

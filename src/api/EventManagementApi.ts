@@ -1,5 +1,6 @@
 import type {
   AuthSession,
+  AdminAuditLog,
   BookingRequest,
   BookingRequestInput,
   EmailDeadLetter,
@@ -57,6 +58,12 @@ export interface EventManagementApi {
   getReports(page?: number, pageSize?: number): Promise<ReportsData>
   getFailedEmails(page?: number, pageSize?: number): Promise<Page<EmailDeadLetter>>
   retryFailedEmail(id: string): Promise<void>
+  getAdminAuditLogs(
+    search?: string,
+    page?: number,
+    pageSize?: number,
+    signal?: AbortSignal,
+  ): Promise<Page<AdminAuditLog>>
   submitBookingRequest(input: BookingRequestInput): Promise<string>
   getBookingRequests(page?: number, pageSize?: number): Promise<Page<BookingRequest>>
   getAssignedBookingRequests(page?: number, pageSize?: number): Promise<Page<BookingRequest>>

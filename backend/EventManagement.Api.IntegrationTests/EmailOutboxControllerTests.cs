@@ -28,6 +28,8 @@ public sealed class EmailOutboxControllerTests(ApiIntegrationFixture fixture)
         var state = await Fixture.GetEmailOutboxStateAsync(messageId);
         Assert.Equal(EmailOutboxStatus.Pending, state.Status);
         Assert.Equal(0, state.AttemptCount);
+        Assert.Equal(8, state.LifetimeAttemptCount);
+        Assert.Equal(1, state.ManualRetryCount);
     }
 
     [Fact]
@@ -56,5 +58,26 @@ public sealed class EmailOutboxControllerTests(ApiIntegrationFixture fixture)
         using var response = await client.GetAsync("/api/email-outbox/failed");
 
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Retention_removes_old_terminal_messages_but_keeps_recent_failures()
+    {
+        await ResetAsync();
+        var oldDelivered = await Fixture.CreateTerminalEmailOutboxMessageAsync(
+            EmailOutboxStatus.Sent,
+            DateTimeOffset.UtcNow.AddDays(-31));
+        var oldFailed = await Fixture.CreateTerminalEmailOutboxMessageAsync(
+            EmailOutboxStatus.Failed,
+            DateTimeOffset.UtcNow.AddDays(-91));
+        var recentFailed = await Fixture.CreateTerminalEmailOutboxMessageAsync(
+            EmailOutboxStatus.Failed,
+            DateTimeOffset.UtcNow.AddDays(-1));
+
+        await Fixture.ApplyEmailOutboxRetentionAsync();
+
+        Assert.False(await Fixture.EmailOutboxMessageExistsAsync(oldDelivered));
+        Assert.False(await Fixture.EmailOutboxMessageExistsAsync(oldFailed));
+        Assert.True(await Fixture.EmailOutboxMessageExistsAsync(recentFailed));
     }
 }

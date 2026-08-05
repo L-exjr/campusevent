@@ -10,6 +10,7 @@ public sealed class EmailOutboxBackgroundService(
     ILogger<EmailOutboxBackgroundService> logger) : BackgroundService
 {
     private DateTimeOffset _nextReminderScan = DateTimeOffset.MinValue;
+    private DateTimeOffset _nextRetentionSweep = DateTimeOffset.MinValue;
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -27,11 +28,42 @@ public sealed class EmailOutboxBackgroundService(
         try
         {
             var now = DateTimeOffset.UtcNow;
+            if (now >= _nextRetentionSweep)
+            {
+                try
+                {
+                    await using var retentionScope = scopeFactory.CreateAsyncScope();
+                    await retentionScope.ServiceProvider.GetRequiredService<EmailOutboxRetentionService>()
+                        .ApplyAsync(cancellationToken);
+                }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                {
+                    throw;
+                }
+                catch (Exception exception)
+                {
+                    logger.LogError(exception, "Email outbox retention sweep failed; delivery will continue.");
+                }
+                _nextRetentionSweep = now.AddMinutes(Math.Max(
+                    configuration.GetValue("Email:Outbox:RetentionSweepMinutes", 60),
+                    1));
+            }
             if (now >= _nextReminderScan)
             {
-                await using var enqueueScope = scopeFactory.CreateAsyncScope();
-                await enqueueScope.ServiceProvider.GetRequiredService<EventReminderEnqueuer>()
-                    .EnqueueDueAsync(cancellationToken);
+                try
+                {
+                    await using var enqueueScope = scopeFactory.CreateAsyncScope();
+                    await enqueueScope.ServiceProvider.GetRequiredService<EventReminderEnqueuer>()
+                        .EnqueueDueAsync(cancellationToken);
+                }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                {
+                    throw;
+                }
+                catch (Exception exception)
+                {
+                    logger.LogError(exception, "Event reminder scan failed; queued email delivery will continue.");
+                }
                 _nextReminderScan = now.AddMinutes(Math.Max(
                     configuration.GetValue("Email:Reminders:CheckIntervalMinutes", 60),
                     1));
@@ -115,7 +147,8 @@ public sealed class EmailOutboxBackgroundService(
             SET "Status" = 'Processing',
                 "ClaimedBy" = {claimId},
                 "ClaimedAt" = {now},
-                "AttemptCount" = message."AttemptCount" + 1
+                "AttemptCount" = message."AttemptCount" + 1,
+                "LifetimeAttemptCount" = message."LifetimeAttemptCount" + 1
             FROM candidates
             WHERE message."Id" = candidates."Id";
             """,
