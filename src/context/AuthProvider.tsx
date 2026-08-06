@@ -14,7 +14,7 @@ export default function AuthProvider({ children }: AuthProviderProps) {
 
   useEffect(() => {
     let active = true
-    // Restore a non-expired browser session; the API revalidates account state per request.
+    // Restore the browser session; the API remains authoritative for token lifetime and account state.
     api
       .restoreSession()
       .then((session) => {
