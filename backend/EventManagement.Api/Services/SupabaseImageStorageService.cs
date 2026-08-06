@@ -6,7 +6,8 @@ namespace EventManagement.Api.Services;
 public sealed class SupabaseImageStorageService(
     IConfiguration configuration,
     IHttpClientFactory httpClientFactory,
-    ILogger<SupabaseImageStorageService> logger) : IImageStorageService
+    ILogger<SupabaseImageStorageService> logger,
+    TimeProvider timeProvider) : IImageStorageService
 {
     public async Task<StoredImage> UploadImageAsync(
         Stream content,
@@ -27,7 +28,7 @@ public sealed class SupabaseImageStorageService(
             throw new ImageStorageException("Image storage is not configured.");
         }
 
-        var objectPath = $"{ownerId:N}/{DateTimeOffset.UtcNow:yyyy-MM-dd}/{Guid.NewGuid():N}.{extension}";
+        var objectPath = $"{ownerId:N}/{timeProvider.GetUtcNow():yyyy-MM-dd}/{Guid.NewGuid():N}.{extension}";
         var endpoint = $"{projectUrl.TrimEnd('/')}/storage/v1/object/{bucket}/{objectPath}";
 
         try

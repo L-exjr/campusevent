@@ -58,6 +58,7 @@ const ROLE_NAVIGATION: Record<Role, NavigationItem[]> = {
     { label: 'All events', to: '/admin/events' },
     { label: 'Booking requests', to: '/admin/booking-requests' },
     { label: 'Failed emails', to: '/admin/email-outbox' },
+    { label: 'Failed images', to: '/admin/image-cleanup' },
     { label: 'Audit log', to: '/admin/audit-logs' },
   ],
 }

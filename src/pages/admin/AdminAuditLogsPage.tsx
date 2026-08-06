@@ -1,6 +1,7 @@
 import { useCallback, useState } from 'react'
 import Card from 'react-bootstrap/Card'
 import Form from 'react-bootstrap/Form'
+import Button from 'react-bootstrap/Button'
 import Table from 'react-bootstrap/Table'
 import { api } from '../../api'
 import EmptyState from '../../components/shared/EmptyState'
@@ -21,6 +22,21 @@ export default function AdminAuditLogsPage() {
     [debouncedSearch, page],
   )
   const { data, loading, error, reload } = useApiResource(load)
+  const [exporting, setExporting] = useState(false)
+  const [exportError, setExportError] = useState<string | null>(null)
+
+  const exportCsv = async () => {
+    setExporting(true); setExportError(null)
+    try {
+      const blob = await api.exportAdminAuditLogs()
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url; link.download = 'admin-audit.csv'; link.click()
+      URL.revokeObjectURL(url)
+    } catch (caught) {
+      setExportError(caught instanceof Error ? caught.message : 'The audit export failed.')
+    } finally { setExporting(false) }
+  }
 
   return (
     <>
@@ -29,6 +45,7 @@ export default function AdminAuditLogsPage() {
         title="Audit log"
         description="Review security-sensitive actions performed by system administrators."
       />
+      {exportError && <p className="text-danger" role="alert">{exportError}</p>}
       <Card className="filter-card border-0 mb-4">
         <Card.Body>
           <Form.Group controlId="audit-search">
@@ -40,6 +57,9 @@ export default function AdminAuditLogsPage() {
               placeholder="Administrator, action, or target"
             />
           </Form.Group>
+          <Button className="mt-3" variant="outline-primary" disabled={exporting} onClick={() => void exportCsv()}>
+            {exporting ? 'Exporting…' : 'Export last 30 days'}
+          </Button>
         </Card.Body>
       </Card>
       {loading ? (

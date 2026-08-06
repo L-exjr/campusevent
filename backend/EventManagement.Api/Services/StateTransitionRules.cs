@@ -1,45 +1,14 @@
 using EventManagement.Api.Infrastructure;
 using EventManagement.Api.Models;
+using System.Reflection;
+using System.Text.Json;
 
 namespace EventManagement.Api.Services;
 
 public static class StateTransitionRules
 {
     private static readonly IReadOnlyDictionary<BookingRequestStatus, IReadOnlySet<BookingRequestStatus>>
-        BookingTransitions = new Dictionary<BookingRequestStatus, IReadOnlySet<BookingRequestStatus>>
-        {
-            [BookingRequestStatus.Submitted] = new HashSet<BookingRequestStatus>
-            {
-                BookingRequestStatus.UnderReview,
-                BookingRequestStatus.SentToOrganizer,
-                BookingRequestStatus.Closed
-            },
-            [BookingRequestStatus.UnderReview] = new HashSet<BookingRequestStatus>
-            {
-                BookingRequestStatus.SentToOrganizer,
-                BookingRequestStatus.Closed
-            },
-            [BookingRequestStatus.SentToOrganizer] = new HashSet<BookingRequestStatus>
-            {
-                BookingRequestStatus.Accepted,
-                BookingRequestStatus.Declined,
-                BookingRequestStatus.Closed
-            },
-            [BookingRequestStatus.Accepted] = new HashSet<BookingRequestStatus>
-            {
-                BookingRequestStatus.Converted,
-                BookingRequestStatus.Closed
-            },
-            [BookingRequestStatus.Declined] = new HashSet<BookingRequestStatus>
-            {
-                BookingRequestStatus.Closed
-            },
-            [BookingRequestStatus.Converted] = new HashSet<BookingRequestStatus>
-            {
-                BookingRequestStatus.Closed
-            },
-            [BookingRequestStatus.Closed] = new HashSet<BookingRequestStatus>()
-        };
+        BookingTransitions = LoadBookingTransitions();
 
     public static void EnsureBookingTransition(
         BookingRequestStatus current,
@@ -71,5 +40,31 @@ public static class StateTransitionRules
                 StatusCodes.Status400BadRequest,
                 "Published events must be scheduled in the future.");
         }
+    }
+
+    private static IReadOnlyDictionary<BookingRequestStatus, IReadOnlySet<BookingRequestStatus>>
+        LoadBookingTransitions()
+    {
+        var assembly = typeof(StateTransitionRules).Assembly;
+        var resourceName = assembly.GetManifestResourceNames()
+            .Single(name => name.EndsWith("booking-transitions.json", StringComparison.Ordinal));
+        using var stream = assembly.GetManifestResourceStream(resourceName)
+            ?? throw new InvalidOperationException("The booking transition contract is missing.");
+        var contract = JsonSerializer.Deserialize<Dictionary<string, string[]>>(stream)
+            ?? throw new InvalidOperationException("The booking transition contract is invalid.");
+        var transitions = new Dictionary<BookingRequestStatus, IReadOnlySet<BookingRequestStatus>>();
+        foreach (var (sourceName, targetNames) in contract)
+        {
+            if (!Enum.TryParse<BookingRequestStatus>(sourceName, true, out var source))
+                throw new InvalidOperationException($"Unknown booking status '{sourceName}'.");
+            var targets = targetNames.Select(targetName =>
+                Enum.TryParse<BookingRequestStatus>(targetName, true, out var target)
+                    ? target
+                    : throw new InvalidOperationException($"Unknown booking status '{targetName}'."));
+            transitions[source] = targets.ToHashSet();
+        }
+        if (transitions.Count != Enum.GetValues<BookingRequestStatus>().Length)
+            throw new InvalidOperationException("The booking transition contract must define every status.");
+        return transitions;
     }
 }

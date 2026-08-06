@@ -33,7 +33,8 @@ public interface IUserService
 public sealed class UserService(
     AppDbContext dbContext,
     IImageLifecycleService imageLifecycleService,
-    AdminAuditService auditService) : IUserService
+    AdminAuditService auditService,
+    TimeProvider timeProvider) : IUserService
 {
     public async Task<PaginatedResponse<UserResponse>> GetAsync(
         string? search,
@@ -96,7 +97,7 @@ public sealed class UserService(
             foreach (var application in pendingApplications)
             {
                 application.Status = ApplicationStatus.Approved;
-                application.ReviewedAt = DateTimeOffset.UtcNow;
+                application.ReviewedAt = timeProvider.GetUtcNow();
                 application.ReviewedByAdminId = adminId;
                 application.RejectionReason = null;
             }
@@ -171,7 +172,7 @@ public sealed class UserService(
         Guid organizerId,
         CancellationToken cancellationToken)
     {
-        var now = DateTimeOffset.UtcNow;
+        var now = timeProvider.GetUtcNow();
         var hasUpcomingEvents = await dbContext.Events.AnyAsync(
             eventEntity => eventEntity.OrganizerId == organizerId && eventEntity.Date > now,
             cancellationToken);

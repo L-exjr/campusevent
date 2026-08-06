@@ -184,8 +184,85 @@ public sealed class ApiIntegrationFixture : IAsyncLifetime
                 ["Email:Outbox:FailedRetentionDays"] = "90"
             })
             .Build();
-        await new EmailOutboxRetentionService(dbContext, configuration)
+        await new EmailOutboxRetentionService(dbContext, configuration, TimeProvider.System)
             .ApplyAsync(CancellationToken.None);
+    }
+
+    public async Task<Guid> CreateFailedImageCleanupAsync(Guid ownerId)
+    {
+        await using var dbContext = CreateDbContext();
+        var id = Guid.NewGuid();
+        dbContext.ImageUploads.Add(new ImageUpload
+        {
+            Id = id,
+            OwnerId = ownerId,
+            Bucket = "event-images",
+            ObjectKey = $"failed/{id:N}.webp",
+            PublicUrl = $"https://storage.example.test/event-images/failed/{id:N}.webp",
+            Kind = ImageUploadKind.Event,
+            Status = ImageUploadStatus.Failed,
+            DeleteAttemptCount = 8,
+            LifetimeDeleteAttemptCount = 8,
+            LastError = "Provider unavailable"
+        });
+        await dbContext.SaveChangesAsync();
+        return id;
+    }
+
+    public async Task<(ImageUploadStatus Status, int Attempts, int LifetimeAttempts, int ManualRetries)>
+        GetImageCleanupStateAsync(Guid id)
+    {
+        await using var dbContext = CreateDbContext();
+        return await dbContext.ImageUploads.Where(upload => upload.Id == id)
+            .Select(upload => new ValueTuple<ImageUploadStatus, int, int, int>(
+                upload.Status, upload.DeleteAttemptCount,
+                upload.LifetimeDeleteAttemptCount, upload.ManualRetryCount))
+            .SingleAsync();
+    }
+
+    public async Task<Guid> CreateClosedBookingRequestAsync(DateTimeOffset updatedAt)
+    {
+        await using var dbContext = CreateDbContext();
+        var request = new BookingRequest
+        {
+            OrganizationName = "Retention Society",
+            ContactName = "Private Person",
+            Email = "private@example.test",
+            Phone = "+233 20 000 0000",
+            EventType = "Workshop",
+            ProposedDate = updatedAt.AddDays(1),
+            EstimatedAttendance = 20,
+            Description = "Sensitive details supplied by the contact.",
+            AlternativeDates = "Call me at home",
+            Status = BookingRequestStatus.Closed,
+            UpdatedAt = updatedAt
+        };
+        dbContext.BookingRequests.Add(request);
+        await dbContext.SaveChangesAsync();
+        return request.Id;
+    }
+
+    public async Task ApplyBookingRequestRetentionAsync()
+    {
+        await using var dbContext = CreateDbContext();
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(
+            new Dictionary<string, string?>
+            {
+                ["DataRetention:BookingRequests:ClosedRetentionDays"] = "90"
+            }).Build();
+        await new BookingRequestRetentionService(dbContext, configuration, TimeProvider.System)
+            .ApplyAsync(CancellationToken.None);
+    }
+
+    public async Task<(string ContactName, string Email, string Description, DateTimeOffset? AnonymizedAt)>
+        GetBookingPersonalDataAsync(Guid id)
+    {
+        await using var dbContext = CreateDbContext();
+        return await dbContext.BookingRequests.Where(request => request.Id == id)
+            .Select(request => new ValueTuple<string, string, string, DateTimeOffset?>(
+                request.ContactName, request.Email, request.Description,
+                request.PersonalDataAnonymizedAt))
+            .SingleAsync();
     }
 
     public async Task<bool> AdminAuditMutationIsRejectedAsync(Guid id)

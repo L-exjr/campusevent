@@ -113,6 +113,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
             entity.Property(request => request.OrganizerResponseNote).HasMaxLength(1000);
             entity.Property(request => request.Status).HasConversion<string>().HasMaxLength(30);
             entity.HasIndex(request => request.Status);
+            entity.HasIndex(request => new { request.Status, request.UpdatedAt });
             entity.HasIndex(request => request.SubmittedAt);
             entity.HasOne(request => request.AssignedOrganizer)
                 .WithMany(user => user.AssignedBookingRequests)

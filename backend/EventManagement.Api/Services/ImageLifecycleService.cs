@@ -32,7 +32,8 @@ public sealed record ClaimedImage(string? Url, string? ObjectKey);
 public sealed class ImageLifecycleService(
     AppDbContext dbContext,
     IImageStorageService storageService,
-    ILogger<ImageLifecycleService> logger) : IImageLifecycleService
+    ILogger<ImageLifecycleService> logger,
+    TimeProvider timeProvider) : IImageLifecycleService
 {
     public async Task<ImageUpload> CreatePendingAsync(
         Stream content,
@@ -115,7 +116,7 @@ public sealed class ImageLifecycleService(
                     "Choose an image uploaded by this account before saving.");
 
             upload.Status = ImageUploadStatus.Claimed;
-            upload.ClaimedAt = DateTimeOffset.UtcNow;
+            upload.ClaimedAt = timeProvider.GetUtcNow();
         }
 
         await MarkForDeletionAsync(currentObjectKey, cancellationToken);
@@ -134,7 +135,7 @@ public sealed class ImageLifecycleService(
             return;
 
         upload.Status = ImageUploadStatus.DeletePending;
-        upload.AvailableAt = DateTimeOffset.UtcNow;
+        upload.AvailableAt = timeProvider.GetUtcNow();
         upload.DeletionClaimedAt = null;
         upload.DeletionClaimedBy = null;
     }

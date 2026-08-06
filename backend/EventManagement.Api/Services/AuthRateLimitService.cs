@@ -37,7 +37,8 @@ public interface IAuthRateLimitService
 
 public sealed class AuthRateLimitService(
     AppDbContext dbContext,
-    IConfiguration configuration) : IAuthRateLimitService
+    IConfiguration configuration,
+    TimeProvider timeProvider) : IAuthRateLimitService
 {
     private static long _lastCleanupTick;
 
@@ -69,7 +70,7 @@ public sealed class AuthRateLimitService(
         var keyHash = Convert.ToHexString(
             SHA256.HashData(Encoding.UTF8.GetBytes(normalized)));
         var bucketKey = $"{scope}:{operation}:{keyHash}";
-        var now = DateTimeOffset.UtcNow;
+        var now = timeProvider.GetUtcNow();
         var cutoff = now - settings.Window;
         var connection = (NpgsqlConnection)dbContext.Database.GetDbConnection();
         var shouldClose = connection.State != ConnectionState.Open;

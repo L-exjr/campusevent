@@ -83,6 +83,7 @@ export interface BookingRequest extends Omit<BookingRequestInput, 'website'> {
   draftEventId: string | null
   submittedAt: string
   updatedAt: string
+  personalDataAnonymizedAt?: string | null
 }
 
 export interface EventFilters {
@@ -173,6 +174,19 @@ export interface EmailDeadLetter {
   lastError: string | null
   createdAt: string
   canRetry: boolean
+}
+
+export interface FailedImageCleanup {
+  id: string
+  bucket: string
+  objectKey: string
+  kind: string
+  deleteAttemptCount: number
+  lifetimeDeleteAttemptCount: number
+  manualRetryCount: number
+  lastRetriedAt: string | null
+  lastError: string | null
+  createdAt: string
 }
 
 export interface AdminAuditLog {

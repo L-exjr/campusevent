@@ -1,0 +1,9 @@
+{
+  "submitted": ["underReview", "sentToOrganizer", "closed"],
+  "underReview": ["sentToOrganizer", "closed"],
+  "sentToOrganizer": ["accepted", "declined", "closed"],
+  "accepted": ["converted", "closed"],
+  "declined": ["closed"],
+  "converted": ["closed"],
+  "closed": []
+}

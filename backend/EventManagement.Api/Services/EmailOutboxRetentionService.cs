@@ -5,11 +5,12 @@ namespace EventManagement.Api.Services;
 
 public sealed class EmailOutboxRetentionService(
     AppDbContext dbContext,
-    IConfiguration configuration)
+    IConfiguration configuration,
+    TimeProvider timeProvider)
 {
     public async Task ApplyAsync(CancellationToken cancellationToken)
     {
-        var now = DateTimeOffset.UtcNow;
+        var now = timeProvider.GetUtcNow();
         var deliveredBefore = now.AddDays(-Math.Max(
             configuration.GetValue("Email:Outbox:DeliveredRetentionDays", 30),
             1));

@@ -44,6 +44,7 @@ public sealed record BookingRequestResponse(
     string? OrganizerResponseNote,
     Guid? DraftEventId,
     DateTimeOffset SubmittedAt,
-    DateTimeOffset UpdatedAt);
+    DateTimeOffset UpdatedAt,
+    DateTimeOffset? PersonalDataAnonymizedAt);
 
 public sealed record BookingSubmissionResponse(string Message, Guid? Id);

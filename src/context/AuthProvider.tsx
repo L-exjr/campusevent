@@ -10,7 +10,6 @@ interface AuthProviderProps {
 export default function AuthProvider({ children }: AuthProviderProps) {
   const [user, setUser] = useState<User | null>(null)
   const [token, setToken] = useState<string | null>(null)
-  const [expiresAt, setExpiresAt] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -22,7 +21,6 @@ export default function AuthProvider({ children }: AuthProviderProps) {
         if (!active || !session) return
         setUser(session.user)
         setToken(session.token)
-        setExpiresAt(session.expiresAt)
       })
       .catch(() => api.logout())
       .finally(() => active && setLoading(false))
@@ -35,23 +33,14 @@ export default function AuthProvider({ children }: AuthProviderProps) {
     const clearSession = () => {
       setUser(null)
       setToken(null)
-      setExpiresAt(null)
     }
     window.addEventListener('campus-events:unauthorized', clearSession)
     return () => window.removeEventListener('campus-events:unauthorized', clearSession)
   }, [])
 
-  useEffect(() => {
-    if (!expiresAt) return
-    const remainingMs = new Date(expiresAt).getTime() - Date.now()
-    const timeout = window.setTimeout(() => {
-      void api.logout()
-      setUser(null)
-      setToken(null)
-      setExpiresAt(null)
-    }, Math.max(remainingMs, 0))
-    return () => window.clearTimeout(timeout)
-  }, [expiresAt])
+  // JWT lifetime is enforced by the API. Using the browser clock to end a
+  // session can immediately sign in-and-out users whose device clock is ahead.
+  // Any server 401 is handled by the unauthorized event above.
 
   const value = useMemo<AuthContextValue>(
     () => ({
@@ -63,28 +52,24 @@ export default function AuthProvider({ children }: AuthProviderProps) {
         const session = await api.login(email, password)
         setUser(session.user)
         setToken(session.token)
-        setExpiresAt(session.expiresAt)
         return session
       },
       register: async (name, email, password) => {
         const session = await api.register(name, email, password)
         setUser(session.user)
         setToken(session.token)
-        setExpiresAt(session.expiresAt)
         return session
       },
       googleLogin: async (idToken) => {
         const session = await api.googleLogin(idToken)
         setUser(session.user)
         setToken(session.token)
-        setExpiresAt(session.expiresAt)
         return session
       },
       logout: async () => {
         await api.logout()
         setUser(null)
         setToken(null)
-        setExpiresAt(null)
       },
       updateProfileImage: async (imageUrl) => {
         if (!user) throw new Error('Authentication is required.')

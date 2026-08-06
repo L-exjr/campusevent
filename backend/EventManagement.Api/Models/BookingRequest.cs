@@ -20,6 +20,7 @@ public sealed class BookingRequest
     public Guid? DraftEventId { get; set; }
     public DateTimeOffset SubmittedAt { get; set; } = DateTimeOffset.UtcNow;
     public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public DateTimeOffset? PersonalDataAnonymizedAt { get; set; }
 
     public User? AssignedOrganizer { get; set; }
     public EventEntity? DraftEvent { get; set; }

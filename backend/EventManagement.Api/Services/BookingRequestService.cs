@@ -24,7 +24,8 @@ public interface IBookingRequestService
 
 public sealed class BookingRequestService(
     AppDbContext dbContext,
-    AdminAuditService auditService) : IBookingRequestService
+    AdminAuditService auditService,
+    TimeProvider timeProvider) : IBookingRequestService
 {
     private const string SubmissionMessage = "Your organizer request has been received.";
 
@@ -36,7 +37,7 @@ public sealed class BookingRequestService(
         // is not detectable, but never persist a honeypot submission.
         if (!string.IsNullOrWhiteSpace(request.Website))
             return new BookingSubmissionResponse(SubmissionMessage, null);
-        if (request.ProposedDate <= DateTimeOffset.UtcNow)
+        if (request.ProposedDate <= timeProvider.GetUtcNow())
             throw new ApiException(StatusCodes.Status400BadRequest, "The proposed date must be in the future.");
 
         var entity = new BookingRequest
@@ -122,7 +123,7 @@ public sealed class BookingRequestService(
         request.AssignedOrganizerId = organizerId;
         request.AssignedOrganizer = organizer;
         request.Status = BookingRequestStatus.SentToOrganizer;
-        request.UpdatedAt = DateTimeOffset.UtcNow;
+        request.UpdatedAt = timeProvider.GetUtcNow();
         auditService.Append(
             adminId,
             previousOrganizerId.HasValue
@@ -157,7 +158,7 @@ public sealed class BookingRequestService(
         StateTransitionRules.EnsureBookingTransition(request.Status, responseStatus);
 
         request.OrganizerResponseNote = NormalizeOptional(response.Note);
-        request.UpdatedAt = DateTimeOffset.UtcNow;
+        request.UpdatedAt = timeProvider.GetUtcNow();
         if (!response.Accept)
         {
             request.Status = responseStatus;
@@ -198,7 +199,7 @@ public sealed class BookingRequestService(
         var previousStatus = request.Status;
         StateTransitionRules.EnsureBookingTransition(previousStatus, status);
         request.Status = status;
-        request.UpdatedAt = DateTimeOffset.UtcNow;
+        request.UpdatedAt = timeProvider.GetUtcNow();
         auditService.Append(
             adminId,
             "BookingRequestStatusChanged",
@@ -233,12 +234,14 @@ public sealed class BookingRequestService(
             request.EventType, request.ProposedDate, request.AlternativeDates, request.FlexibilityNote,
             request.EstimatedAttendance, request.PreferredOrganizer, request.Description, request.Status,
             request.AssignedOrganizerId, request.AssignedOrganizer == null ? null : request.AssignedOrganizer.Name,
-            request.OrganizerResponseNote, request.DraftEventId, request.SubmittedAt, request.UpdatedAt));
+            request.OrganizerResponseNote, request.DraftEventId, request.SubmittedAt, request.UpdatedAt,
+            request.PersonalDataAnonymizedAt));
 
     private static BookingRequestResponse ToResponse(BookingRequest request) => new(
         request.Id, request.OrganizationName, request.ContactName, request.Email, request.Phone,
         request.EventType, request.ProposedDate, request.AlternativeDates, request.FlexibilityNote,
         request.EstimatedAttendance, request.PreferredOrganizer, request.Description, request.Status,
         request.AssignedOrganizerId, request.AssignedOrganizer?.Name, request.OrganizerResponseNote,
-        request.DraftEventId, request.SubmittedAt, request.UpdatedAt);
+        request.DraftEventId, request.SubmittedAt, request.UpdatedAt,
+        request.PersonalDataAnonymizedAt);
 }

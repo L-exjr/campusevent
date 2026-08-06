@@ -38,7 +38,8 @@ public interface IOrganizerApplicationService
 
 public sealed class OrganizerApplicationService(
     AppDbContext dbContext,
-    AdminAuditService auditService)
+    AdminAuditService auditService,
+    TimeProvider timeProvider)
     : IOrganizerApplicationService
 {
     public async Task<OrganizerApplicationResponse> SubmitAsync(
@@ -181,7 +182,7 @@ public sealed class OrganizerApplicationService(
             throw new ApiException(StatusCodes.Status409Conflict, "The applicant is no longer a Student.");
 
         application.Status = status;
-        application.ReviewedAt = DateTimeOffset.UtcNow;
+        application.ReviewedAt = timeProvider.GetUtcNow();
         application.ReviewedByAdminId = adminId;
         application.RejectionReason = status == ApplicationStatus.Rejected ? rejectionReason : null;
         if (status == ApplicationStatus.Approved) application.User.Role = UserRole.Organizer;

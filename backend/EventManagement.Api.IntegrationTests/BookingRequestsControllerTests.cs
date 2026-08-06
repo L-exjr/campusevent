@@ -172,6 +172,21 @@ public sealed class BookingRequestsControllerTests(ApiIntegrationFixture fixture
         }
     }
 
+    [Fact]
+    public async Task Closed_request_personal_data_is_anonymized_after_retention_window()
+    {
+        await ResetAsync();
+        var id = await Fixture.CreateClosedBookingRequestAsync(DateTimeOffset.UtcNow.AddDays(-91));
+
+        await Fixture.ApplyBookingRequestRetentionAsync();
+
+        var data = await Fixture.GetBookingPersonalDataAsync(id);
+        Assert.Equal("Removed", data.ContactName);
+        Assert.EndsWith("@invalid.local", data.Email);
+        Assert.Equal("Personal data removed under the retention policy.", data.Description);
+        Assert.NotNull(data.AnonymizedAt);
+    }
+
     private static object Payload(string website = "") => new
     {
         organizationName = "Integration Test Society",

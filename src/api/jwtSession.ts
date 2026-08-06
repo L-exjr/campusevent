@@ -47,8 +47,6 @@ export function readJwtSessionClaims(token: string): JwtSessionClaims {
   if (typeof userId !== 'string' || !userId || !role || !Number.isFinite(expiresAtMs)) {
     throw new Error('The session token is missing required claims.')
   }
-  if (expiresAtMs <= Date.now()) throw new Error('Your session has expired. Please sign in again.')
-
   return {
     expiresAt: new Date(expiresAtMs).toISOString(),
     role,

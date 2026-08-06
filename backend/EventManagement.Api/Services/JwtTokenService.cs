@@ -14,7 +14,7 @@ public interface IJwtTokenService
     TokenResult Create(User user);
 }
 
-public sealed class JwtTokenService(IConfiguration configuration) : IJwtTokenService
+public sealed class JwtTokenService(IConfiguration configuration, TimeProvider timeProvider) : IJwtTokenService
 {
     public TokenResult Create(User user)
     {
@@ -23,7 +23,7 @@ public sealed class JwtTokenService(IConfiguration configuration) : IJwtTokenSer
         var issuer = configuration["Jwt:Issuer"] ?? "EventManagement.Api";
         var audience = configuration["Jwt:Audience"] ?? "EventManagement.Frontend";
         var expiryMinutes = Math.Clamp(configuration.GetValue("Jwt:ExpiryMinutes", 75), 60, 90);
-        var expiresAt = DateTimeOffset.UtcNow.AddMinutes(expiryMinutes);
+        var expiresAt = timeProvider.GetUtcNow().AddMinutes(expiryMinutes);
         var claims = new[]
         {
             new Claim(JwtRegisteredClaimNames.Sub, user.Id.ToString()),

@@ -29,7 +29,8 @@ public interface IEmailOutboxHandler
 public sealed class PayloadEmailOutboxHandler(
     AppDbContext dbContext,
     IEmailService emailService,
-    ILogger<PayloadEmailOutboxHandler> logger) : IEmailOutboxHandler
+    ILogger<PayloadEmailOutboxHandler> logger,
+    TimeProvider timeProvider) : IEmailOutboxHandler
 {
     private static readonly IReadOnlySet<string> SupportedKinds = new HashSet<string>
     {
@@ -52,7 +53,7 @@ public sealed class PayloadEmailOutboxHandler(
                     resetToken.IsActive,
                     resetToken.UsedAt,
                     resetToken.ExpiresAt,
-                    DateTimeOffset.UtcNow))
+                    timeProvider.GetUtcNow()))
             {
                 return new EmailOutboxHandlingResult(
                     EmailOutboxOutcome.Discard,
@@ -195,7 +196,8 @@ public sealed class OrganizerApplicationDecisionEmailOutboxHandler(
 public sealed class EventReminderEmailOutboxHandler(
     AppDbContext dbContext,
     IEmailService emailService,
-    IConfiguration configuration) : IEmailOutboxHandler
+    IConfiguration configuration,
+    TimeProvider timeProvider) : IEmailOutboxHandler
 {
     public bool CanHandle(string kind) => kind == EmailOutbox.EventReminderKind;
 
@@ -207,7 +209,7 @@ public sealed class EventReminderEmailOutboxHandler(
             .Include(item => item.Event)
             .Include(item => item.Student)
             .SingleOrDefaultAsync(item => item.Id == message.AggregateId, cancellationToken);
-        var now = DateTimeOffset.UtcNow;
+        var now = timeProvider.GetUtcNow();
         var leadTime = TimeSpan.FromHours(Math.Max(
             configuration.GetValue("Email:Reminders:LeadTimeHours", 24),
             1));
@@ -248,7 +250,7 @@ public sealed class EventReminderEmailOutboxHandler(
                 EmailOutboxOutcome.Retry,
                 "The email provider did not accept the message.");
 
-        registration.ReminderSentAt = DateTimeOffset.UtcNow;
+        registration.ReminderSentAt = timeProvider.GetUtcNow();
         return new EmailOutboxHandlingResult(EmailOutboxOutcome.Sent);
     }
 }

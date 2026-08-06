@@ -3,11 +3,14 @@ using Microsoft.EntityFrameworkCore;
 
 namespace EventManagement.Api.Services;
 
-public sealed class EventReminderEnqueuer(AppDbContext dbContext, IConfiguration configuration)
+public sealed class EventReminderEnqueuer(
+    AppDbContext dbContext,
+    IConfiguration configuration,
+    TimeProvider timeProvider)
 {
     public async Task EnqueueDueAsync(CancellationToken cancellationToken)
     {
-        var now = DateTimeOffset.UtcNow;
+        var now = timeProvider.GetUtcNow();
         var reminderCutoff = now.AddHours(Math.Max(
             configuration.GetValue("Email:Reminders:LeadTimeHours", 24),
             1));

@@ -35,12 +35,19 @@ export default function BookingRequestCard({
               {request.eventType} · {new Date(request.proposedDate).toLocaleString()} · {request.estimatedAttendance} guests
             </p>
           </div>
-          <Badge bg="secondary" className="align-self-start">{request.status}</Badge>
+          <div className="d-flex gap-2 align-items-start">
+            {request.personalDataAnonymizedAt && <Badge bg="light" text="dark">PII removed</Badge>}
+            <Badge bg="secondary">{request.status}</Badge>
+          </div>
         </div>
         <p>{request.description}</p>
-        <p className="small mb-3">
-          Contact: <a href={`mailto:${request.email}`}>{request.contactName}</a> · {request.phone}
-        </p>
+        {request.personalDataAnonymizedAt ? (
+          <p className="small text-secondary mb-3">Contact details were removed under the retention policy.</p>
+        ) : (
+          <p className="small mb-3">
+            Contact: <a href={`mailto:${request.email}`}>{request.contactName}</a> · {request.phone}
+          </p>
+        )}
         {request.assignedOrganizerName && (
           <p className="fw-semibold">Assigned to {request.assignedOrganizerName}</p>
         )}

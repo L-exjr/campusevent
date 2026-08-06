@@ -4,6 +4,7 @@ import type {
   BookingRequest,
   BookingRequestInput,
   EmailDeadLetter,
+  FailedImageCleanup,
   EventFilters,
   EventInput,
   EventItem,
@@ -58,12 +59,15 @@ export interface EventManagementApi {
   getReports(page?: number, pageSize?: number): Promise<ReportsData>
   getFailedEmails(page?: number, pageSize?: number): Promise<Page<EmailDeadLetter>>
   retryFailedEmail(id: string): Promise<void>
+  getFailedImageCleanups(page?: number, pageSize?: number): Promise<Page<FailedImageCleanup>>
+  retryFailedImageCleanup(id: string): Promise<void>
   getAdminAuditLogs(
     search?: string,
     page?: number,
     pageSize?: number,
     signal?: AbortSignal,
   ): Promise<Page<AdminAuditLog>>
+  exportAdminAuditLogs(from?: string, to?: string): Promise<Blob>
   submitBookingRequest(input: BookingRequestInput): Promise<string>
   getBookingRequests(page?: number, pageSize?: number): Promise<Page<BookingRequest>>
   getAssignedBookingRequests(page?: number, pageSize?: number): Promise<Page<BookingRequest>>

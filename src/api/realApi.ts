@@ -1,6 +1,7 @@
 import type { EventManagementApi } from './EventManagementApi'
 import {
   apiRequest,
+  apiDownload,
   clearStoredSession,
   readStoredSession,
   writeStoredSession,
@@ -13,6 +14,7 @@ import type {
   BookingRequest,
   BookingRequestInput,
   EmailDeadLetter,
+  FailedImageCleanup,
   EventFilters,
   EventInput,
   EventItem,
@@ -560,6 +562,16 @@ export const realApi: EventManagementApi = {
     await apiRequest(`/email-outbox/${id}/retry`, { method: 'PUT' })
   },
 
+  async getFailedImageCleanups(page = 1, pageSize = 20) {
+    return apiRequest<PaginatedResponse<FailedImageCleanup>>(
+      `/image-cleanup/failed?page=${page}&pageSize=${pageSize}`,
+    )
+  },
+
+  async retryFailedImageCleanup(id) {
+    await apiRequest(`/image-cleanup/${id}/retry`, { method: 'PUT' })
+  },
+
   async getAdminAuditLogs(search = '', page = 1, pageSize = 20, signal) {
     const query = new URLSearchParams({ page: String(page), pageSize: String(pageSize) })
     if (search.trim()) query.set('search', search.trim())
@@ -567,6 +579,13 @@ export const realApi: EventManagementApi = {
       `/admin-audit-logs?${query}`,
       { signal },
     )
+  },
+
+  async exportAdminAuditLogs(from, to) {
+    const query = new URLSearchParams()
+    if (from) query.set('from', from)
+    if (to) query.set('to', to)
+    return apiDownload(`/admin-audit-logs/export${query.size ? `?${query}` : ''}`)
   },
 
   async submitBookingRequest(input: BookingRequestInput) {

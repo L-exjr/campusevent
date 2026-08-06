@@ -89,7 +89,8 @@ public sealed class EventService(
     AppDbContext dbContext,
     IEventAuthorizationService authorizationService,
     IImageLifecycleService imageLifecycleService,
-    AdminAuditService auditService) : IEventService
+    AdminAuditService auditService,
+    TimeProvider timeProvider) : IEventService
 {
     private static readonly string[] SupportedCategories =
         ["Academic", "Career", "Culture", "Sports", "Technology", "Wellness"];
@@ -135,7 +136,7 @@ public sealed class EventService(
             .Where(eventEntity => eventEntity.OrganizerId == userId);
         if (upcoming)
         {
-            var now = DateTimeOffset.UtcNow;
+            var now = timeProvider.GetUtcNow();
             query = query.Where(eventEntity => eventEntity.Date > now);
         }
         return PaginateEventsAsync(query, page, pageSize, cancellationToken);
@@ -188,7 +189,7 @@ public sealed class EventService(
             request.IsPublished ?? true,
             default,
             input.Date,
-            DateTimeOffset.UtcNow);
+            timeProvider.GetUtcNow());
         var organizer = await dbContext.Users
             .FromSqlInterpolated($"SELECT * FROM \"Users\" WHERE \"Id\" = {actorId} FOR UPDATE")
             .SingleOrDefaultAsync(cancellationToken)
@@ -263,7 +264,7 @@ public sealed class EventService(
             targetPublished,
             eventEntity.Date,
             input.Date,
-            DateTimeOffset.UtcNow);
+            timeProvider.GetUtcNow());
 
         eventEntity.Title = input.Title;
         eventEntity.Description = input.Description;
@@ -299,7 +300,7 @@ public sealed class EventService(
             if (bookingRequest is not null)
             {
                 bookingRequest.Status = BookingRequestStatus.Converted;
-                bookingRequest.UpdatedAt = DateTimeOffset.UtcNow;
+                bookingRequest.UpdatedAt = timeProvider.GetUtcNow();
             }
         }
         try
@@ -357,7 +358,7 @@ public sealed class EventService(
         if (sourceRequest is not null)
         {
             sourceRequest.AssignedOrganizerId = newOrganizer.Id;
-            sourceRequest.UpdatedAt = DateTimeOffset.UtcNow;
+            sourceRequest.UpdatedAt = timeProvider.GetUtcNow();
         }
 
         var registrationCount = await dbContext.EventRegistrations.CountAsync(
@@ -428,7 +429,7 @@ public sealed class EventService(
             .Include(item => item.Organizer)
             .SingleOrDefaultAsync(cancellationToken)
             ?? throw new ApiException(StatusCodes.Status404NotFound, "Event not found.");
-        if (eventEntity.Date <= DateTimeOffset.UtcNow)
+        if (eventEntity.Date <= timeProvider.GetUtcNow())
             throw new ApiException(StatusCodes.Status409Conflict, "Registration has closed for this event.");
         if (!eventEntity.IsPublished)
             throw new ApiException(StatusCodes.Status404NotFound, "Event not found.");

@@ -18,4 +18,14 @@ public sealed class AdminAuditLogsController(AdminAuditService auditService) : C
         [FromQuery] int pageSize = 20,
         CancellationToken cancellationToken = default) =>
         Ok(await auditService.GetAsync(search, page, pageSize, cancellationToken));
+
+    [HttpGet("export")]
+    public async Task<IActionResult> Export(
+        [FromQuery] DateTimeOffset? from = null,
+        [FromQuery] DateTimeOffset? to = null,
+        CancellationToken cancellationToken = default)
+    {
+        var content = await auditService.ExportCsvAsync(from, to, cancellationToken);
+        return File(content, "text/csv; charset=utf-8", $"admin-audit-{DateTime.UtcNow:yyyyMMdd}.csv");
+    }
 }

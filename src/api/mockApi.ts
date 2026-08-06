@@ -5,6 +5,7 @@ import type {
   BookingRequestInput,
   BookingRequestStatus,
   EmailDeadLetter,
+  FailedImageCleanup,
   EventFilters,
   EventInput,
   EventItem,
@@ -19,6 +20,7 @@ import type {
 } from '../types'
 import { EVENT_CATEGORIES } from '../types'
 import type { EventManagementApi } from './EventManagementApi'
+import bookingTransitionsContract from '../../contracts/booking-transitions.json'
 
 type StoredEvent = Omit<EventItem, 'registeredCount' | 'imageUrl' | 'isPublished' | 'version'> & {
   imageUrl?: string | null
@@ -34,6 +36,7 @@ interface MockDatabase {
   organizerApplications: OrganizerApplication[]
   bookingRequests: BookingRequest[]
   emailDeadLetters: EmailDeadLetter[]
+  failedImageCleanups: FailedImageCleanup[]
   adminAuditLogs: AdminAuditLog[]
 }
 
@@ -322,6 +325,18 @@ function createSeedDatabase(): MockDatabase {
       canRetry: true,
     },
   ]
+  const failedImageCleanups: FailedImageCleanup[] = [{
+    id: 'failed-image-1',
+    bucket: 'event-images',
+    objectKey: 'event-images/orphaned.webp',
+    kind: 'Event',
+    deleteAttemptCount: 8,
+    lifetimeDeleteAttemptCount: 8,
+    manualRetryCount: 0,
+    lastRetriedAt: null,
+    lastError: 'Storage provider unavailable.',
+    createdAt: daysFromNow(-2, 8),
+  }]
 
   return {
     users,
@@ -330,6 +345,7 @@ function createSeedDatabase(): MockDatabase {
     organizerApplications,
     bookingRequests,
     emailDeadLetters,
+    failedImageCleanups,
     adminAuditLogs: [],
   }
 }
@@ -442,15 +458,10 @@ function appendAdminAudit(
   })
 }
 
-const bookingTransitions: Record<BookingRequestStatus, BookingRequestStatus[]> = {
-  submitted: ['underReview', 'sentToOrganizer', 'closed'],
-  underReview: ['sentToOrganizer', 'closed'],
-  sentToOrganizer: ['accepted', 'declined', 'closed'],
-  accepted: ['converted', 'closed'],
-  declined: ['closed'],
-  converted: ['closed'],
-  closed: [],
-}
+const bookingTransitions = bookingTransitionsContract as Record<
+  BookingRequestStatus,
+  BookingRequestStatus[]
+>
 
 function ensureBookingTransition(current: BookingRequestStatus, target: BookingRequestStatus) {
   if (bookingTransitions[current].includes(target)) return
@@ -1199,6 +1210,28 @@ export const mockApi: EventManagementApi = {
     saveDatabase(database)
   },
 
+  async getFailedImageCleanups(page = 1, pageSize = 20) {
+    await pause()
+    const database = getDatabase()
+    if (getCurrentUser(database).role !== 'admin') throw new Error('Admin access is required.')
+    return paginate(database.failedImageCleanups ?? [], page, pageSize)
+  },
+
+  async retryFailedImageCleanup(id: string) {
+    await pause()
+    const database = getDatabase()
+    const admin = getCurrentUser(database)
+    if (admin.role !== 'admin') throw new Error('Admin access is required.')
+    const item = (database.failedImageCleanups ?? []).find((candidate) => candidate.id === id)
+    if (!item) throw new Error('Failed image cleanup item not found.')
+    database.failedImageCleanups = (database.failedImageCleanups ?? [])
+      .filter((candidate) => candidate.id !== id)
+    appendAdminAudit(database, admin, 'ImageCleanupRetried', 'ImageUpload', id, {
+      bucket: item.bucket, objectKey: item.objectKey, previousAttemptCount: item.deleteAttemptCount,
+    })
+    saveDatabase(database)
+  },
+
   async getAdminAuditLogs(search = '', page = 1, pageSize = 20) {
     await pause()
     const database = getDatabase()
@@ -1212,6 +1245,20 @@ export const mockApi: EventManagementApi = {
         log.targetType.toLowerCase().includes(query) ||
         log.targetId.toLowerCase().includes(query))
       .sort((left, right) => right.createdAt.localeCompare(left.createdAt)), page, pageSize)
+  },
+
+  async exportAdminAuditLogs(from, to) {
+    await pause()
+    const database = getDatabase()
+    if (getCurrentUser(database).role !== 'admin') throw new Error('Admin access is required.')
+    const rows = database.adminAuditLogs.filter((log) =>
+      (!from || log.createdAt >= from) && (!to || log.createdAt <= to))
+    const quote = (value: string) => `"${value.replace(/"/g, '""')}"`
+    return new Blob([
+      'createdAt,actorUserId,actorName,action,targetType,targetId,detailsJson\r\n',
+      ...rows.map((log) => [log.createdAt, log.actorUserId, log.actorName, log.action,
+        log.targetType, log.targetId, log.detailsJson].map(quote).join(',') + '\r\n'),
+    ], { type: 'text/csv' })
   },
 
   async submitBookingRequest(input: BookingRequestInput): Promise<string> {

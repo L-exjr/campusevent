@@ -19,5 +19,6 @@
 
   <ItemGroup>
     <Content Include="EmailTemplates/**/*.html" CopyToOutputDirectory="PreserveNewest" />
+    <EmbeddedResource Include="../../contracts/booking-transitions.json" Link="Contracts/booking-transitions.json" />
   </ItemGroup>
 </Project>

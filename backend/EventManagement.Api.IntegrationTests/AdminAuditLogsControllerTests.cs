@@ -37,4 +37,22 @@ public sealed class AdminAuditLogsControllerTests(ApiIntegrationFixture fixture)
 
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
     }
+
+    [Fact]
+    public async Task Admin_can_export_a_bounded_csv_audit_report()
+    {
+        await ResetAsync();
+        var student = await RegisterStudentAsync("audit-export@example.test");
+        var admin = await LoginAdminAsync();
+        await SetRoleAsync(admin.Token, student.UserId, "Organizer");
+        using var client = CreateAuthenticatedClient(admin.Token);
+
+        using var response = await client.GetAsync("/api/admin-audit-logs/export");
+
+        response.EnsureSuccessStatusCode();
+        Assert.Equal("text/csv", response.Content.Headers.ContentType?.MediaType);
+        var csv = await response.Content.ReadAsStringAsync();
+        Assert.Contains("UserRoleChanged", csv);
+        Assert.Contains("actorUserId", csv);
+    }
 }

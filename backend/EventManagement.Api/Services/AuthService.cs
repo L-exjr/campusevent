@@ -24,7 +24,8 @@ public sealed class AuthService(
     IJwtTokenService jwtTokenService,
     IGoogleTokenValidator googleTokenValidator,
     IAuthRateLimitService authRateLimitService,
-    IConfiguration configuration) : IAuthService
+    IConfiguration configuration,
+    TimeProvider timeProvider) : IAuthService
 {
     public const string ForgotPasswordMessage =
         "If an account exists for that email, a password reset link has been sent.";
@@ -68,7 +69,7 @@ public sealed class AuthService(
             cancellationToken);
         if (user is null) return new MessageResponse(ForgotPasswordMessage);
 
-        var now = DateTimeOffset.UtcNow;
+        var now = timeProvider.GetUtcNow();
         var previousTokens = await dbContext.PasswordResetTokens
             .Where(token => token.UserId == user.Id && token.UsedAt == null)
             .ToListAsync(cancellationToken);
@@ -120,7 +121,7 @@ public sealed class AuthService(
             .FromSqlInterpolated($"SELECT * FROM \"PasswordResetTokens\" WHERE \"TokenHash\" = {tokenHash} FOR UPDATE")
             .Include(token => token.User)
             .SingleOrDefaultAsync(cancellationToken);
-        var now = DateTimeOffset.UtcNow;
+        var now = timeProvider.GetUtcNow();
         if (resetToken is null || resetToken.UsedAt.HasValue || resetToken.ExpiresAt <= now)
             throw new ApiException(StatusCodes.Status400BadRequest, "The reset link is invalid or has expired.");
 

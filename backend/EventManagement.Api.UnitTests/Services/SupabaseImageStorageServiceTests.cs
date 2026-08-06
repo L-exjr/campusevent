@@ -21,7 +21,8 @@ public sealed class SupabaseImageStorageServiceTests
         var service = new SupabaseImageStorageService(
             configuration,
             new StaticHttpClientFactory(new HttpClient(handler)),
-            Mock.Of<ILogger<SupabaseImageStorageService>>());
+            Mock.Of<ILogger<SupabaseImageStorageService>>(),
+            TimeProvider.System);
 
         await using var content = new MemoryStream([0x89, 0x50, 0x4E, 0x47]);
         var url = await service.UploadImageAsync(
@@ -58,7 +59,8 @@ public sealed class SupabaseImageStorageServiceTests
             configuration,
             new StaticHttpClientFactory(new HttpClient(
                 new RecordingHandler(HttpStatusCode.Forbidden))),
-            Mock.Of<ILogger<SupabaseImageStorageService>>());
+            Mock.Of<ILogger<SupabaseImageStorageService>>(),
+            TimeProvider.System);
 
         await using var content = new MemoryStream([0x89, 0x50, 0x4E, 0x47]);
         var exception = await Assert.ThrowsAsync<ImageStorageException>(() =>

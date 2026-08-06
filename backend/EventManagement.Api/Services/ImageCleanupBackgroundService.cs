@@ -7,7 +7,8 @@ namespace EventManagement.Api.Services;
 public sealed class ImageCleanupBackgroundService(
     IServiceScopeFactory scopeFactory,
     IConfiguration configuration,
-    ILogger<ImageCleanupBackgroundService> logger) : BackgroundService
+    ILogger<ImageCleanupBackgroundService> logger,
+    TimeProvider timeProvider) : BackgroundService
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -59,7 +60,7 @@ public sealed class ImageCleanupBackgroundService(
     {
         await using var scope = scopeFactory.CreateAsyncScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        var now = DateTimeOffset.UtcNow;
+        var now = timeProvider.GetUtcNow();
         var pendingCutoff = now.AddHours(-Math.Max(
             configuration.GetValue("Images:Cleanup:PendingRetentionHours", 24),
             1));
@@ -92,7 +93,8 @@ public sealed class ImageCleanupBackgroundService(
             SET "Status" = 'Deleting',
                 "DeletionClaimedBy" = {claimId},
                 "DeletionClaimedAt" = {now},
-                "DeleteAttemptCount" = upload."DeleteAttemptCount" + 1
+                "DeleteAttemptCount" = upload."DeleteAttemptCount" + 1,
+                "LifetimeDeleteAttemptCount" = upload."LifetimeDeleteAttemptCount" + 1
             FROM candidates
             WHERE upload."Id" = candidates."Id";
             """,
@@ -128,7 +130,7 @@ public sealed class ImageCleanupBackgroundService(
                 claimId,
                 cancellationToken);
             upload.Status = ImageUploadStatus.Deleted;
-            upload.DeletedAt = DateTimeOffset.UtcNow;
+            upload.DeletedAt = timeProvider.GetUtcNow();
             upload.DeletionClaimedAt = null;
             upload.DeletionClaimedBy = null;
             upload.LastError = null;
@@ -156,7 +158,7 @@ public sealed class ImageCleanupBackgroundService(
             upload.Status = upload.DeleteAttemptCount >= maxAttempts
                 ? ImageUploadStatus.Failed
                 : ImageUploadStatus.DeletePending;
-            upload.AvailableAt = DateTimeOffset.UtcNow.AddMinutes(
+            upload.AvailableAt = timeProvider.GetUtcNow().AddMinutes(
                 Math.Min(Math.Pow(2, Math.Max(upload.DeleteAttemptCount - 1, 0)), 60));
             upload.LastError = exception.Message[..Math.Min(exception.Message.Length, 2000)];
             upload.DeletionClaimedAt = null;

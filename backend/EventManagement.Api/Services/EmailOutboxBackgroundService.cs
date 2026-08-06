@@ -7,7 +7,8 @@ namespace EventManagement.Api.Services;
 public sealed class EmailOutboxBackgroundService(
     IServiceScopeFactory scopeFactory,
     IConfiguration configuration,
-    ILogger<EmailOutboxBackgroundService> logger) : BackgroundService
+    ILogger<EmailOutboxBackgroundService> logger,
+    TimeProvider timeProvider) : BackgroundService
 {
     private DateTimeOffset _nextReminderScan = DateTimeOffset.MinValue;
     private DateTimeOffset _nextRetentionSweep = DateTimeOffset.MinValue;
@@ -27,7 +28,7 @@ public sealed class EmailOutboxBackgroundService(
     {
         try
         {
-            var now = DateTimeOffset.UtcNow;
+            var now = timeProvider.GetUtcNow();
             if (now >= _nextRetentionSweep)
             {
                 try
@@ -124,7 +125,7 @@ public sealed class EmailOutboxBackgroundService(
     {
         await using var scope = scopeFactory.CreateAsyncScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        var now = DateTimeOffset.UtcNow;
+        var now = timeProvider.GetUtcNow();
         var staleBefore = now.AddMinutes(-Math.Max(
             configuration.GetValue("Email:Outbox:ClaimLeaseMinutes", 10),
             1));

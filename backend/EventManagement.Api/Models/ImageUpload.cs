@@ -32,6 +32,9 @@ public sealed class ImageUpload
     public DateTimeOffset? DeletionClaimedAt { get; set; }
     public DateTimeOffset? DeletedAt { get; set; }
     public int DeleteAttemptCount { get; set; }
+    public int LifetimeDeleteAttemptCount { get; set; }
+    public int ManualRetryCount { get; set; }
+    public DateTimeOffset? LastRetriedAt { get; set; }
     public string? LastError { get; set; }
 
     public User Owner { get; set; } = null!;

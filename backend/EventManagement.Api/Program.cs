@@ -137,6 +137,7 @@ builder.Services.AddScoped<IReportService, ReportService>();
 builder.Services.AddHttpClient();
 builder.Services.AddScoped<IImageStorageService, SupabaseImageStorageService>();
 builder.Services.AddScoped<IImageLifecycleService, ImageLifecycleService>();
+builder.Services.AddScoped<ImageCleanupAdministrationService>();
 builder.Services.AddScoped<IEmailService, MailtrapEmailService>();
 builder.Services.AddScoped<EventReminderEnqueuer>();
 builder.Services.AddScoped<IEmailOutboxHandler, EventReminderEmailOutboxHandler>();
@@ -147,10 +148,14 @@ builder.Services.AddScoped<EmailOutboxMessageProcessor>();
 builder.Services.AddScoped<EmailOutboxAdministrationService>();
 builder.Services.AddScoped<EmailOutboxRetentionService>();
 builder.Services.AddScoped<AdminAuditService>();
+builder.Services.AddScoped<BookingRequestRetentionService>();
+builder.Services.AddScoped<AdminAuditRetentionService>();
+builder.Services.AddSingleton(TimeProvider.System);
 // A database-backed scheduler such as Hangfire is the natural upgrade if
 // reminder volume, retry guarantees, or timing precision outgrow this worker.
 builder.Services.AddHostedService<EmailOutboxBackgroundService>();
 builder.Services.AddHostedService<ImageCleanupBackgroundService>();
+builder.Services.AddHostedService<DataRetentionBackgroundService>();
 
 var app = builder.Build();
 

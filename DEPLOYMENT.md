@@ -63,7 +63,9 @@ tracked defaults are safe starting points: `AuthRateLimiting__Ip__Login__PermitL
 `AuthRateLimiting__Account__Login__PermitLimit=8`,
 `Images__UploadRateLimit__PermitLimit=10`, `Email__Outbox__BatchSize=50`,
 `Email__Outbox__PollIntervalSeconds=15`, and
-`Images__Cleanup__PendingRetentionHours=24`. Rate-limit counters, email claims,
+`Images__Cleanup__PendingRetentionHours=24`,
+`DataRetention__BookingRequests__ClosedRetentionDays=90`, and
+`DataRetention__AdminAuditLogs__RetentionDays=365`. Rate-limit counters, email claims,
 and image cleanup claims are stored in PostgreSQL, so these controls remain
 consistent when the Railway service has multiple replicas.
 

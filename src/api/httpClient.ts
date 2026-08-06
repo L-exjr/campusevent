@@ -75,6 +75,22 @@ export async function apiRequest<T>(path: string, options: RequestInit = {}): Pr
   return body as T
 }
 
+export async function apiDownload(path: string): Promise<Blob> {
+  const headers = new Headers()
+  const token = readStoredSession()?.token
+  if (token) headers.set('Authorization', `Bearer ${token}`)
+  const response = await fetch(`${API_BASE_URL}${path}`, { headers })
+  if (!response.ok) {
+    const body = await response.json().catch(() => null) as ApiErrorBody | null
+    if (response.status === 401 && token) {
+      clearStoredSession()
+      window.dispatchEvent(new Event('campus-events:unauthorized'))
+    }
+    throw new Error(body?.error || `The request failed with status ${response.status}.`)
+  }
+  return response.blob()
+}
+
 export interface PaginatedResponse<T> {
   items: T[]
   page: number

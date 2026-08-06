@@ -9,7 +9,8 @@ namespace EventManagement.Api.Services;
 
 public sealed class EmailOutboxAdministrationService(
     AppDbContext dbContext,
-    AdminAuditService auditService)
+    AdminAuditService auditService,
+    TimeProvider timeProvider)
 {
     public async Task<PaginatedResponse<FailedEmailOutboxResponse>> GetFailedAsync(
         int page,
@@ -67,8 +68,8 @@ public sealed class EmailOutboxAdministrationService(
         message.Status = EmailOutboxStatus.Pending;
         message.AttemptCount = 0;
         message.ManualRetryCount += 1;
-        message.LastRetriedAt = DateTimeOffset.UtcNow;
-        message.AvailableAt = DateTimeOffset.UtcNow;
+        message.LastRetriedAt = timeProvider.GetUtcNow();
+        message.AvailableAt = timeProvider.GetUtcNow();
         message.ClaimedAt = null;
         message.ClaimedBy = null;
         message.LastError = null;
