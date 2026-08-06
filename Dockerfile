@@ -5,6 +5,7 @@ COPY backend/EventManagement.Api/EventManagement.Api.csproj backend/EventManagem
 RUN dotnet restore backend/EventManagement.Api/EventManagement.Api.csproj
 
 COPY backend/EventManagement.Api/ backend/EventManagement.Api/
+COPY contracts/ contracts/
 RUN dotnet publish backend/EventManagement.Api/EventManagement.Api.csproj \
     --configuration Release \
     --no-restore \
