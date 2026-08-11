@@ -41,13 +41,28 @@ export BootstrapAdmin__Name='System Administrator'
 export PAYSTACK_SECRET_KEY='set-in-the-deployment-secret-store'
 export QR_SIGNING_KEY='replace-with-a-stable-random-key-of-at-least-32-characters'
 export EMAIL_PROVIDER='Gmail'
+export GMAIL_SMTP_HOST='smtp.gmail.com'
+export GMAIL_SMTP_PORT='587'
 export GMAIL_SMTP_USERNAME='account@gmail.com'
 export GMAIL_APP_PASSWORD='google-app-password-not-account-password'
 export GMAIL_SENDER_EMAIL='account@gmail.com'
+export GMAIL_DAILY_WARNING_THRESHOLD='400'
 export SUPABASE_URL='https://your-project.supabase.co'
 export SUPABASE_SERVICE_ROLE_KEY='set-in-the-deployment-secret-store'
 export CERTIFICATES_BUCKET='certificates'
+export CERTIFICATE_SIGNED_URL_MINUTES='60'
+export CERTIFICATE_TEMPLATE_VERSION='1'
 ```
+
+Gmail SMTP requires 2-Step Verification and a Google App Password; never use the
+account password. Standard consumer Gmail accounts are commonly constrained to
+about 500 outgoing messages per day. Each accepted Gmail send emits a structured
+`Gmail daily send count` log and warns at `GMAIL_DAILY_WARNING_THRESHOLD` (400 by
+default), then every 25 messages. This lightweight counter is per process and resets
+on restart, so replace it with a shared metric before running multiple replicas.
+If sustained volume approaches the account limit, move to Google Workspace with
+its higher applicable limits or a transactional email provider with delivery and
+bounce monitoring.
 
 For local development, keep the signing key out of tracked settings and store it
 with .NET User Secrets:

@@ -6,6 +6,7 @@ namespace EventManagement.Api.Services;
 public sealed class GmailSmtpEmailService(
     IConfiguration configuration,
     EmailTemplateRenderer templateRenderer,
+    EmailDailySendMonitor dailySendMonitor,
     ILogger<GmailSmtpEmailService> logger) : IEmailService
 {
     public async Task<bool> SendEmailAsync(
@@ -20,6 +21,8 @@ public sealed class GmailSmtpEmailService(
         var appPassword = GetConfigurationValue("Email:Gmail:AppPassword", "GMAIL_APP_PASSWORD");
         var senderEmail = GetConfigurationValue("Email:Gmail:SenderEmail", "GMAIL_SENDER_EMAIL") ?? username;
         var senderName = GetConfigurationValue("Email:Gmail:SenderName", "GMAIL_SENDER_NAME") ?? "Campus Events";
+        var host = GetConfigurationValue("Email:Gmail:Host", "GMAIL_SMTP_HOST") ?? "smtp.gmail.com";
+        var port = GetPositiveInteger("Email:Gmail:Port", "GMAIL_SMTP_PORT", 587);
         if (string.IsNullOrWhiteSpace(username) ||
             string.IsNullOrWhiteSpace(appPassword) ||
             string.IsNullOrWhiteSpace(senderEmail))
@@ -44,7 +47,7 @@ public sealed class GmailSmtpEmailService(
                 IsBodyHtml = true
             };
             message.To.Add(new MailAddress(recipientEmail, recipientName));
-            using var client = new SmtpClient("smtp.gmail.com", 587)
+            using var client = new SmtpClient(host, port)
             {
                 EnableSsl = true,
                 UseDefaultCredentials = false,
@@ -53,6 +56,7 @@ public sealed class GmailSmtpEmailService(
                 Timeout = 30_000
             };
             await client.SendMailAsync(message).WaitAsync(cancellationToken);
+            dailySendMonitor.RecordAccepted();
             logger.LogInformation(
                 "Gmail SMTP accepted template {TemplateName} for {Recipient}.",
                 templateName,
@@ -81,5 +85,11 @@ public sealed class GmailSmtpEmailService(
         return string.IsNullOrWhiteSpace(environmentValue)
             ? configuration[sectionKey]
             : environmentValue;
+    }
+
+    private int GetPositiveInteger(string sectionKey, string environmentKey, int fallback)
+    {
+        var value = GetConfigurationValue(sectionKey, environmentKey);
+        return int.TryParse(value, out var parsed) && parsed > 0 ? parsed : fallback;
     }
 }

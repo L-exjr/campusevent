@@ -54,6 +54,18 @@ stored in this repository.
 | `DemoData__Password` | Optional 12+ character password for the deliberately created demo accounts; do not reuse a real password. |
 | `SUPABASE_URL` | Supabase project URL used only by the backend upload proxy. |
 | `SUPABASE_SERVICE_ROLE_KEY` | Server-only Supabase service-role key. Never use a `VITE_*` name or expose it to the browser. |
+| `PAYSTACK_SECRET_KEY` | Server-only Paystack key. Production requires `sk_live_`; staging requires its own `sk_test_` key. |
+| `PAYMENTS_PENDING_MINUTES` | Optional payment-reservation lifetime; defaults to 15 and is clamped to 5–60 minutes. |
+| `QR_SIGNING_KEY` | Stable random secret of at least 32 characters. Rotation invalidates every outstanding QR ticket and requires a re-issue plan. |
+| `CERTIFICATES_BUCKET` | Private Supabase bucket for attendee certificate PDFs; use `certificates`. |
+| `CERTIFICATE_SIGNED_URL_MINUTES` | Signed certificate URL lifetime; use 60. |
+| `CERTIFICATE_TEMPLATE_VERSION` | Positive template version embedded in certificate object keys; increment only when intentionally regenerating under a new version. |
+| `EMAIL_PROVIDER` | Set `Gmail` in production; keep `Mailtrap` in local/dev unless intentionally testing Gmail. |
+| `GMAIL_SMTP_HOST` / `GMAIL_SMTP_PORT` | Gmail SMTP endpoint; `smtp.gmail.com` and `587`. |
+| `GMAIL_SMTP_USERNAME` | Gmail account used for SMTP authentication. |
+| `GMAIL_APP_PASSWORD` | Google App Password created after enabling 2-Step Verification; never use the account password. |
+| `GMAIL_SENDER_EMAIL` / `GMAIL_SENDER_NAME` | Approved From address and display name. |
+| `GMAIL_DAILY_WARNING_THRESHOLD` | Per-process accepted-send warning threshold; defaults to 400. |
 | `MAILTRAP_API_TOKEN` | Mailtrap Sending API token. Store it only in Railway variables. |
 | `MAILTRAP_SENDER_EMAIL` | Sender accepted by Mailtrap; use `hello@demomailtrap.co` with the free demo domain. |
 | `MAILTRAP_SENDER_NAME` | Optional sender display name; defaults to `Campus Events`. |

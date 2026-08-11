@@ -16,6 +16,7 @@ export default function StructuredBusinessData() {
       name,
       url: import.meta.env.VITE_BUSINESS_URL?.trim() || undefined,
       telephone: import.meta.env.VITE_BUSINESS_PHONE?.trim() || undefined,
+      openingHours: import.meta.env.VITE_BUSINESS_OPENING_HOURS?.trim() || undefined,
       address: {
         '@type': 'PostalAddress',
         streetAddress: import.meta.env.VITE_BUSINESS_STREET_ADDRESS?.trim() || undefined,

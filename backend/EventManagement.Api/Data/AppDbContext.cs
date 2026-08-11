@@ -176,6 +176,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
         modelBuilder.Entity<VoteRecord>(entity =>
         {
             entity.HasKey(vote => vote.Id);
+            entity.HasIndex(vote => vote.CategoryId);
             entity.HasIndex(vote => new { vote.CategoryId, vote.VoterId })
                 .IsUnique()
                 .HasFilter("\"VotingPaymentOrderId\" IS NULL");

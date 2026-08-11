@@ -21,6 +21,15 @@ Production uses `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`. Never create a
 `VITE_SUPABASE_SERVICE_ROLE_KEY`; all `VITE_*` values are compiled into the
 browser bundle.
 
+## Private certificate storage
+
+Create a bucket named `certificates` and leave **Public bucket** disabled.
+Certificate PDFs contain attendee data and must never use a public object URL.
+The API uploads with the server-only service-role key and calls Supabase's
+`/storage/v1/object/sign/` endpoint to issue a time-limited download URL. Set
+`CERTIFICATES_BUCKET=certificates` and `CERTIFICATE_SIGNED_URL_MINUTES=60` in
+each backend deployment environment.
+
 ## 2. Create the public image buckets
 
 Create `event-images` and `profile-images` as public-read buckets. Restrict both

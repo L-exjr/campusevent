@@ -728,6 +728,8 @@ namespace EventManagement.Api.Data.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("CategoryId");
+
                     b.HasIndex("VoterId");
 
                     b.HasIndex("VotingPaymentOrderId")

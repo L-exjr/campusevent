@@ -22,6 +22,10 @@ public sealed class GmailSmtpEmailServiceTests
         var service = new GmailSmtpEmailService(
             configuration,
             new EmailTemplateRenderer(environment.Object),
+            new EmailDailySendMonitor(
+                configuration,
+                TimeProvider.System,
+                Mock.Of<ILogger<EmailDailySendMonitor>>()),
             Mock.Of<ILogger<GmailSmtpEmailService>>());
 
         var sent = await service.SendEmailAsync(

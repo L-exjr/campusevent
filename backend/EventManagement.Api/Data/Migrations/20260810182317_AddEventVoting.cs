@@ -181,6 +181,11 @@ namespace EventManagement.Api.Data.Migrations
                 });
 
             migrationBuilder.CreateIndex(
+                name: "IX_VoteRecords_CategoryId",
+                table: "VoteRecords",
+                column: "CategoryId");
+
+            migrationBuilder.CreateIndex(
                 name: "IX_VoteRecords_CategoryId_VoterId",
                 table: "VoteRecords",
                 columns: new[] { "CategoryId", "VoterId" },

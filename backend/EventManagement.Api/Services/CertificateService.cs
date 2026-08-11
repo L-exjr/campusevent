@@ -49,7 +49,11 @@ public sealed class CertificateService(
 
         if (string.IsNullOrWhiteSpace(registration.CertificateObjectKey))
         {
-            var templateVersion = Math.Max(1, configuration.GetValue("Certificates:TemplateVersion", 1));
+            var templateVersionText = configuration["CERTIFICATE_TEMPLATE_VERSION"];
+            var templateVersion = int.TryParse(templateVersionText, out var configuredTemplateVersion)
+                ? configuredTemplateVersion
+                : configuration.GetValue("Certificates:TemplateVersion", 1);
+            templateVersion = Math.Max(1, templateVersion);
             var objectKey =
                 $"events/{registration.EventId:N}/registrations/{registration.Id:N}/v{templateVersion}.pdf";
             var logo = await TryDownloadTrustedLogoAsync(registration.Event.ImageUrl, cancellationToken);

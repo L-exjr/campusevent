@@ -81,7 +81,7 @@ public sealed class SupabaseCertificateStorageService(
         var minutesText = configuration["CERTIFICATE_SIGNED_URL_MINUTES"];
         var minutes = int.TryParse(minutesText, out var parsed)
             ? parsed
-            : configuration.GetValue("Certificates:SignedUrlMinutes", 5);
+            : configuration.GetValue("Certificates:SignedUrlMinutes", 60);
         minutes = Math.Clamp(minutes, 1, 60);
         return new StorageSettings(projectUrl, key, bucket, minutes * 60);
     }
