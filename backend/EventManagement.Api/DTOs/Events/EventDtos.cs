@@ -13,7 +13,11 @@ public sealed record EventUpsertRequest(
     bool? IsPublished = null,
     int? Version = null,
     [param: Range(0, long.MaxValue)] long PriceMinor = 0,
-    [param: Required, StringLength(3, MinimumLength = 3)] string Currency = "GHS");
+    [param: Required, StringLength(3, MinimumLength = 3)] string Currency = "GHS",
+    [param: Required, StringLength(20)] string Format = "Physical",
+    [param: Url, StringLength(2048)] string? MeetingUrl = null,
+    DateTimeOffset? SalesStartsAt = null,
+    DateTimeOffset? SalesEndsAt = null);
 
 public sealed record TransferEventOwnershipRequest(
     Guid OrganizerId,
@@ -35,7 +39,11 @@ public sealed record EventResponse(
     bool IsPublished,
     int Version,
     long PriceMinor = 0,
-    string Currency = "GHS");
+    string Currency = "GHS",
+    string Format = "Physical",
+    string? MeetingUrl = null,
+    DateTimeOffset? SalesStartsAt = null,
+    DateTimeOffset? SalesEndsAt = null);
 
 public sealed record EventRegistrantResponse(
     Guid RegistrationId,

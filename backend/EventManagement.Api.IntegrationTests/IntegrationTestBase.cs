@@ -103,17 +103,23 @@ public abstract class IntegrationTestBase(ApiIntegrationFixture fixture)
         return client;
     }
 
-    protected static object EventPayload(string title, int capacity, long priceMinor = 0) => new
+    protected static object EventPayload(string title, int capacity, long priceMinor = 0)
     {
+        var eventDate = DateTimeOffset.UtcNow.AddDays(7);
+        return new
+        {
         title,
         description = "A sufficiently detailed integration-test event description.",
-        date = DateTimeOffset.UtcNow.AddDays(7),
+        date = eventDate,
         location = "Integration Test Hall",
         capacity,
         category = "Technology",
         priceMinor,
-        currency = "GHS"
-    };
+        currency = "GHS",
+        salesStartsAt = priceMinor > 0 ? DateTimeOffset.UtcNow : (DateTimeOffset?)null,
+        salesEndsAt = priceMinor > 0 ? eventDate.AddHours(-1) : (DateTimeOffset?)null
+        };
+    }
 
     protected static object ApplicationPayload() => new
     {

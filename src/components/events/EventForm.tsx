@@ -8,6 +8,11 @@ import type { EventInput, EventItem } from '../../types'
 import { EVENT_CATEGORIES } from '../../types'
 import { toDateTimeLocal } from '../../utils/formatters'
 import {
+  calculatePaidEventSettlement,
+  PAYSTACK_GHANA_PROCESSING_FEE_BASIS_POINTS,
+  PLATFORM_FEE_BASIS_POINTS,
+} from '../../utils/paymentPolicy'
+import {
   DEFAULT_EVENT_IMAGE,
   IMAGE_ACCEPT,
   uploadImage,
@@ -32,6 +37,10 @@ function initialValues(event?: EventItem | null): EventInput {
         capacity: event.capacity,
         category: event.category,
         location: event.location,
+        format: event.format,
+        meetingUrl: event.meetingUrl,
+        salesStartsAt: event.salesStartsAt ? toDateTimeLocal(event.salesStartsAt) : null,
+        salesEndsAt: event.salesEndsAt ? toDateTimeLocal(event.salesEndsAt) : null,
         imageUrl: event.imageUrl,
         isPublished: event.isPublished,
         version: event.version,
@@ -45,6 +54,10 @@ function initialValues(event?: EventItem | null): EventInput {
         capacity: 50,
         category: 'Academic',
         location: '',
+        format: 'physical',
+        meetingUrl: null,
+        salesStartsAt: null,
+        salesEndsAt: null,
         imageUrl: null,
         isPublished: true,
         priceMinor: 0,
@@ -66,9 +79,11 @@ export default function EventForm({
   const [imagePreview, setImagePreview] = useState(event?.imageUrl ?? DEFAULT_EVENT_IMAGE)
   const [imageError, setImageError] = useState<string | null>(null)
   const [uploading, setUploading] = useState(false)
+  const [reviewing, setReviewing] = useState(false)
   const [minimumDate] = useState(() =>
     toDateTimeLocal(new Date(Date.now() + 5 * 60_000).toISOString()),
   )
+  const paidSettlement = calculatePaidEventSettlement(values.priceMinor)
 
   useEffect(() => () => {
     if (imagePreview.startsWith('blob:')) URL.revokeObjectURL(imagePreview)
@@ -101,14 +116,39 @@ export default function EventForm({
       title: values.title.trim(),
       description: values.description.trim(),
       location: values.location.trim(),
+      meetingUrl: values.meetingUrl?.trim() || null,
+      salesStartsAt: values.salesStartsAt || null,
+      salesEndsAt: values.salesEndsAt || null,
     }
+    const hasValidVenue = normalizedValues.format === 'physical'
+      ? normalizedValues.location.length > 0
+      : Boolean(
+          normalizedValues.meetingUrl &&
+          /^https?:\/\//i.test(normalizedValues.meetingUrl),
+        )
     const hasValidTrimmedText =
       normalizedValues.title.length >= 3 &&
       normalizedValues.description.length >= 10 &&
-      normalizedValues.location.length > 0
-    if (!form.checkValidity() || !hasValidTrimmedText) {
+      hasValidVenue
+    const salesStart = normalizedValues.salesStartsAt
+      ? new Date(normalizedValues.salesStartsAt).getTime()
+      : Number.NaN
+    const salesEnd = normalizedValues.salesEndsAt
+      ? new Date(normalizedValues.salesEndsAt).getTime()
+      : Number.NaN
+    const eventStart = new Date(normalizedValues.date).getTime()
+    const hasValidSalesWindow = normalizedValues.priceMinor === 0 || (
+      Number.isFinite(salesStart) && Number.isFinite(salesEnd) &&
+      salesStart < salesEnd && salesEnd <= eventStart
+    )
+    if (!form.checkValidity() || !hasValidTrimmedText || !hasValidSalesWindow) {
       submission.stopPropagation()
       setValidated(true)
+      return
+    }
+    if (!reviewing) {
+      setValidated(true)
+      setReviewing(true)
       return
     }
     setUploading(true)
@@ -128,7 +168,26 @@ export default function EventForm({
   return (
     <Form noValidate validated={validated} onSubmit={(submission) => void handleSubmit(submission)}>
       {(error || imageError) && <Alert variant="danger">{error ?? imageError}</Alert>}
-      <Row className="g-3">
+      {reviewing ? <>
+        <h3 className="h5">Review before {event ? 'saving' : 'creating'}</h3>
+        <dl className="row mb-3">
+          <dt className="col-sm-4">Event</dt><dd className="col-sm-8">{values.title}</dd>
+          <dt className="col-sm-4">Format</dt><dd className="col-sm-8">{values.format === 'physical' ? values.location : `Virtual · ${values.meetingUrl}`}</dd>
+          <dt className="col-sm-4">Capacity</dt><dd className="col-sm-8">{values.capacity}</dd>
+          <dt className="col-sm-4">Ticketing</dt><dd className="col-sm-8">{values.priceMinor > 0 ? `${values.currency} ${(values.priceMinor / 100).toFixed(2)} · Single general-admission price` : 'Free event'}</dd>
+          {values.priceMinor > 0 && <>
+            <dt className="col-sm-4">Ticket tiers</dt><dd className="col-sm-8">Multiple tiers are not supported by the current payment model.</dd>
+            <dt className="col-sm-4">Sales window</dt><dd className="col-sm-8">{values.salesStartsAt} to {values.salesEndsAt}</dd>
+            <dt className="col-sm-4">Processing fee</dt><dd className="col-sm-8">Estimated Paystack fee: {(PAYSTACK_GHANA_PROCESSING_FEE_BASIS_POINTS / 100).toFixed(2)}% · {values.currency} {(paidSettlement.processingFeeMinor / 100).toFixed(2)}</dd>
+            <dt className="col-sm-4">Platform fee</dt><dd className="col-sm-8">{(PLATFORM_FEE_BASIS_POINTS / 100).toFixed(2)}% · {values.currency} {(paidSettlement.platformFeeMinor / 100).toFixed(2)}</dd>
+            <dt className="col-sm-4">Estimated settlement</dt><dd className="col-sm-8">{values.currency} {(paidSettlement.estimatedNetMinor / 100).toFixed(2)} per ticket</dd>
+            <dt className="col-sm-4">Settlement timing</dt><dd className="col-sm-8">Paystack’s standard Ghana schedule is automatic settlement on the next working day.</dd>
+          </>}
+        </dl>
+        {values.priceMinor > 0 && <Alert variant="warning">
+          Paid-event creation remains blocked until an administrator provisions and verifies an organizer-specific Paystack subaccount. This prevents ticket revenue from being routed to an unverified destination.
+        </Alert>}
+      </> : <Row className="g-3">
         <Col xs={12}>
           <Form.Group controlId="event-image">
             <Form.Label>Cover image</Form.Label>
@@ -218,19 +277,50 @@ export default function EventForm({
             </Form.Select>
           </Form.Group>
         </Col>
+        <Col xs={12}>
+          <Form.Group controlId="event-format">
+            <Form.Label>Event format</Form.Label>
+            <Form.Select
+              value={values.format}
+              onChange={(eventValue) => setValues({
+                ...values,
+                format: eventValue.target.value as EventInput['format'],
+                location: eventValue.target.value === 'virtual' ? 'Online' : '',
+                meetingUrl: eventValue.target.value === 'physical' ? null : values.meetingUrl,
+              })}
+            >
+              <option value="physical">Physical venue</option>
+              <option value="virtual">Virtual meeting</option>
+            </Form.Select>
+          </Form.Group>
+        </Col>
         <Col md={8}>
-          <Form.Group controlId="event-location">
-            <Form.Label>Location</Form.Label>
+          {values.format === 'physical' ? <Form.Group controlId="event-location">
+            <Form.Label>Venue</Form.Label>
             <Form.Control
               required
               maxLength={300}
               isInvalid={validated && values.location.trim().length === 0}
               value={values.location}
               onChange={(eventValue) => setValues({ ...values, location: eventValue.target.value })}
-              placeholder="Building and room"
+              placeholder="Building, room, or full venue address"
             />
-            <Form.Control.Feedback type="invalid">Enter a location.</Form.Control.Feedback>
-          </Form.Group>
+            <Form.Control.Feedback type="invalid">Enter the physical venue.</Form.Control.Feedback>
+          </Form.Group> : <Form.Group controlId="event-meeting-url">
+            <Form.Label>Virtual meeting link</Form.Label>
+            <Form.Control
+              type="url"
+              required
+              maxLength={2048}
+              isInvalid={validated && !(
+                values.meetingUrl && /^https?:\/\//i.test(values.meetingUrl.trim())
+              )}
+              value={values.meetingUrl ?? ''}
+              onChange={(eventValue) => setValues({ ...values, meetingUrl: eventValue.target.value })}
+              placeholder="https://meet.example.com/your-event"
+            />
+            <Form.Control.Feedback type="invalid">Enter a valid meeting link beginning with http:// or https://.</Form.Control.Feedback>
+          </Form.Group>}
         </Col>
         <Col md={4}>
           <Form.Group controlId="event-capacity">
@@ -261,12 +351,48 @@ export default function EventForm({
                 setValues({
                   ...values,
                   priceMinor: Math.max(0, Math.round(Number(eventValue.target.value) * 100)),
+                  salesStartsAt: Number(eventValue.target.value) > 0 ? values.salesStartsAt : null,
+                  salesEndsAt: Number(eventValue.target.value) > 0 ? values.salesEndsAt : null,
                 })
               }
             />
             <Form.Text>Use 0.00 for a free event. Price cannot change after payment or registration activity begins.</Form.Text>
           </Form.Group>
         </Col>
+        {values.priceMinor > 0 && <>
+          <Col md={6}>
+            <Form.Group controlId="event-sales-start">
+              <Form.Label>Ticket sales start</Form.Label>
+              <Form.Control
+                type="datetime-local"
+                required
+                isInvalid={validated && !values.salesStartsAt}
+                value={values.salesStartsAt ?? ''}
+                onChange={(eventValue) => setValues({ ...values, salesStartsAt: eventValue.target.value })}
+              />
+              <Form.Control.Feedback type="invalid">Choose when ticket sales open.</Form.Control.Feedback>
+            </Form.Group>
+          </Col>
+          <Col md={6}>
+            <Form.Group controlId="event-sales-end">
+              <Form.Label>Ticket sales end</Form.Label>
+              <Form.Control
+                type="datetime-local"
+                required
+                max={values.date || undefined}
+                isInvalid={validated && (!values.salesEndsAt || !values.salesStartsAt || values.salesEndsAt <= values.salesStartsAt || Boolean(values.date && values.salesEndsAt > values.date))}
+                value={values.salesEndsAt ?? ''}
+                onChange={(eventValue) => setValues({ ...values, salesEndsAt: eventValue.target.value })}
+              />
+              <Form.Control.Feedback type="invalid">Sales must end after they start and no later than the event.</Form.Control.Feedback>
+            </Form.Group>
+          </Col>
+          <Col xs={12}>
+            <Alert variant="warning" className="mb-0">
+              Paystack’s current Ghana processing fee is 1.95%, with automatic settlement on the next working day. This project adds no platform fee. Paid creation stays unavailable until the organizer has a verified Paystack subaccount.
+            </Alert>
+          </Col>
+        </>}
         <Col md={4}>
           <Form.Group controlId="event-currency">
             <Form.Label>Currency</Form.Label>
@@ -285,13 +411,13 @@ export default function EventForm({
           />
           {event && !event.isPublished && <Form.Text>This event is currently a private draft.</Form.Text>}
         </Col>
-      </Row>
+      </Row>}
       <div className="d-flex justify-content-end gap-2 mt-4">
-        <Button variant="light" onClick={onCancel} disabled={busy || uploading}>
-          Cancel
+        <Button variant="light" onClick={reviewing ? () => setReviewing(false) : onCancel} disabled={busy || uploading}>
+          {reviewing ? 'Back to edit' : 'Cancel'}
         </Button>
-        <Button type="submit" disabled={busy || uploading}>
-          {uploading ? 'Uploading image…' : busy ? 'Saving…' : submitLabel}
+        <Button type="submit" disabled={busy || uploading || (reviewing && values.priceMinor > 0)}>
+          {uploading ? 'Uploading image…' : busy ? 'Saving…' : reviewing ? submitLabel : 'Review event'}
         </Button>
       </div>
     </Form>

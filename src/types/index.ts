@@ -12,6 +12,8 @@ export type EventCategory =
   | 'Technology'
   | 'Wellness'
 
+export type EventFormat = 'physical' | 'virtual'
+
 export interface User {
   id: string
   name: string
@@ -38,6 +40,10 @@ export interface EventItem {
   capacity: number
   category: EventCategory
   location: string
+  format: EventFormat
+  meetingUrl: string | null
+  salesStartsAt: string | null
+  salesEndsAt: string | null
   organizerId: string
   organizerName: string
   createdAt: string
@@ -56,6 +62,10 @@ export interface EventInput {
   capacity: number
   category: EventCategory
   location: string
+  format: EventFormat
+  meetingUrl: string | null
+  salesStartsAt: string | null
+  salesEndsAt: string | null
   imageUrl: string | null
   isPublished?: boolean
   version?: number

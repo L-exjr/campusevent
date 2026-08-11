@@ -66,7 +66,10 @@ public sealed class CertificateService(
                 logo));
             await storageService.UploadAsync(objectKey, pdf, cancellationToken);
             registration.CertificateObjectKey = objectKey;
-            registration.CertificateGeneratedAt = now;
+            // PostgreSQL timestamps have microsecond precision while DateTimeOffset
+            // can carry 100-nanosecond ticks. Normalize before both persisting and
+            // returning so an idempotent retry cannot differ from the first response.
+            registration.CertificateGeneratedAt = ToPostgresTimestampPrecision(now);
             registration.CertificateTemplateVersion = templateVersion;
             await dbContext.SaveChangesAsync(cancellationToken);
         }
@@ -80,6 +83,9 @@ public sealed class CertificateService(
             signedUrl.ExpiresAt,
             registration.CertificateGeneratedAt ?? now);
     }
+
+    private static DateTimeOffset ToPostgresTimestampPrecision(DateTimeOffset value) =>
+        value.AddTicks(-(value.Ticks % TimeSpan.TicksPerMicrosecond));
 
     private async Task<byte[]?> TryDownloadTrustedLogoAsync(
         string? imageUrl,
