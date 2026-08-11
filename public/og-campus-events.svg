@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" role="img" aria-labelledby="title description">
+  <title id="title">Campus Events</title>
+  <desc id="description">Discover, reserve, and belong at campus events.</desc>
+  <defs>
+    <linearGradient id="background" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#17192b"/>
+      <stop offset="0.58" stop-color="#30236c"/>
+      <stop offset="1" stop-color="#5a50e6"/>
+    </linearGradient>
+    <radialGradient id="glow">
+      <stop offset="0" stop-color="#a8f065" stop-opacity=".42"/>
+      <stop offset="1" stop-color="#a8f065" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="1200" height="630" rx="36" fill="url(#background)"/>
+  <circle cx="1010" cy="95" r="330" fill="url(#glow)"/>
+  <circle cx="1010" cy="315" r="170" fill="none" stroke="#ffffff" stroke-opacity=".14" stroke-width="2"/>
+  <circle cx="1010" cy="315" r="105" fill="none" stroke="#a8f065" stroke-opacity=".55" stroke-width="3"/>
+  <circle cx="1010" cy="315" r="42" fill="#a8f065"/>
+  <text x="80" y="120" fill="#a8f065" font-family="Arial, Helvetica, sans-serif" font-size="25" font-weight="700" letter-spacing="4">CAMPUS EVENTS</text>
+  <text x="80" y="245" fill="#ffffff" font-family="Arial, Helvetica, sans-serif" font-size="72" font-weight="700">Every campus moment,</text>
+  <text x="80" y="330" fill="#ffffff" font-family="Arial, Helvetica, sans-serif" font-size="72" font-weight="700">within reach.</text>
+  <text x="80" y="415" fill="#ffffff" fill-opacity=".76" font-family="Arial, Helvetica, sans-serif" font-size="30">Discover. Reserve. Show up. Belong.</text>
+  <rect x="80" y="485" width="255" height="68" rx="34" fill="#a8f065"/>
+  <text x="207" y="529" text-anchor="middle" fill="#1b2630" font-family="Arial, Helvetica, sans-serif" font-size="25" font-weight="700">Explore events</text>
+</svg>

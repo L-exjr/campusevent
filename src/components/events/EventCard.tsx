@@ -19,7 +19,7 @@ export default function EventCard({ event }: EventCardProps) {
       <Card.Img
         variant="top"
         src={event.imageUrl ?? DEFAULT_EVENT_IMAGE}
-        alt=""
+        alt={`${event.title} event cover`}
         className="object-fit-cover"
         style={{ aspectRatio: '16 / 9' }}
       />

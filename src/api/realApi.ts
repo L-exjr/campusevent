@@ -13,20 +13,30 @@ import type {
   AdminAuditLog,
   BookingRequest,
   BookingRequestInput,
+  CheckInResult,
+  CertificateDownload,
   EmailDeadLetter,
   FailedImageCleanup,
   EventFilters,
   EventInput,
   EventItem,
   EventRegistrant,
+  EventPaymentStatus,
   EventReport,
   OrganizerApplication,
   OrganizerApplicationStatus,
   OrganizerReport,
   Page,
+  PaymentInitialization,
+  PaymentStatus,
   Role,
   StudentRegistration,
+  Ticket,
   User,
+  VotingCampaign,
+  VotingCampaignInput,
+  VotingPaymentInitialization,
+  VotingPaymentStatus,
 } from '../types'
 
 interface ApiUser {
@@ -60,6 +70,8 @@ interface ApiEvent {
   imageUrl: string | null
   isPublished: boolean
   version: number
+  priceMinor: number
+  currency: 'GHS'
 }
 
 interface ApiStudentRegistration {
@@ -171,6 +183,8 @@ function mapEvent(event: ApiEvent): EventItem {
     imageUrl: event.imageUrl,
     isPublished: event.isPublished ?? true,
     version: event.version,
+    priceMinor: event.priceMinor ?? 0,
+    currency: event.currency ?? 'GHS',
   }
 }
 
@@ -315,6 +329,96 @@ export const realApi: EventManagementApi = {
 
   async registerForEvent(eventId) {
     await apiRequest(`/events/${eventId}/register`, { method: 'POST' })
+  },
+
+  async initializeEventPayment(eventId) {
+    return apiRequest<PaymentInitialization>(`/payments/events/${eventId}/initialize`, {
+      method: 'POST',
+    })
+  },
+
+  async getPaymentStatus(reference) {
+    const response = await apiRequest<Omit<EventPaymentStatus, 'status'> & { status: string }>(
+      `/payments/${encodeURIComponent(reference)}`,
+    )
+    const normalized = `${response.status[0].toLowerCase()}${response.status.slice(1)}` as PaymentStatus
+    return { ...response, status: normalized }
+  },
+
+  async getTicket(registrationId) {
+    return apiRequest<Ticket>(`/tickets/${registrationId}`)
+  },
+
+  async checkInTicket(eventId, token) {
+    return apiRequest<CheckInResult>(`/events/${eventId}/check-in`, {
+      method: 'POST',
+      body: JSON.stringify({ token }),
+    })
+  },
+
+  async getCertificate(registrationId) {
+    return apiRequest<CertificateDownload>(`/certificates/registrations/${registrationId}`, {
+      method: 'POST',
+    })
+  },
+
+  async getVotingCampaign(eventId) {
+    const campaign = await apiRequest<VotingCampaign & {
+      categories: Array<VotingCampaign['categories'][number] & { mode: string }>
+    }>(`/events/${eventId}/voting`)
+    return {
+      ...campaign,
+      categories: campaign.categories.map((category) => ({
+        ...category,
+        mode: category.mode.toLowerCase() as VotingCampaign['categories'][number]['mode'],
+      })),
+    }
+  },
+
+  async saveVotingCampaign(eventId, input: VotingCampaignInput) {
+    const response = await apiRequest<VotingCampaign & {
+      categories: Array<VotingCampaign['categories'][number] & { mode: string }>
+    }>(`/events/${eventId}/voting`, {
+      method: 'PUT',
+      body: JSON.stringify({
+        ...input,
+        categories: input.categories.map((category) => ({
+          ...category,
+          mode: category.mode === 'paid' ? 'Paid' : 'Free',
+        })),
+      }),
+    })
+    return {
+      ...response,
+      categories: response.categories.map((category) => ({
+        ...category,
+        mode: category.mode.toLowerCase() as VotingCampaign['categories'][number]['mode'],
+      })),
+    }
+  },
+
+  async castFreeVote(categoryId, nomineeId) {
+    await apiRequest(`/voting/categories/${categoryId}/votes`, {
+      method: 'POST',
+      body: JSON.stringify({ nomineeId }),
+    })
+  },
+
+  async initializeVotingPayment(categoryId, nomineeId, quantity) {
+    return apiRequest<VotingPaymentInitialization>(
+      `/voting/categories/${categoryId}/payments/initialize`,
+      { method: 'POST', body: JSON.stringify({ nomineeId, quantity }) },
+    )
+  },
+
+  async getVotingPaymentStatus(reference) {
+    const response = await apiRequest<Omit<VotingPaymentStatus, 'status'> & { status: string }>(
+      `/voting/payments/${encodeURIComponent(reference)}`,
+    )
+    return {
+      ...response,
+      status: `${response.status[0].toLowerCase()}${response.status.slice(1)}` as PaymentStatus,
+    }
   },
 
   async isRegisteredForEvent(eventId) {

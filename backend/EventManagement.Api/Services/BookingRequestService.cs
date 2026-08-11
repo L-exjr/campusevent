@@ -90,11 +90,12 @@ public sealed class BookingRequestService(
         (page, pageSize) = Pagination.Normalize(page, pageSize);
         if (status.HasValue) query = query.Where(request => request.Status == status.Value);
         var totalCount = await query.CountAsync(cancellationToken);
-        var items = await Project(query)
+        var pageQuery = query
             .OrderByDescending(request => request.SubmittedAt)
             .ThenByDescending(request => request.Id)
             .Skip((page - 1) * pageSize)
-            .Take(pageSize)
+            .Take(pageSize);
+        var items = await Project(pageQuery)
             .ToListAsync(cancellationToken);
         return new PaginatedResponse<BookingRequestResponse>(
             items, page, pageSize, totalCount, Pagination.TotalPages(totalCount, pageSize));

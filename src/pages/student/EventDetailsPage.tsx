@@ -67,9 +67,14 @@ export default function EventDetailsPage() {
     setBusy(true)
     setActionError(null)
     try {
-      await api.registerForEvent(data.event.id, user!.id)
-      setSuccess(true)
-      await reload()
+      if (data.event.priceMinor > 0) {
+        const payment = await api.initializeEventPayment(data.event.id)
+        window.location.assign(payment.authorizationUrl)
+      } else {
+        await api.registerForEvent(data.event.id, user!.id)
+        setSuccess(true)
+        await reload()
+      }
     } catch (caught) {
       setActionError(caught instanceof Error ? caught.message : 'Registration failed.')
     } finally {
@@ -110,6 +115,14 @@ export default function EventDetailsPage() {
                   <span className="detail-facts__label">Location</span>
                   <strong>{data.event.location}</strong>
                   <small>Campus venue</small>
+                  <a
+                    href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(data.event.location)}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="small d-block mt-2"
+                  >
+                    Open maps and directions ↗
+                  </a>
                 </Col>
                 <Col sm={6}>
                   <span className="detail-facts__label">Organizer</span>
@@ -163,7 +176,11 @@ export default function EventDetailsPage() {
                   disabled={busy}
                   onClick={() => void handleRegister()}
                 >
-                  {busy ? 'Registering…' : 'Register now'}
+                  {busy
+                    ? data.event.priceMinor > 0 ? 'Opening checkout…' : 'Registering…'
+                    : data.event.priceMinor > 0
+                      ? `Pay GHS ${(data.event.priceMinor / 100).toFixed(2)}`
+                      : 'Register now'}
                 </Button>
               ) : user ? (
                 <Alert variant="light" className="mb-0">
@@ -183,7 +200,18 @@ export default function EventDetailsPage() {
                   </LinkButton>
                 </div>
               )}
-              <p className="registration-note text-center mb-0 mt-3">No payment is required for campus events.</p>
+              <p className="registration-note text-center mb-0 mt-3">
+                {data.event.priceMinor > 0
+                  ? 'Your place is confirmed only after Paystack verifies payment.'
+                  : 'This is a free event. No payment is required.'}
+              </p>
+              <LinkButton
+                to={`/events/${data.event.id}/voting`}
+                variant="outline-secondary"
+                className="w-100 mt-3"
+              >
+                View event voting
+              </LinkButton>
             </Card.Body>
           </Card>
         </Col>

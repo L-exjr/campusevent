@@ -34,8 +34,8 @@ New accounts created from the registration page start with the Student role. Adm
 ## Available workflows
 
 - Public: browse and filter upcoming events by search text, category, or date, and view event details without an account.
-- Student: register for events, review registrations, and apply for Organizer access with visible review status.
-- Organizer: create, edit, and delete owned events; review registrants; record attendance.
+- Student: register for free events or complete server-verified Paystack checkout, use signed QR tickets, vote, review registrations, and download attendance-backed certificates.
+- Organizer: create, edit, and delete owned events; review registrants; scan tickets; record attendance; and configure free or paid voting campaigns.
 - Admin: approve or reject pending Organizer applications, manage user roles and account status, create, edit, or delete any event, and review system reports.
 - Shared: JWT session handling, role-aware navigation, route guards, responsive views, 403/404 pages, and reusable loading/error states.
 
@@ -65,9 +65,8 @@ npm run lint
 npm run preview
 ```
 
-## Out of scope
+## Production configuration
 
-Email notifications are implemented for event registration confirmations,
-Organizer application decisions, and upcoming-event reminders.
+Backend payment, email, QR, certificate-storage, and Supabase secrets are listed in `.env.example` and must remain server-only. Public SEO configuration, optional LocalBusiness values, and the optional GA4 measurement ID use `VITE_` variables because Vite embeds them at build time. GA4 and LocalBusiness markup stay disabled when their required real values are blank.
 
-Payments, certificates, QR attendance, and mobile app support remain out of scope.
+The application remains a responsive web application; native mobile apps and refresh-token issuance are out of scope.

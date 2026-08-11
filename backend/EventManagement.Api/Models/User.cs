@@ -21,4 +21,6 @@ public sealed class User
     public ICollection<PasswordResetToken> PasswordResetTokens { get; set; } = [];
     public ICollection<BookingRequest> AssignedBookingRequests { get; set; } = [];
     public ICollection<ImageUpload> ImageUploads { get; set; } = [];
+    public ICollection<VoteRecord> Votes { get; set; } = [];
+    public ICollection<VotingPaymentOrder> VotingPaymentOrders { get; set; } = [];
 }

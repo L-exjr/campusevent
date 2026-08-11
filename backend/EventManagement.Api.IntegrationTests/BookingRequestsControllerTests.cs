@@ -52,6 +52,26 @@ public sealed class BookingRequestsControllerTests(ApiIntegrationFixture fixture
     }
 
     [Fact]
+    public async Task Admin_can_list_submitted_booking_requests()
+    {
+        await ResetAsync();
+        using var publicClient = Fixture.CreateClient();
+        SetClientAddress(publicClient, "203.0.113.27");
+        using var submission = await publicClient.PostAsJsonAsync("/api/booking-requests", Payload());
+        submission.EnsureSuccessStatusCode();
+        var bookingId = (await ReadJsonAsync(submission)).GetProperty("id").GetGuid();
+        var admin = await LoginAdminAsync();
+        using var adminClient = CreateAuthenticatedClient(admin.Token);
+
+        using var response = await adminClient.GetAsync("/api/booking-requests?page=1&pageSize=20");
+
+        response.EnsureSuccessStatusCode();
+        var body = await ReadJsonAsync(response);
+        Assert.Equal(1, body.GetProperty("totalCount").GetInt32());
+        Assert.Equal(bookingId, body.GetProperty("items")[0].GetProperty("id").GetGuid());
+    }
+
+    [Fact]
     public async Task Unassigned_organizer_cannot_respond()
     {
         await ResetAsync();

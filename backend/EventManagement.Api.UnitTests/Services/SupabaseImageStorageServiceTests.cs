@@ -46,8 +46,12 @@ public sealed class SupabaseImageStorageServiceTests
         Assert.StartsWith("11111111111111111111111111111111/", url.ObjectKey);
     }
 
-    [Fact]
-    public async Task UploadImageAsync_hides_upstream_failure_details()
+    [Theory]
+    [InlineData(HttpStatusCode.Forbidden, ImageStorageFailureKind.ProviderRejected)]
+    [InlineData(HttpStatusCode.ServiceUnavailable, ImageStorageFailureKind.ProviderUnavailable)]
+    public async Task UploadImageAsync_hides_and_classifies_upstream_failure_details(
+        HttpStatusCode statusCode,
+        ImageStorageFailureKind expectedKind)
     {
         var configuration = new ConfigurationBuilder().AddInMemoryCollection(
             new Dictionary<string, string?>
@@ -58,7 +62,7 @@ public sealed class SupabaseImageStorageServiceTests
         var service = new SupabaseImageStorageService(
             configuration,
             new StaticHttpClientFactory(new HttpClient(
-                new RecordingHandler(HttpStatusCode.Forbidden))),
+                new RecordingHandler(statusCode))),
             Mock.Of<ILogger<SupabaseImageStorageService>>(),
             TimeProvider.System);
 
@@ -72,6 +76,29 @@ public sealed class SupabaseImageStorageServiceTests
                 Guid.NewGuid()));
 
         Assert.Equal("The image could not be stored.", exception.Message);
+        Assert.Equal(expectedKind, exception.Kind);
+    }
+
+    [Fact]
+    public async Task UploadImageAsync_classifies_missing_configuration()
+    {
+        var service = new SupabaseImageStorageService(
+            new ConfigurationBuilder().Build(),
+            new StaticHttpClientFactory(new HttpClient(new RecordingHandler())),
+            Mock.Of<ILogger<SupabaseImageStorageService>>(),
+            TimeProvider.System);
+
+        await using var content = new MemoryStream([0x89, 0x50, 0x4E, 0x47]);
+        var exception = await Assert.ThrowsAsync<ImageStorageException>(() =>
+            service.UploadImageAsync(
+                content,
+                "image/png",
+                "profile-images",
+                "png",
+                Guid.NewGuid()));
+
+        Assert.Equal("Image storage is not configured.", exception.Message);
+        Assert.Equal(ImageStorageFailureKind.Configuration, exception.Kind);
     }
 
     private sealed class StaticHttpClientFactory(HttpClient client) : IHttpClientFactory

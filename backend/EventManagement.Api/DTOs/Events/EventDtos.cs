@@ -11,7 +11,9 @@ public sealed record EventUpsertRequest(
     [param: Required, StringLength(100)] string Category,
     [param: Url, StringLength(2048)] string? ImageUrl,
     bool? IsPublished = null,
-    int? Version = null);
+    int? Version = null,
+    [param: Range(0, long.MaxValue)] long PriceMinor = 0,
+    [param: Required, StringLength(3, MinimumLength = 3)] string Currency = "GHS");
 
 public sealed record TransferEventOwnershipRequest(
     Guid OrganizerId,
@@ -31,7 +33,9 @@ public sealed record EventResponse(
     DateTimeOffset CreatedAt,
     string? ImageUrl,
     bool IsPublished,
-    int Version);
+    int Version,
+    long PriceMinor = 0,
+    string Currency = "GHS");
 
 public sealed record EventRegistrantResponse(
     Guid RegistrationId,

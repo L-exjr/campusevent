@@ -45,6 +45,8 @@ export const event: EventItem = {
   imageUrl: null,
   isPublished: true,
   version: 1,
+  priceMinor: 0,
+  currency: 'GHS',
 }
 
 export function apiEvent(overrides: Partial<EventItem> = {}) {

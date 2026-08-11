@@ -3,18 +3,27 @@ import type {
   AdminAuditLog,
   BookingRequest,
   BookingRequestInput,
+  CheckInResult,
+  CertificateDownload,
   EmailDeadLetter,
   FailedImageCleanup,
   EventFilters,
   EventInput,
   EventItem,
   EventRegistrant,
+  EventPaymentStatus,
   OrganizerApplication,
   Page,
+  PaymentInitialization,
   ReportsData,
   Role,
   StudentRegistration,
+  Ticket,
   User,
+  VotingCampaign,
+  VotingCampaignInput,
+  VotingPaymentInitialization,
+  VotingPaymentStatus,
 } from '../types'
 
 export interface EventManagementApi {
@@ -29,6 +38,20 @@ export interface EventManagementApi {
   getEvent(id: string): Promise<EventItem>
   getManagementEvent(id: string): Promise<EventItem>
   registerForEvent(eventId: string, studentId: string): Promise<void>
+  initializeEventPayment(eventId: string): Promise<PaymentInitialization>
+  getPaymentStatus(reference: string): Promise<EventPaymentStatus>
+  getTicket(registrationId: string): Promise<Ticket>
+  checkInTicket(eventId: string, token: string): Promise<CheckInResult>
+  getCertificate(registrationId: string): Promise<CertificateDownload>
+  getVotingCampaign(eventId: string): Promise<VotingCampaign>
+  saveVotingCampaign(eventId: string, input: VotingCampaignInput): Promise<VotingCampaign>
+  castFreeVote(categoryId: string, nomineeId: string): Promise<void>
+  initializeVotingPayment(
+    categoryId: string,
+    nomineeId: string,
+    quantity: number,
+  ): Promise<VotingPaymentInitialization>
+  getVotingPaymentStatus(reference: string): Promise<VotingPaymentStatus>
   isRegisteredForEvent(eventId: string): Promise<boolean>
   getStudentRegistrations(studentId: string, page?: number, pageSize?: number): Promise<Page<StudentRegistration>>
   getMyOrganizerApplication(): Promise<OrganizerApplication | null>

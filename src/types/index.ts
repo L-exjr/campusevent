@@ -45,6 +45,8 @@ export interface EventItem {
   imageUrl: string | null
   isPublished: boolean
   version: number
+  priceMinor: number
+  currency: 'GHS'
 }
 
 export interface EventInput {
@@ -57,6 +59,126 @@ export interface EventInput {
   imageUrl: string | null
   isPublished?: boolean
   version?: number
+  priceMinor: number
+  currency: 'GHS'
+}
+
+export type PaymentStatus =
+  | 'pending'
+  | 'verified'
+  | 'failed'
+  | 'expired'
+  | 'refundPending'
+  | 'refunded'
+  | 'refundFailed'
+
+export interface PaymentInitialization {
+  reference: string
+  authorizationUrl: string
+  amountMinor: number
+  currency: string
+  expiresAt: string
+}
+
+export interface EventPaymentStatus {
+  reference: string
+  status: PaymentStatus
+  amountMinor: number
+  currency: string
+  registrationId: string | null
+  expiresAt: string
+}
+
+export interface Ticket {
+  registrationId: string
+  eventId: string
+  eventTitle: string
+  studentName: string
+  token: string
+  expiresAt: string
+}
+
+export interface CheckInResult {
+  registrationId: string
+  eventId: string
+  studentName: string
+  checkedInAt: string
+}
+
+export interface CertificateDownload {
+  registrationId: string
+  downloadUrl: string
+  expiresAt: string
+  generatedAt: string
+}
+
+export type VotingMode = 'free' | 'paid'
+
+export interface VotingNominee {
+  id: string
+  name: string
+  description: string | null
+  voteCount: number | null
+}
+
+export interface VotingCategory {
+  id: string
+  name: string
+  description: string | null
+  mode: VotingMode
+  pricePerVoteMinor: number
+  currency: 'GHS'
+  hasVoted: boolean
+  nominees: VotingNominee[]
+}
+
+export interface VotingCampaign {
+  id: string
+  eventId: string
+  eventTitle: string
+  opensAt: string
+  closesAt: string
+  isPublished: boolean
+  status: 'Draft' | 'Scheduled' | 'Open' | 'Closed'
+  canManage: boolean
+  resultsVisible: boolean
+  categories: VotingCategory[]
+}
+
+export interface VotingCampaignInput {
+  opensAt: string
+  closesAt: string
+  isPublished: boolean
+  categories: Array<{
+    name: string
+    description?: string
+    mode: VotingMode
+    pricePerVoteMinor: number
+    nominees: Array<{ name: string; description?: string }>
+  }>
+}
+
+export interface VotingPaymentInitialization {
+  reference: string
+  authorizationUrl: string
+  categoryId: string
+  nomineeId: string
+  quantity: number
+  amountMinor: number
+  currency: 'GHS'
+  expiresAt: string
+}
+
+export interface VotingPaymentStatus {
+  reference: string
+  status: PaymentStatus
+  categoryId: string
+  nomineeId: string
+  quantity: number
+  amountMinor: number
+  currency: 'GHS'
+  voteRecorded: boolean
+  expiresAt: string
 }
 
 export interface BookingRequestInput {

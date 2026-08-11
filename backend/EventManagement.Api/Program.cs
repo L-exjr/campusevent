@@ -101,6 +101,17 @@ builder.Services.AddRateLimiter(options =>
                 QueueLimit = 0,
                 AutoReplenishment = true
             }));
+    options.AddPolicy("Voting", context =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            context.User.FindFirst(JwtRegisteredClaimNames.Sub)?.Value ??
+                context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 30,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0,
+                AutoReplenishment = true
+            }));
 });
 builder.Services.Configure<ApiBehaviorOptions>(options =>
 {
@@ -134,11 +145,33 @@ builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<IEventAuthorizationService, EventAuthorizationService>();
 builder.Services.AddScoped<IEventService, EventService>();
 builder.Services.AddScoped<IReportService, ReportService>();
+builder.Services.AddScoped<IPaystackPaymentProvider, PaystackPaymentProvider>();
+builder.Services.AddScoped<IPaymentService, PaymentService>();
+builder.Services.AddScoped<IVotingService, VotingService>();
+builder.Services.AddScoped<ITicketTokenService, TicketTokenService>();
+builder.Services.AddScoped<ITicketService, TicketService>();
 builder.Services.AddHttpClient();
+builder.Services.AddSingleton<ICertificatePdfGenerator, CertificatePdfGenerator>();
+builder.Services.AddScoped<ICertificateStorageService, SupabaseCertificateStorageService>();
+builder.Services.AddScoped<ICertificateService, CertificateService>();
 builder.Services.AddScoped<IImageStorageService, SupabaseImageStorageService>();
 builder.Services.AddScoped<IImageLifecycleService, ImageLifecycleService>();
 builder.Services.AddScoped<ImageCleanupAdministrationService>();
-builder.Services.AddScoped<IEmailService, MailtrapEmailService>();
+builder.Services.AddScoped<EmailTemplateRenderer>();
+builder.Services.AddScoped<MailtrapEmailService>();
+builder.Services.AddScoped<GmailSmtpEmailService>();
+builder.Services.AddScoped<IEmailService>(services =>
+{
+    var configuration = services.GetRequiredService<IConfiguration>();
+    var provider = configuration["EMAIL_PROVIDER"];
+    if (string.IsNullOrWhiteSpace(provider))
+        provider = configuration["Email:Provider"] ?? "Mailtrap";
+    return provider.Equals("Gmail", StringComparison.OrdinalIgnoreCase)
+        ? services.GetRequiredService<GmailSmtpEmailService>()
+        : provider.Equals("Mailtrap", StringComparison.OrdinalIgnoreCase)
+            ? services.GetRequiredService<MailtrapEmailService>()
+            : throw new InvalidOperationException($"Unsupported email provider '{provider}'.");
+});
 builder.Services.AddScoped<EventReminderEnqueuer>();
 builder.Services.AddScoped<IEmailOutboxHandler, EventReminderEmailOutboxHandler>();
 builder.Services.AddScoped<IEmailOutboxHandler, RegistrationConfirmationEmailOutboxHandler>();

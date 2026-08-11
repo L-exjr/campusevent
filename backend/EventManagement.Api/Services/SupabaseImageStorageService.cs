@@ -25,7 +25,9 @@ public sealed class SupabaseImageStorageService(
         if (string.IsNullOrWhiteSpace(projectUrl) || string.IsNullOrWhiteSpace(serviceRoleKey))
         {
             logger.LogError("Supabase server-side storage configuration is incomplete.");
-            throw new ImageStorageException("Image storage is not configured.");
+            throw new ImageStorageException(
+                ImageStorageFailureKind.Configuration,
+                "Image storage is not configured.");
         }
 
         var objectPath = $"{ownerId:N}/{timeProvider.GetUtcNow():yyyy-MM-dd}/{Guid.NewGuid():N}.{extension}";
@@ -52,7 +54,11 @@ public sealed class SupabaseImageStorageService(
                     "Supabase rejected an upload to bucket {Bucket} with status {StatusCode}.",
                     bucket,
                     (int)response.StatusCode);
-                throw new ImageStorageException("The image could not be stored.");
+                throw new ImageStorageException(
+                    IsProviderUnavailable(response.StatusCode)
+                        ? ImageStorageFailureKind.ProviderUnavailable
+                        : ImageStorageFailureKind.ProviderRejected,
+                    "The image could not be stored.");
             }
 
             return new StoredImage(
@@ -70,7 +76,10 @@ public sealed class SupabaseImageStorageService(
         catch (Exception exception)
         {
             logger.LogError(exception, "Supabase upload to bucket {Bucket} failed.", bucket);
-            throw new ImageStorageException("The image could not be stored.", exception);
+            throw new ImageStorageException(
+                ImageStorageFailureKind.ProviderUnavailable,
+                "The image could not be stored.",
+                exception);
         }
     }
 
@@ -84,7 +93,9 @@ public sealed class SupabaseImageStorageService(
             "Supabase:ServiceRoleKey",
             "SUPABASE_SERVICE_ROLE_KEY");
         if (string.IsNullOrWhiteSpace(projectUrl) || string.IsNullOrWhiteSpace(serviceRoleKey))
-            throw new ImageStorageException("Image storage is not configured.");
+            throw new ImageStorageException(
+                ImageStorageFailureKind.Configuration,
+                "Image storage is not configured.");
 
         try
         {
@@ -103,7 +114,11 @@ public sealed class SupabaseImageStorageService(
                     "Supabase rejected deletion from bucket {Bucket} with status {StatusCode}.",
                     bucket,
                     (int)response.StatusCode);
-                throw new ImageStorageException("The image could not be deleted.");
+                throw new ImageStorageException(
+                    IsProviderUnavailable(response.StatusCode)
+                        ? ImageStorageFailureKind.ProviderUnavailable
+                        : ImageStorageFailureKind.ProviderRejected,
+                    "The image could not be deleted.");
             }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -117,10 +132,16 @@ public sealed class SupabaseImageStorageService(
         catch (Exception exception)
         {
             logger.LogError(exception, "Supabase deletion from bucket {Bucket} failed.", bucket);
-            throw new ImageStorageException("The image could not be deleted.", exception);
+            throw new ImageStorageException(
+                ImageStorageFailureKind.ProviderUnavailable,
+                "The image could not be deleted.",
+                exception);
         }
     }
 
     private string? GetConfigurationValue(string sectionKey, string environmentKey) =>
         configuration[sectionKey] ?? configuration[environmentKey];
+
+    private static bool IsProviderUnavailable(System.Net.HttpStatusCode statusCode) =>
+        (int)statusCode >= 500;
 }

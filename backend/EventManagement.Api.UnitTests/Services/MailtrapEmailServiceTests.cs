@@ -90,7 +90,7 @@ public sealed class MailtrapEmailServiceTests
             var handler = new RecordingHandler();
             var service = new MailtrapEmailService(
                 configuration,
-                environment.Object,
+                new EmailTemplateRenderer(environment.Object),
                 new StaticHttpClientFactory(new HttpClient(handler)),
                 Mock.Of<ILogger<MailtrapEmailService>>());
             return new EmailFixture(contentRoot, service, handler);

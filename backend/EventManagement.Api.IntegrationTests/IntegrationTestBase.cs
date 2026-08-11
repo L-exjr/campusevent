@@ -74,12 +74,16 @@ public abstract class IntegrationTestBase(ApiIntegrationFixture fixture)
         return (await ReadJsonAsync(response)).GetProperty("id").GetGuid();
     }
 
-    protected async Task<Guid> CreateEventAsync(string token, string title, int capacity)
+    protected async Task<Guid> CreateEventAsync(
+        string token,
+        string title,
+        int capacity,
+        long priceMinor = 0)
     {
         using var client = CreateAuthenticatedClient(token);
         using var response = await client.PostAsJsonAsync(
             "/api/events",
-            EventPayload(title, capacity));
+            EventPayload(title, capacity, priceMinor));
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
         return (await ReadJsonAsync(response)).GetProperty("id").GetGuid();
     }
@@ -99,14 +103,16 @@ public abstract class IntegrationTestBase(ApiIntegrationFixture fixture)
         return client;
     }
 
-    protected static object EventPayload(string title, int capacity) => new
+    protected static object EventPayload(string title, int capacity, long priceMinor = 0) => new
     {
         title,
         description = "A sufficiently detailed integration-test event description.",
         date = DateTimeOffset.UtcNow.AddDays(7),
         location = "Integration Test Hall",
         capacity,
-        category = "Technology"
+        category = "Technology",
+        priceMinor,
+        currency = "GHS"
     };
 
     protected static object ApplicationPayload() => new

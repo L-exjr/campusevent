@@ -57,6 +57,9 @@ export default function OrganizerEventTable({
                   <LinkButton to={`/organizer/events/${event.id}/attendance`} variant="outline-secondary">
                     Attendance
                   </LinkButton>
+                  <LinkButton to={`/organizer/events/${event.id}/voting`} variant="outline-secondary">
+                    Voting
+                  </LinkButton>
                   <Button variant="outline-primary" onClick={() => onEdit(event)}>
                     Edit
                   </Button>

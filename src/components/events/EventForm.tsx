@@ -35,6 +35,8 @@ function initialValues(event?: EventItem | null): EventInput {
         imageUrl: event.imageUrl,
         isPublished: event.isPublished,
         version: event.version,
+        priceMinor: event.priceMinor,
+        currency: event.currency,
       }
     : {
         title: '',
@@ -45,6 +47,8 @@ function initialValues(event?: EventItem | null): EventInput {
         location: '',
         imageUrl: null,
         isPublished: true,
+        priceMinor: 0,
+        currency: 'GHS',
       }
 }
 
@@ -242,6 +246,33 @@ export default function EventForm({
               }
             />
             <Form.Control.Feedback type="invalid">Use at least 1.</Form.Control.Feedback>
+          </Form.Group>
+        </Col>
+        <Col md={8}>
+          <Form.Group controlId="event-price">
+            <Form.Label>Ticket price</Form.Label>
+            <Form.Control
+              type="number"
+              required
+              min={0}
+              step="0.01"
+              value={(values.priceMinor / 100).toFixed(2)}
+              onChange={(eventValue) =>
+                setValues({
+                  ...values,
+                  priceMinor: Math.max(0, Math.round(Number(eventValue.target.value) * 100)),
+                })
+              }
+            />
+            <Form.Text>Use 0.00 for a free event. Price cannot change after payment or registration activity begins.</Form.Text>
+          </Form.Group>
+        </Col>
+        <Col md={4}>
+          <Form.Group controlId="event-currency">
+            <Form.Label>Currency</Form.Label>
+            <Form.Select value={values.currency} disabled>
+              <option value="GHS">GHS</option>
+            </Form.Select>
           </Form.Group>
         </Col>
         <Col xs={12}>

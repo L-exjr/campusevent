@@ -27,18 +27,36 @@ import EventsPage from './pages/student/EventsPage'
 import MyRegistrationsPage from './pages/student/MyRegistrationsPage'
 import OrganizerApplicationPage from './pages/student/OrganizerApplicationPage'
 import StudentDashboardPage from './pages/student/StudentDashboardPage'
+import PaymentCallbackPage from './pages/student/PaymentCallbackPage'
+import VotingPaymentCallbackPage from './pages/student/VotingPaymentCallbackPage'
+import VotingPage from './pages/student/VotingPage'
+import ManageVotingPage from './pages/organizer/ManageVotingPage'
 import ProfilePage from './pages/profile/ProfilePage'
 import LandingPage from './pages/LandingPage'
 import { ROUTE_ROLES } from './utils/permissions'
+import AboutPage from './pages/AboutPage'
+import BookingRequestThankYouPage from './pages/BookingRequestThankYouPage'
+import PrivacyPage from './pages/PrivacyPage'
+import SeoManager from './components/seo/SeoManager'
+import Analytics from './components/seo/Analytics'
+import StructuredBusinessData from './components/seo/StructuredBusinessData'
 
 export default function App() {
   return (
-    <Routes>
+    <>
+      <SeoManager />
+      <Analytics />
+      <StructuredBusinessData />
+      <Routes>
       <Route element={<AppLayout />}>
         <Route path="/" element={<LandingPage />} />
         <Route path="/events" element={<EventsPage />} />
         <Route path="/events/:id" element={<EventDetailsPage />} />
+        <Route path="/events/:id/voting" element={<VotingPage />} />
         <Route path="/request-organizer" element={<BookingRequestForm />} />
+        <Route path="/request-organizer/thank-you" element={<BookingRequestThankYouPage />} />
+        <Route path="/about" element={<AboutPage />} />
+        <Route path="/privacy" element={<PrivacyPage />} />
       </Route>
 
       <Route element={<GuestRoute />}>
@@ -57,6 +75,8 @@ export default function App() {
             <Route path="/student/events/:id" element={<EventDetailsPage />} />
             <Route path="/student/registrations" element={<MyRegistrationsPage />} />
             <Route path="/student/organizer-application" element={<OrganizerApplicationPage />} />
+            <Route path="/payment/callback" element={<PaymentCallbackPage />} />
+            <Route path="/voting/payment/callback" element={<VotingPaymentCallbackPage />} />
           </Route>
 
           <Route element={<ProtectedRoute allowedRoles={ROUTE_ROLES.organizer} />}>
@@ -65,6 +85,7 @@ export default function App() {
             <Route path="/organizer/booking-requests" element={<OrganizerBookingRequestsPage />} />
             <Route path="/organizer/events/:id/registrants" element={<RegistrantsPage />} />
             <Route path="/organizer/events/:id/attendance" element={<AttendancePage />} />
+            <Route path="/organizer/events/:id/voting" element={<ManageVotingPage />} />
           </Route>
 
           <Route element={<ProtectedRoute allowedRoles={ROUTE_ROLES.admin} />}>
@@ -77,12 +98,14 @@ export default function App() {
             <Route path="/admin/audit-logs" element={<AdminAuditLogsPage />} />
             <Route path="/admin/image-cleanup" element={<AdminImageCleanupPage />} />
             <Route path="/admin/events/:id/registrants" element={<RegistrantsPage />} />
+            <Route path="/admin/events/:id/voting" element={<ManageVotingPage />} />
           </Route>
         </Route>
       </Route>
 
       <Route path="/unauthorized" element={<UnauthorizedPage />} />
       <Route path="*" element={<NotFoundPage />} />
-    </Routes>
+      </Routes>
+    </>
   )
 }

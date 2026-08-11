@@ -23,6 +23,7 @@ internal sealed class ApiWebApplicationFactory : WebApplicationFactory<Program>
         SetEnvironment("Jwt__ExpiryMinutes", "75");
         SetEnvironment("BootstrapAdmin__Email", string.Empty);
         SetEnvironment("BootstrapAdmin__Password", string.Empty);
+        SetEnvironment("QR_SIGNING_KEY", "integration-test-ticket-signing-key-which-is-long-enough");
     }
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
@@ -34,6 +35,12 @@ internal sealed class ApiWebApplicationFactory : WebApplicationFactory<Program>
             services.AddSingleton<IGoogleTokenValidator, TestGoogleTokenValidator>();
             services.RemoveAll<IImageStorageService>();
             services.AddSingleton<IImageStorageService, TestImageStorageService>();
+            services.RemoveAll<IPaystackPaymentProvider>();
+            services.AddSingleton<IPaystackPaymentProvider, TestPaystackPaymentProvider>();
+            services.RemoveAll<ICertificateStorageService>();
+            services.AddSingleton<ICertificateStorageService, TestCertificateStorageService>();
+            services.RemoveAll<ICertificatePdfGenerator>();
+            services.AddSingleton<ICertificatePdfGenerator, TestCertificatePdfGenerator>();
         });
     }
 
@@ -62,6 +69,83 @@ internal sealed class ApiWebApplicationFactory : WebApplicationFactory<Program>
             throw new InvalidOperationException(
                 "TEST_JWT_SIGNING_KEY must contain at least 32 characters.");
         return configuredKey;
+    }
+}
+
+internal sealed class TestCertificateStorageService : ICertificateStorageService
+{
+    private readonly Dictionary<string, byte[]> _objects = [];
+
+    public Task UploadAsync(string objectKey, byte[] pdf, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        _objects[objectKey] = pdf;
+        return Task.CompletedTask;
+    }
+
+    public Task<CertificateSignedUrl> CreateSignedUrlAsync(
+        string objectKey,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (!_objects.ContainsKey(objectKey))
+            throw new InvalidOperationException("The test certificate was not uploaded.");
+        return Task.FromResult(new CertificateSignedUrl(
+            $"https://storage.example.test/signed/{objectKey}",
+            DateTimeOffset.UtcNow.AddMinutes(5)));
+    }
+}
+
+internal sealed class TestCertificatePdfGenerator : ICertificatePdfGenerator
+{
+    public byte[] Generate(CertificatePdfModel model) =>
+        System.Text.Encoding.UTF8.GetBytes($"test-pdf:{model.RegistrationId:N}");
+}
+
+internal sealed class TestPaystackPaymentProvider : IPaystackPaymentProvider
+{
+    private readonly Dictionary<string, PaystackVerification> _payments = [];
+
+    public bool HasValidSignature(string payload, string? signature) =>
+        signature == "valid-test-signature";
+
+    public Task<PaystackInitialization> InitializeAsync(
+        string email,
+        long amountMinor,
+        string currency,
+        string reference,
+        string callbackUrl,
+        Guid orderId,
+        Guid eventId,
+        Guid studentId,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        _payments[reference] = new PaystackVerification(
+            true,
+            reference,
+            amountMinor,
+            currency);
+        return Task.FromResult(new PaystackInitialization(
+            $"https://checkout.example.test/{reference}",
+            reference));
+    }
+
+    public Task<PaystackVerification> VerifyAsync(
+        string reference,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromResult(_payments[reference]);
+    }
+
+    public Task<bool> RequestRefundAsync(
+        string reference,
+        long amountMinor,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromResult(true);
     }
 }
 

@@ -1,0 +1,8 @@
+User-agent: *
+Allow: /
+Disallow: /admin/
+Disallow: /organizer/
+Disallow: /student/
+Disallow: /profile
+Disallow: /payment/
+Disallow: /voting/payment/

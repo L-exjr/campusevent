@@ -51,6 +51,12 @@ export default function AdminEventTable({ events, onEdit, onTransfer, onDelete }
                   >
                     Registrants
                   </LinkButton>
+                  <LinkButton
+                    to={`/admin/events/${event.id}/voting`}
+                    variant="outline-secondary"
+                  >
+                    Voting
+                  </LinkButton>
                   <Button variant="outline-primary" onClick={() => onEdit(event)}>
                     Edit
                   </Button>

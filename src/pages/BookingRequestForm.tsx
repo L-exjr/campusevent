@@ -7,17 +7,19 @@ import Form from 'react-bootstrap/Form'
 import Row from 'react-bootstrap/Row'
 import { api } from '../api'
 import type { BookingRequestInput } from '../types'
+import { useNavigate } from 'react-router-dom'
 
 const initial: BookingRequestInput = { organizationName:'', contactName:'', email:'', phone:'', eventType:'', proposedDate:'', alternativeDates:'', flexibilityNote:'', estimatedAttendance:1, preferredOrganizer:'', description:'', website:'' }
 
 export default function BookingRequestForm() {
-  const [form, setForm] = useState(initial); const [message,setMessage]=useState<string|null>(null); const [error,setError]=useState<string|null>(null); const [busy,setBusy]=useState(false)
+  const navigate = useNavigate()
+  const [form, setForm] = useState(initial); const [error,setError]=useState<string|null>(null); const [busy,setBusy]=useState(false)
   const update = (field: keyof BookingRequestInput, value: string | number) => setForm((current) => ({...current,[field]:value}))
   const submit = async (event: FormEvent) => { event.preventDefault(); setBusy(true); setError(null)
-    try { setMessage(await api.submitBookingRequest(form)); setForm(initial) } catch(caught) { setError(caught instanceof Error ? caught.message : 'Unable to submit your request.') } finally { setBusy(false) }
+    try { const message = await api.submitBookingRequest(form); setForm(initial); navigate('/request-organizer/thank-you', { state: { message } }) } catch(caught) { setError(caught instanceof Error ? caught.message : 'Unable to submit your request.') } finally { setBusy(false) }
   }
   return <><header className="page-header"><p className="eyebrow">Public booking request</p><h1>Request an Organizer</h1><p>Tell us what your organization is planning. No account is required.</p></header>
-    <Card className="border-0"><Card.Body className="p-4 p-lg-5">{message&&<Alert variant="success">{message}</Alert>}{error&&<Alert variant="danger">{error}</Alert>}
+    <Card className="border-0"><Card.Body className="p-4 p-lg-5">{error&&<Alert variant="danger">{error}</Alert>}
       <Form onSubmit={(event)=>void submit(event)}><Row className="g-3">
         <Col md={6}><Form.Group><Form.Label>Organization name</Form.Label><Form.Control required maxLength={200} value={form.organizationName} onChange={e=>update('organizationName',e.target.value)}/></Form.Group></Col>
         <Col md={6}><Form.Group><Form.Label>Contact name</Form.Label><Form.Control required maxLength={150} value={form.contactName} onChange={e=>update('contactName',e.target.value)}/></Form.Group></Col>
@@ -31,6 +33,6 @@ export default function BookingRequestForm() {
         <Col md={6}><Form.Group><Form.Label>Scheduling flexibility</Form.Label><Form.Control value={form.flexibilityNote} onChange={e=>update('flexibilityNote',e.target.value)}/></Form.Group></Col>
         <Col xs={12}><Form.Group><Form.Label>Description</Form.Label><Form.Control as="textarea" rows={5} required minLength={10} value={form.description} onChange={e=>update('description',e.target.value)}/></Form.Group></Col>
         <div className="position-absolute opacity-0 pe-none" aria-hidden="true"><label htmlFor="booking-website">Website</label><input id="booking-website" tabIndex={-1} autoComplete="off" value={form.website} onChange={e=>update('website',e.target.value)}/></div>
-        <Col xs={12}><Button type="submit" size="lg" disabled={busy}>{busy?'Submitting…':'Submit request'}</Button></Col>
+        <Col xs={12}><p className="text-secondary mb-2"><strong>Response promise:</strong> we aim to reply within 24 hours on working days.</p><Button type="submit" size="lg" disabled={busy}>{busy?'Submitting…':'Submit request'}</Button></Col>
       </Row></Form></Card.Body></Card></>
 }

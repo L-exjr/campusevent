@@ -43,5 +43,7 @@ public static class DtoMappings
         eventEntity.CreatedAt,
         eventEntity.ImageUrl,
         eventEntity.IsPublished,
-        eventEntity.Version);
+        eventEntity.Version,
+        eventEntity.PriceMinor,
+        eventEntity.Currency);
 }

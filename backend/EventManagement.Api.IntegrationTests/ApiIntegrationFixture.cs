@@ -48,7 +48,15 @@ public sealed class ApiIntegrationFixture : IAsyncLifetime
                 "AuthRateLimitBuckets",
                 "AdminAuditLogs",
                 "EmailOutboxMessages",
+                "PaymentWebhookReceipts",
+                "VotingWebhookReceipts",
+                "VoteRecords",
+                "VotingPaymentOrders",
+                "VotingNominees",
+                "VotingCategories",
+                "VotingCampaigns",
                 "EventRegistrations",
+                "PaymentOrders",
                 "OrganizerApplications",
                 "PasswordResetTokens",
                 "BookingRequests",
@@ -74,6 +82,12 @@ public sealed class ApiIntegrationFixture : IAsyncLifetime
         await using var dbContext = CreateDbContext();
         return await dbContext.EventRegistrations.CountAsync(
             registration => registration.EventId == eventId);
+    }
+
+    public async Task<int> CountPaymentOrdersAsync(Guid eventId)
+    {
+        await using var dbContext = CreateDbContext();
+        return await dbContext.PaymentOrders.CountAsync(order => order.EventId == eventId);
     }
 
     public async Task<int> CountPendingApplicationsAsync(Guid userId)
@@ -345,6 +359,48 @@ public sealed class ApiIntegrationFixture : IAsyncLifetime
         var item = await dbContext.Events.SingleAsync(eventEntity => eventEntity.Id == eventId);
         item.Date = date;
         await dbContext.SaveChangesAsync();
+    }
+
+    public async Task SetRegistrationAttendanceAsync(Guid registrationId, bool attended)
+    {
+        await using var dbContext = CreateDbContext();
+        var registration = await dbContext.EventRegistrations.SingleAsync(
+            item => item.Id == registrationId);
+        registration.Attended = attended;
+        await dbContext.SaveChangesAsync();
+    }
+
+    public async Task<(string? ObjectKey, DateTimeOffset? GeneratedAt, int? TemplateVersion)>
+        GetCertificateStateAsync(Guid registrationId)
+    {
+        await using var dbContext = CreateDbContext();
+        return await dbContext.EventRegistrations
+            .Where(item => item.Id == registrationId)
+            .Select(item => new ValueTuple<string?, DateTimeOffset?, int?>(
+                item.CertificateObjectKey,
+                item.CertificateGeneratedAt,
+                item.CertificateTemplateVersion))
+            .SingleAsync();
+    }
+
+    public async Task SetVotingCampaignDatesAsync(
+        Guid eventId,
+        DateTimeOffset opensAt,
+        DateTimeOffset closesAt)
+    {
+        await using var dbContext = CreateDbContext();
+        var campaign = await dbContext.VotingCampaigns.SingleAsync(item => item.EventId == eventId);
+        campaign.OpensAt = opensAt;
+        campaign.ClosesAt = closesAt;
+        await dbContext.SaveChangesAsync();
+    }
+
+    public async Task<long> GetNomineeVoteCountAsync(Guid nomineeId)
+    {
+        await using var dbContext = CreateDbContext();
+        return await dbContext.VoteRecords
+            .Where(item => item.NomineeId == nomineeId)
+            .SumAsync(item => (long)item.Quantity);
     }
 
     private AppDbContext CreateDbContext()

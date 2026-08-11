@@ -1,12 +1,11 @@
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
-using System.Text.Encodings.Web;
 
 namespace EventManagement.Api.Services;
 
 public sealed class MailtrapEmailService(
     IConfiguration configuration,
-    IWebHostEnvironment environment,
+    EmailTemplateRenderer templateRenderer,
     IHttpClientFactory httpClientFactory,
     ILogger<MailtrapEmailService> logger) : IEmailService
 {
@@ -38,7 +37,10 @@ public sealed class MailtrapEmailService(
                 return false;
             }
 
-            var body = await LoadTemplateAsync(templateName, templateValues, cancellationToken);
+            var body = await templateRenderer.RenderAsync(
+                templateName,
+                templateValues,
+                cancellationToken);
             using var request = new HttpRequestMessage(HttpMethod.Post, MailtrapEndpoint);
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiToken);
             request.Content = JsonContent.Create(new
@@ -87,28 +89,11 @@ public sealed class MailtrapEmailService(
         }
     }
 
-    private async Task<string> LoadTemplateAsync(
-        string templateName,
-        IReadOnlyDictionary<string, string?> values,
-        CancellationToken cancellationToken)
+    private string? GetConfigurationValue(string sectionKey, string environmentKey)
     {
-        var safeName = Path.GetFileName(templateName);
-        if (!string.Equals(safeName, templateName, StringComparison.Ordinal))
-            throw new InvalidOperationException("The email template name is invalid.");
-
-        var path = Path.Combine(environment.ContentRootPath, "EmailTemplates", safeName);
-        var html = await File.ReadAllTextAsync(path, cancellationToken);
-        foreach (var (key, value) in values)
-        {
-            html = html.Replace(
-                $"{{{{{key}}}}}",
-                HtmlEncoder.Default.Encode(value ?? string.Empty),
-                StringComparison.Ordinal);
-        }
-
-        return html;
+        var environmentValue = configuration[environmentKey];
+        return string.IsNullOrWhiteSpace(environmentValue)
+            ? configuration[sectionKey]
+            : environmentValue;
     }
-
-    private string? GetConfigurationValue(string sectionKey, string environmentKey) =>
-        configuration[sectionKey] ?? configuration[environmentKey];
 }

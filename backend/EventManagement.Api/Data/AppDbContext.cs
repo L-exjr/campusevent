@@ -15,6 +15,14 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
     public DbSet<ImageUpload> ImageUploads => Set<ImageUpload>();
     public DbSet<AuthRateLimitBucket> AuthRateLimitBuckets => Set<AuthRateLimitBucket>();
     public DbSet<AdminAuditLog> AdminAuditLogs => Set<AdminAuditLog>();
+    public DbSet<PaymentOrder> PaymentOrders => Set<PaymentOrder>();
+    public DbSet<PaymentWebhookReceipt> PaymentWebhookReceipts => Set<PaymentWebhookReceipt>();
+    public DbSet<VotingCampaign> VotingCampaigns => Set<VotingCampaign>();
+    public DbSet<VotingCategory> VotingCategories => Set<VotingCategory>();
+    public DbSet<VotingNominee> VotingNominees => Set<VotingNominee>();
+    public DbSet<VoteRecord> VoteRecords => Set<VoteRecord>();
+    public DbSet<VotingPaymentOrder> VotingPaymentOrders => Set<VotingPaymentOrder>();
+    public DbSet<VotingWebhookReceipt> VotingWebhookReceipts => Set<VotingWebhookReceipt>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -61,6 +69,10 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
             entity.Property(eventEntity => eventEntity.Description).HasMaxLength(5000).IsRequired();
             entity.Property(eventEntity => eventEntity.Location).HasMaxLength(300).IsRequired();
             entity.Property(eventEntity => eventEntity.Category).HasMaxLength(100).IsRequired();
+            entity.Property(eventEntity => eventEntity.Currency)
+                .HasMaxLength(3)
+                .HasDefaultValue("GHS")
+                .IsRequired();
             entity.Property(eventEntity => eventEntity.ImageUrl).HasMaxLength(2048);
             entity.Property(eventEntity => eventEntity.ImageObjectKey).HasMaxLength(1024);
             entity.Property(eventEntity => eventEntity.Version).HasDefaultValue(1).IsConcurrencyToken();
@@ -75,6 +87,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
         modelBuilder.Entity<EventRegistration>(entity =>
         {
             entity.HasKey(registration => registration.Id);
+            entity.Property(registration => registration.CertificateObjectKey).HasMaxLength(1024);
             entity.HasIndex(registration => new { registration.EventId, registration.StudentId }).IsUnique();
             entity.HasOne(registration => registration.Event)
                 .WithMany(eventEntity => eventEntity.Registrations)
@@ -84,6 +97,141 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
                 .WithMany(user => user.Registrations)
                 .HasForeignKey(registration => registration.StudentId)
                 .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(registration => registration.PaymentOrder)
+                .WithOne(order => order.Registration)
+                .HasForeignKey<EventRegistration>(registration => registration.PaymentOrderId)
+                .OnDelete(DeleteBehavior.SetNull);
+            entity.HasIndex(registration => registration.PaymentOrderId).IsUnique();
+        });
+
+        modelBuilder.Entity<PaymentOrder>(entity =>
+        {
+            entity.HasKey(order => order.Id);
+            entity.Property(order => order.Currency).HasMaxLength(3).IsRequired();
+            entity.Property(order => order.Provider).HasMaxLength(30).IsRequired();
+            entity.Property(order => order.ProviderReference).HasMaxLength(100).IsRequired();
+            entity.Property(order => order.AuthorizationUrl).HasMaxLength(2048);
+            entity.Property(order => order.Status).HasConversion<string>().HasMaxLength(30);
+            entity.HasIndex(order => order.ProviderReference).IsUnique();
+            entity.HasIndex(order => new { order.EventId, order.StudentId, order.Status });
+            entity.HasIndex(order => new { order.Status, order.ExpiresAt });
+            entity.HasOne(order => order.Event)
+                .WithMany(eventEntity => eventEntity.PaymentOrders)
+                .HasForeignKey(order => order.EventId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(order => order.Student)
+                .WithMany()
+                .HasForeignKey(order => order.StudentId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<PaymentWebhookReceipt>(entity =>
+        {
+            entity.HasKey(receipt => receipt.Id);
+            entity.Property(receipt => receipt.Id).HasMaxLength(64);
+            entity.Property(receipt => receipt.Provider).HasMaxLength(30).IsRequired();
+            entity.Property(receipt => receipt.EventType).HasMaxLength(100).IsRequired();
+            entity.Property(receipt => receipt.ProviderReference).HasMaxLength(100);
+            entity.Property(receipt => receipt.Outcome).HasMaxLength(100).IsRequired();
+            entity.HasIndex(receipt => receipt.ProcessedAt);
+        });
+
+        modelBuilder.Entity<VotingCampaign>(entity =>
+        {
+            entity.HasKey(campaign => campaign.Id);
+            entity.HasIndex(campaign => campaign.EventId).IsUnique();
+            entity.HasIndex(campaign => new { campaign.IsPublished, campaign.OpensAt, campaign.ClosesAt });
+            entity.HasOne(campaign => campaign.Event)
+                .WithOne(eventEntity => eventEntity.VotingCampaign)
+                .HasForeignKey<VotingCampaign>(campaign => campaign.EventId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<VotingCategory>(entity =>
+        {
+            entity.HasKey(category => category.Id);
+            entity.Property(category => category.Name).HasMaxLength(150).IsRequired();
+            entity.Property(category => category.Description).HasMaxLength(1000);
+            entity.Property(category => category.Mode).HasConversion<string>().HasMaxLength(20);
+            entity.Property(category => category.Currency).HasMaxLength(3).HasDefaultValue("GHS").IsRequired();
+            entity.HasIndex(category => new { category.CampaignId, category.Position }).IsUnique();
+            entity.HasOne(category => category.Campaign)
+                .WithMany(campaign => campaign.Categories)
+                .HasForeignKey(category => category.CampaignId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<VotingNominee>(entity =>
+        {
+            entity.HasKey(nominee => nominee.Id);
+            entity.Property(nominee => nominee.Name).HasMaxLength(150).IsRequired();
+            entity.Property(nominee => nominee.Description).HasMaxLength(1000);
+            entity.HasIndex(nominee => new { nominee.CategoryId, nominee.Position }).IsUnique();
+            entity.HasOne(nominee => nominee.Category)
+                .WithMany(category => category.Nominees)
+                .HasForeignKey(nominee => nominee.CategoryId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<VoteRecord>(entity =>
+        {
+            entity.HasKey(vote => vote.Id);
+            entity.HasIndex(vote => new { vote.CategoryId, vote.VoterId })
+                .IsUnique()
+                .HasFilter("\"VotingPaymentOrderId\" IS NULL");
+            entity.HasIndex(vote => vote.VotingPaymentOrderId).IsUnique();
+            entity.HasIndex(vote => new { vote.NomineeId, vote.CastAt });
+            entity.HasOne(vote => vote.Category)
+                .WithMany(category => category.Votes)
+                .HasForeignKey(vote => vote.CategoryId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(vote => vote.Nominee)
+                .WithMany(nominee => nominee.Votes)
+                .HasForeignKey(vote => vote.NomineeId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(vote => vote.Voter)
+                .WithMany(user => user.Votes)
+                .HasForeignKey(vote => vote.VoterId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(vote => vote.VotingPaymentOrder)
+                .WithOne(order => order.Vote)
+                .HasForeignKey<VoteRecord>(vote => vote.VotingPaymentOrderId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<VotingPaymentOrder>(entity =>
+        {
+            entity.HasKey(order => order.Id);
+            entity.Property(order => order.Currency).HasMaxLength(3).IsRequired();
+            entity.Property(order => order.Provider).HasMaxLength(30).IsRequired();
+            entity.Property(order => order.ProviderReference).HasMaxLength(100).IsRequired();
+            entity.Property(order => order.AuthorizationUrl).HasMaxLength(2048);
+            entity.Property(order => order.Status).HasConversion<string>().HasMaxLength(30);
+            entity.HasIndex(order => order.ProviderReference).IsUnique();
+            entity.HasIndex(order => new { order.CategoryId, order.VoterId, order.Status });
+            entity.HasOne(order => order.Category)
+                .WithMany(category => category.PaymentOrders)
+                .HasForeignKey(order => order.CategoryId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(order => order.Nominee)
+                .WithMany(nominee => nominee.PaymentOrders)
+                .HasForeignKey(order => order.NomineeId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(order => order.Voter)
+                .WithMany(user => user.VotingPaymentOrders)
+                .HasForeignKey(order => order.VoterId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<VotingWebhookReceipt>(entity =>
+        {
+            entity.HasKey(receipt => receipt.Id);
+            entity.Property(receipt => receipt.Id).HasMaxLength(64);
+            entity.Property(receipt => receipt.Provider).HasMaxLength(30).IsRequired();
+            entity.Property(receipt => receipt.EventType).HasMaxLength(100).IsRequired();
+            entity.Property(receipt => receipt.ProviderReference).HasMaxLength(100);
+            entity.Property(receipt => receipt.Outcome).HasMaxLength(100).IsRequired();
+            entity.HasIndex(receipt => receipt.ProcessedAt);
         });
 
         modelBuilder.Entity<PasswordResetToken>(entity =>

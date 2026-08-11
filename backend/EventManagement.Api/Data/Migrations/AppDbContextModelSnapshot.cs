@@ -268,6 +268,13 @@ namespace EventManagement.Api.Data.Migrations
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<string>("Currency")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(3)
+                        .HasColumnType("character varying(3)")
+                        .HasDefaultValue("GHS");
+
                     b.Property<DateTimeOffset>("Date")
                         .HasColumnType("timestamp with time zone");
 
@@ -294,6 +301,9 @@ namespace EventManagement.Api.Data.Migrations
 
                     b.Property<Guid>("OrganizerId")
                         .HasColumnType("uuid");
+
+                    b.Property<long>("PriceMinor")
+                        .HasColumnType("bigint");
 
                     b.Property<string>("Title")
                         .IsRequired()
@@ -326,7 +336,20 @@ namespace EventManagement.Api.Data.Migrations
                     b.Property<bool>("Attended")
                         .HasColumnType("boolean");
 
+                    b.Property<DateTimeOffset?>("CertificateGeneratedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CertificateObjectKey")
+                        .HasMaxLength(1024)
+                        .HasColumnType("character varying(1024)");
+
+                    b.Property<int?>("CertificateTemplateVersion")
+                        .HasColumnType("integer");
+
                     b.Property<Guid>("EventId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("PaymentOrderId")
                         .HasColumnType("uuid");
 
                     b.Property<DateTimeOffset>("RegisteredAt")
@@ -339,6 +362,9 @@ namespace EventManagement.Api.Data.Migrations
                         .HasColumnType("uuid");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("PaymentOrderId")
+                        .IsUnique();
 
                     b.HasIndex("StudentId");
 
@@ -509,6 +535,106 @@ namespace EventManagement.Api.Data.Migrations
                     b.ToTable("PasswordResetTokens");
                 });
 
+            modelBuilder.Entity("EventManagement.Api.Models.PaymentOrder", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<long>("AmountMinor")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("AuthorizationUrl")
+                        .HasMaxLength(2048)
+                        .HasColumnType("character varying(2048)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Currency")
+                        .IsRequired()
+                        .HasMaxLength(3)
+                        .HasColumnType("character varying(3)");
+
+                    b.Property<Guid>("EventId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Provider")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<string>("ProviderReference")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<Guid>("StudentId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset?>("VerifiedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProviderReference")
+                        .IsUnique();
+
+                    b.HasIndex("StudentId");
+
+                    b.HasIndex("Status", "ExpiresAt");
+
+                    b.HasIndex("EventId", "StudentId", "Status");
+
+                    b.ToTable("PaymentOrders");
+                });
+
+            modelBuilder.Entity("EventManagement.Api.Models.PaymentWebhookReceipt", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("EventType")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("Outcome")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<DateTimeOffset>("ProcessedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Provider")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<string>("ProviderReference")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProcessedAt");
+
+                    b.ToTable("PaymentWebhookReceipts");
+                });
+
             modelBuilder.Entity("EventManagement.Api.Models.User", b =>
                 {
                     b.Property<Guid>("Id")
@@ -573,6 +699,262 @@ namespace EventManagement.Api.Data.Migrations
                     b.ToTable("Users");
                 });
 
+            modelBuilder.Entity("EventManagement.Api.Models.VoteRecord", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CastAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("CategoryId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("NomineeId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Quantity")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("VoterId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("VotingPaymentOrderId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("VoterId");
+
+                    b.HasIndex("VotingPaymentOrderId")
+                        .IsUnique();
+
+                    b.HasIndex("CategoryId", "VoterId")
+                        .IsUnique()
+                        .HasFilter("\"VotingPaymentOrderId\" IS NULL");
+
+                    b.HasIndex("NomineeId", "CastAt");
+
+                    b.ToTable("VoteRecords");
+                });
+
+            modelBuilder.Entity("EventManagement.Api.Models.VotingCampaign", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("ClosesAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("EventId")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("IsPublished")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTimeOffset>("OpensAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EventId")
+                        .IsUnique();
+
+                    b.HasIndex("IsPublished", "OpensAt", "ClosesAt");
+
+                    b.ToTable("VotingCampaigns");
+                });
+
+            modelBuilder.Entity("EventManagement.Api.Models.VotingCategory", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("CampaignId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Currency")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(3)
+                        .HasColumnType("character varying(3)")
+                        .HasDefaultValue("GHS");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<string>("Mode")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)");
+
+                    b.Property<int>("Position")
+                        .HasColumnType("integer");
+
+                    b.Property<long>("PricePerVoteMinor")
+                        .HasColumnType("bigint");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CampaignId", "Position")
+                        .IsUnique();
+
+                    b.ToTable("VotingCategories");
+                });
+
+            modelBuilder.Entity("EventManagement.Api.Models.VotingNominee", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("CategoryId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)");
+
+                    b.Property<int>("Position")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CategoryId", "Position")
+                        .IsUnique();
+
+                    b.ToTable("VotingNominees");
+                });
+
+            modelBuilder.Entity("EventManagement.Api.Models.VotingPaymentOrder", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<long>("AmountMinor")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("AuthorizationUrl")
+                        .HasMaxLength(2048)
+                        .HasColumnType("character varying(2048)");
+
+                    b.Property<Guid>("CategoryId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Currency")
+                        .IsRequired()
+                        .HasMaxLength(3)
+                        .HasColumnType("character varying(3)");
+
+                    b.Property<DateTimeOffset>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("NomineeId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Provider")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<string>("ProviderReference")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<int>("Quantity")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<long>("UnitPriceMinor")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset?>("VerifiedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("VoterId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("NomineeId");
+
+                    b.HasIndex("ProviderReference")
+                        .IsUnique();
+
+                    b.HasIndex("VoterId");
+
+                    b.HasIndex("CategoryId", "VoterId", "Status");
+
+                    b.ToTable("VotingPaymentOrders");
+                });
+
+            modelBuilder.Entity("EventManagement.Api.Models.VotingWebhookReceipt", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("EventType")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("Outcome")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<DateTimeOffset>("ProcessedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Provider")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<string>("ProviderReference")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProcessedAt");
+
+                    b.ToTable("VotingWebhookReceipts");
+                });
+
             modelBuilder.Entity("EventManagement.Api.Models.AdminAuditLog", b =>
                 {
                     b.HasOne("EventManagement.Api.Models.User", "ActorUser")
@@ -620,6 +1002,11 @@ namespace EventManagement.Api.Data.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.HasOne("EventManagement.Api.Models.PaymentOrder", "PaymentOrder")
+                        .WithOne("Registration")
+                        .HasForeignKey("EventManagement.Api.Models.EventRegistration", "PaymentOrderId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.HasOne("EventManagement.Api.Models.User", "Student")
                         .WithMany("Registrations")
                         .HasForeignKey("StudentId")
@@ -627,6 +1014,8 @@ namespace EventManagement.Api.Data.Migrations
                         .IsRequired();
 
                     b.Navigation("Event");
+
+                    b.Navigation("PaymentOrder");
 
                     b.Navigation("Student");
                 });
@@ -671,11 +1060,133 @@ namespace EventManagement.Api.Data.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("EventManagement.Api.Models.PaymentOrder", b =>
+                {
+                    b.HasOne("EventManagement.Api.Models.EventEntity", "Event")
+                        .WithMany("PaymentOrders")
+                        .HasForeignKey("EventId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("EventManagement.Api.Models.User", "Student")
+                        .WithMany()
+                        .HasForeignKey("StudentId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Event");
+
+                    b.Navigation("Student");
+                });
+
+            modelBuilder.Entity("EventManagement.Api.Models.VoteRecord", b =>
+                {
+                    b.HasOne("EventManagement.Api.Models.VotingCategory", "Category")
+                        .WithMany("Votes")
+                        .HasForeignKey("CategoryId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("EventManagement.Api.Models.VotingNominee", "Nominee")
+                        .WithMany("Votes")
+                        .HasForeignKey("NomineeId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("EventManagement.Api.Models.User", "Voter")
+                        .WithMany("Votes")
+                        .HasForeignKey("VoterId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("EventManagement.Api.Models.VotingPaymentOrder", "VotingPaymentOrder")
+                        .WithOne("Vote")
+                        .HasForeignKey("EventManagement.Api.Models.VoteRecord", "VotingPaymentOrderId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("Category");
+
+                    b.Navigation("Nominee");
+
+                    b.Navigation("Voter");
+
+                    b.Navigation("VotingPaymentOrder");
+                });
+
+            modelBuilder.Entity("EventManagement.Api.Models.VotingCampaign", b =>
+                {
+                    b.HasOne("EventManagement.Api.Models.EventEntity", "Event")
+                        .WithOne("VotingCampaign")
+                        .HasForeignKey("EventManagement.Api.Models.VotingCampaign", "EventId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Event");
+                });
+
+            modelBuilder.Entity("EventManagement.Api.Models.VotingCategory", b =>
+                {
+                    b.HasOne("EventManagement.Api.Models.VotingCampaign", "Campaign")
+                        .WithMany("Categories")
+                        .HasForeignKey("CampaignId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Campaign");
+                });
+
+            modelBuilder.Entity("EventManagement.Api.Models.VotingNominee", b =>
+                {
+                    b.HasOne("EventManagement.Api.Models.VotingCategory", "Category")
+                        .WithMany("Nominees")
+                        .HasForeignKey("CategoryId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Category");
+                });
+
+            modelBuilder.Entity("EventManagement.Api.Models.VotingPaymentOrder", b =>
+                {
+                    b.HasOne("EventManagement.Api.Models.VotingCategory", "Category")
+                        .WithMany("PaymentOrders")
+                        .HasForeignKey("CategoryId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("EventManagement.Api.Models.VotingNominee", "Nominee")
+                        .WithMany("PaymentOrders")
+                        .HasForeignKey("NomineeId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("EventManagement.Api.Models.User", "Voter")
+                        .WithMany("VotingPaymentOrders")
+                        .HasForeignKey("VoterId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Category");
+
+                    b.Navigation("Nominee");
+
+                    b.Navigation("Voter");
+                });
+
             modelBuilder.Entity("EventManagement.Api.Models.EventEntity", b =>
                 {
+                    b.Navigation("PaymentOrders");
+
                     b.Navigation("Registrations");
 
                     b.Navigation("SourceBookingRequest");
+
+                    b.Navigation("VotingCampaign");
+                });
+
+            modelBuilder.Entity("EventManagement.Api.Models.PaymentOrder", b =>
+                {
+                    b.Navigation("Registration");
                 });
 
             modelBuilder.Entity("EventManagement.Api.Models.User", b =>
@@ -691,6 +1202,36 @@ namespace EventManagement.Api.Data.Migrations
                     b.Navigation("PasswordResetTokens");
 
                     b.Navigation("Registrations");
+
+                    b.Navigation("Votes");
+
+                    b.Navigation("VotingPaymentOrders");
+                });
+
+            modelBuilder.Entity("EventManagement.Api.Models.VotingCampaign", b =>
+                {
+                    b.Navigation("Categories");
+                });
+
+            modelBuilder.Entity("EventManagement.Api.Models.VotingCategory", b =>
+                {
+                    b.Navigation("Nominees");
+
+                    b.Navigation("PaymentOrders");
+
+                    b.Navigation("Votes");
+                });
+
+            modelBuilder.Entity("EventManagement.Api.Models.VotingNominee", b =>
+                {
+                    b.Navigation("PaymentOrders");
+
+                    b.Navigation("Votes");
+                });
+
+            modelBuilder.Entity("EventManagement.Api.Models.VotingPaymentOrder", b =>
+                {
+                    b.Navigation("Vote");
                 });
 #pragma warning restore 612, 618
         }

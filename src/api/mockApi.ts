@@ -4,28 +4,39 @@ import type {
   BookingRequest,
   BookingRequestInput,
   BookingRequestStatus,
+  CheckInResult,
+  CertificateDownload,
   EmailDeadLetter,
   FailedImageCleanup,
   EventFilters,
   EventInput,
   EventItem,
   EventRegistrant,
+  EventPaymentStatus,
   OrganizerApplication,
   Page,
+  PaymentInitialization,
   Registration,
   ReportsData,
   Role,
   StudentRegistration,
+  Ticket,
   User,
+  VotingCampaign,
+  VotingCampaignInput,
+  VotingPaymentInitialization,
+  VotingPaymentStatus,
 } from '../types'
 import { EVENT_CATEGORIES } from '../types'
 import type { EventManagementApi } from './EventManagementApi'
 import bookingTransitionsContract from '../../contracts/booking-transitions.json'
 
-type StoredEvent = Omit<EventItem, 'registeredCount' | 'imageUrl' | 'isPublished' | 'version'> & {
+type StoredEvent = Omit<EventItem, 'registeredCount' | 'imageUrl' | 'isPublished' | 'version' | 'priceMinor' | 'currency'> & {
   imageUrl?: string | null
   isPublished?: boolean
   version?: number
+  priceMinor?: number
+  currency?: 'GHS'
 }
 type StoredUser = Omit<User, 'imageUrl'> & { imageUrl?: string | null; password: string }
 
@@ -33,6 +44,7 @@ interface MockDatabase {
   users: StoredUser[]
   events: StoredEvent[]
   registrations: Registration[]
+  votingCampaigns: VotingCampaign[]
   organizerApplications: OrganizerApplication[]
   bookingRequests: BookingRequest[]
   emailDeadLetters: EmailDeadLetter[]
@@ -342,6 +354,7 @@ function createSeedDatabase(): MockDatabase {
     users,
     events,
     registrations,
+    votingCampaigns: [],
     organizerApplications,
     bookingRequests,
     emailDeadLetters,
@@ -360,6 +373,7 @@ function getDatabase() {
   const saved = window.localStorage.getItem(DB_KEY)
   if (saved) {
     const database = JSON.parse(saved) as MockDatabase
+    database.votingCampaigns ??= []
     database.organizerApplications ??= []
     database.bookingRequests ??= []
     database.emailDeadLetters ??= []
@@ -419,6 +433,8 @@ function eventWithCount(database: MockDatabase, event: StoredEvent): EventItem {
     imageUrl: event.imageUrl ?? null,
     isPublished: event.isPublished ?? true,
     version: event.version ?? 1,
+    priceMinor: event.priceMinor ?? 0,
+    currency: event.currency ?? 'GHS',
     registeredCount: database.registrations.filter(
       (registration) => registration.eventId === event.id,
     ).length,
@@ -499,6 +515,8 @@ function normalizeEventInput(input: EventInput, requireFutureDate: boolean): Eve
     imageUrl: input.imageUrl ?? null,
     isPublished: input.isPublished ?? true,
     version: input.version,
+    priceMinor: input.priceMinor,
+    currency: input.currency,
   }
 }
 
@@ -675,6 +693,191 @@ export const mockApi: EventManagementApi = {
       attended: false,
     })
     saveDatabase(database)
+  },
+
+  async initializeEventPayment(eventId: string): Promise<PaymentInitialization> {
+    const database = getDatabase()
+    const student = getCurrentUser(database)
+    await this.registerForEvent(eventId, student.id)
+    const reference = `mock_${crypto.randomUUID()}`
+    return {
+      reference,
+      authorizationUrl: `/payment/callback?reference=${reference}`,
+      amountMinor: database.events.find((event) => event.id === eventId)?.priceMinor ?? 0,
+      currency: 'GHS',
+      expiresAt: new Date(Date.now() + 15 * 60_000).toISOString(),
+    }
+  },
+
+  async getPaymentStatus(reference: string): Promise<EventPaymentStatus> {
+    await pause()
+    return {
+      reference,
+      status: 'verified',
+      amountMinor: 0,
+      currency: 'GHS',
+      registrationId: null,
+      expiresAt: new Date().toISOString(),
+    }
+  },
+
+  async getTicket(registrationId: string): Promise<Ticket> {
+    await pause()
+    const database = getDatabase()
+    const student = getCurrentUser(database)
+    const registration = database.registrations.find((item) => item.id === registrationId)
+    if (!registration || registration.studentId !== student.id) {
+      throw new Error('Registration not found.')
+    }
+    const event = database.events.find((item) => item.id === registration.eventId)!
+    return {
+      registrationId,
+      eventId: event.id,
+      eventTitle: event.title,
+      studentName: student.name,
+      token: `mock-ticket:${registrationId}:${event.id}:${student.id}`,
+      expiresAt: new Date(new Date(event.date).getTime() + 86_400_000).toISOString(),
+    }
+  },
+
+  async checkInTicket(eventId: string, token: string): Promise<CheckInResult> {
+    await pause()
+    const database = getDatabase()
+    const parts = token.split(':')
+    const registration = database.registrations.find((item) =>
+      item.id === parts[1] && item.eventId === eventId)
+    if (!registration) throw new Error('The ticket is invalid.')
+    if (registration.attended) throw new Error('This ticket has already been checked in.')
+    registration.attended = true
+    saveDatabase(database)
+    const student = database.users.find((item) => item.id === registration.studentId)!
+    return {
+      registrationId: registration.id,
+      eventId,
+      studentName: student.name,
+      checkedInAt: new Date().toISOString(),
+    }
+  },
+
+  async getCertificate(registrationId: string): Promise<CertificateDownload> {
+    await pause()
+    const database = getDatabase()
+    const student = getCurrentUser(database)
+    const registration = database.registrations.find((item) => item.id === registrationId)
+    if (!registration || registration.studentId !== student.id) {
+      throw new Error('Registration not found.')
+    }
+    const event = database.events.find((item) => item.id === registration.eventId)!
+    if (!registration.attended) {
+      throw new Error('A certificate is available only after attendance has been confirmed.')
+    }
+    if (new Date(event.date).getTime() > Date.now()) {
+      throw new Error('A certificate is available only after the event has ended.')
+    }
+    const now = new Date()
+    return {
+      registrationId,
+      downloadUrl: `data:application/pdf,Mock%20certificate%20for%20${encodeURIComponent(event.title)}`,
+      generatedAt: now.toISOString(),
+      expiresAt: new Date(now.getTime() + 5 * 60_000).toISOString(),
+    }
+  },
+
+  async getVotingCampaign(eventId: string): Promise<VotingCampaign> {
+    await pause()
+    const campaign = getDatabase().votingCampaigns.find((item) => item.eventId === eventId)
+    if (!campaign) throw new Error('Voting campaign not found.')
+    return structuredClone(campaign)
+  },
+
+  async saveVotingCampaign(eventId: string, input: VotingCampaignInput): Promise<VotingCampaign> {
+    await pause()
+    const database = getDatabase()
+    const event = database.events.find((item) => item.id === eventId)
+    if (!event) throw new Error('Event not found.')
+    const now = Date.now()
+    const campaign: VotingCampaign = {
+      id: makeId('voting-campaign'),
+      eventId,
+      eventTitle: event.title,
+      opensAt: input.opensAt,
+      closesAt: input.closesAt,
+      isPublished: input.isPublished,
+      status: !input.isPublished ? 'Draft' : now < new Date(input.opensAt).getTime()
+        ? 'Scheduled' : now >= new Date(input.closesAt).getTime() ? 'Closed' : 'Open',
+      canManage: true,
+      resultsVisible: true,
+      categories: input.categories.map((category) => ({
+        id: makeId('voting-category'),
+        name: category.name,
+        description: category.description || null,
+        mode: category.mode,
+        pricePerVoteMinor: category.mode === 'paid' ? category.pricePerVoteMinor : 0,
+        currency: 'GHS',
+        hasVoted: false,
+        nominees: category.nominees.map((nominee) => ({
+          id: makeId('voting-nominee'),
+          name: nominee.name,
+          description: nominee.description || null,
+          voteCount: 0,
+        })),
+      })),
+    }
+    database.votingCampaigns = database.votingCampaigns.filter((item) => item.eventId !== eventId)
+    database.votingCampaigns.push(campaign)
+    saveDatabase(database)
+    return structuredClone(campaign)
+  },
+
+  async castFreeVote(categoryId: string, nomineeId: string): Promise<void> {
+    await pause()
+    const database = getDatabase()
+    const category = database.votingCampaigns.flatMap((item) => item.categories)
+      .find((item) => item.id === categoryId)
+    if (!category) throw new Error('Voting category not found.')
+    if (category.hasVoted) throw new Error('You have already voted in this category.')
+    const nominee = category.nominees.find((item) => item.id === nomineeId)
+    if (!nominee) throw new Error('Nominee not found.')
+    category.hasVoted = true
+    nominee.voteCount = (nominee.voteCount ?? 0) + 1
+    saveDatabase(database)
+  },
+
+  async initializeVotingPayment(
+    categoryId: string,
+    nomineeId: string,
+    quantity: number,
+  ): Promise<VotingPaymentInitialization> {
+    await pause()
+    const category = getDatabase().votingCampaigns.flatMap((item) => item.categories)
+      .find((item) => item.id === categoryId)
+    if (!category) throw new Error('Voting category not found.')
+    const reference = `vote_${makeId('mock')}`
+    return {
+      reference,
+      authorizationUrl: `/voting/payment/callback?reference=${encodeURIComponent(reference)}`,
+      categoryId,
+      nomineeId,
+      quantity,
+      amountMinor: category.pricePerVoteMinor * quantity,
+      currency: 'GHS',
+      expiresAt: new Date(Date.now() + 15 * 60_000).toISOString(),
+    }
+  },
+
+  async getVotingPaymentStatus(reference: string): Promise<VotingPaymentStatus> {
+    await pause()
+    return {
+      reference,
+      status: 'verified',
+      categoryId: '',
+      nomineeId: '',
+      quantity: 1,
+      amountMinor: 0,
+      currency: 'GHS',
+      voteRecorded: true,
+      expiresAt: new Date().toISOString(),
+    }
   },
 
   async isRegisteredForEvent(eventId: string) {

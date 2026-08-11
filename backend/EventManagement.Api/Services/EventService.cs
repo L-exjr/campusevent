@@ -210,6 +210,8 @@ public sealed class EventService(
             Date = input.Date,
             Location = input.Location,
             Capacity = input.Capacity,
+            PriceMinor = input.PriceMinor,
+            Currency = input.Currency,
             Category = input.Category,
             ImageUrl = image.Url,
             ImageObjectKey = image.ObjectKey,
@@ -258,6 +260,16 @@ public sealed class EventService(
                 StatusCodes.Status409Conflict,
                 $"Capacity cannot be lower than the current {registrationCount} registrations.");
 
+        if ((eventEntity.PriceMinor != input.PriceMinor || eventEntity.Currency != input.Currency) &&
+            (registrationCount > 0 || await dbContext.PaymentOrders.AnyAsync(
+                order => order.EventId == eventId,
+                cancellationToken)))
+        {
+            throw new ApiException(
+                StatusCodes.Status409Conflict,
+                "Price and currency cannot change after registration or payment activity begins.");
+        }
+
         var targetPublished = request.IsPublished ?? eventEntity.IsPublished;
         StateTransitionRules.EnsureEventPublicationTransition(
             eventEntity.IsPublished,
@@ -271,6 +283,8 @@ public sealed class EventService(
         eventEntity.Date = input.Date;
         eventEntity.Location = input.Location;
         eventEntity.Capacity = input.Capacity;
+        eventEntity.PriceMinor = input.PriceMinor;
+        eventEntity.Currency = input.Currency;
         eventEntity.Category = input.Category;
         var image = await imageLifecycleService.ClaimAsync(
             actorId,
@@ -433,6 +447,10 @@ public sealed class EventService(
             throw new ApiException(StatusCodes.Status409Conflict, "Registration has closed for this event.");
         if (!eventEntity.IsPublished)
             throw new ApiException(StatusCodes.Status404NotFound, "Event not found.");
+        if (eventEntity.PriceMinor > 0)
+            throw new ApiException(
+                StatusCodes.Status409Conflict,
+                "This event requires verified payment before registration.");
         if (await dbContext.EventRegistrations.AnyAsync(
             registration => registration.EventId == eventId && registration.StudentId == studentId,
             cancellationToken))
@@ -442,7 +460,13 @@ public sealed class EventService(
         var registrationCount = await dbContext.EventRegistrations.CountAsync(
             registration => registration.EventId == eventId,
             cancellationToken);
-        if (registrationCount >= eventEntity.Capacity)
+        var now = timeProvider.GetUtcNow();
+        var reservedPaymentCount = await dbContext.PaymentOrders.CountAsync(
+            order => order.EventId == eventId &&
+                order.Status == PaymentOrderStatus.Pending &&
+                order.ExpiresAt > now,
+            cancellationToken);
+        if (registrationCount + reservedPaymentCount >= eventEntity.Capacity)
             throw new ApiException(StatusCodes.Status409Conflict, "This event is at capacity.");
 
         var registration = new EventRegistration
@@ -599,7 +623,9 @@ public sealed class EventService(
                     registration.Event.CreatedAt,
                     registration.Event.ImageUrl,
                     registration.Event.IsPublished,
-                    registration.Event.Version)))
+                    registration.Event.Version,
+                    registration.Event.PriceMinor,
+                    registration.Event.Currency)))
             .ToListAsync(cancellationToken);
         return new PaginatedResponse<StudentRegistrationResponse>(
             items, page, pageSize, totalCount, Pagination.TotalPages(totalCount, pageSize));
@@ -620,7 +646,9 @@ public sealed class EventService(
             eventEntity.CreatedAt,
             eventEntity.ImageUrl,
             eventEntity.IsPublished,
-            eventEntity.Version));
+            eventEntity.Version,
+            eventEntity.PriceMinor,
+            eventEntity.Currency));
 
     private static IQueryable<EventEntity> ApplyEventFilters(
         IQueryable<EventEntity> query,
@@ -682,6 +710,12 @@ public sealed class EventService(
         if (category is null)
             throw new ApiException(StatusCodes.Status400BadRequest, "Choose a supported event category.");
 
+        if (request.PriceMinor < 0)
+            throw new ApiException(StatusCodes.Status400BadRequest, "Event price cannot be negative.");
+        var currency = request.Currency.Trim().ToUpperInvariant();
+        if (!string.Equals(currency, "GHS", StringComparison.Ordinal))
+            throw new ApiException(StatusCodes.Status400BadRequest, "Only GHS pricing is currently supported.");
+
         return new NormalizedEventInput(
             title,
             description,
@@ -689,7 +723,9 @@ public sealed class EventService(
             location,
             request.Capacity,
             category,
-            string.IsNullOrWhiteSpace(request.ImageUrl) ? null : request.ImageUrl.Trim());
+            string.IsNullOrWhiteSpace(request.ImageUrl) ? null : request.ImageUrl.Trim(),
+            request.PriceMinor,
+            currency);
     }
 
     private readonly record struct NormalizedEventInput(
@@ -699,5 +735,7 @@ public sealed class EventService(
         string Location,
         int Capacity,
         string Category,
-        string? ImageUrl);
+        string? ImageUrl,
+        long PriceMinor,
+        string Currency);
 }

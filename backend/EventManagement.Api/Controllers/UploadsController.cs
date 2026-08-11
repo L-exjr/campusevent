@@ -82,10 +82,26 @@ public sealed class UploadsController(
         }
         catch (ImageStorageException exception)
         {
-            logger.LogError(exception, "Authenticated image upload to {Bucket} failed.", bucket);
+            logger.LogError(
+                exception,
+                "Authenticated image upload to {Bucket} failed with {FailureKind}.",
+                bucket,
+                exception.Kind);
+            var (statusCode, message) = exception.Kind switch
+            {
+                ImageStorageFailureKind.Configuration => (
+                    StatusCodes.Status503ServiceUnavailable,
+                    "Image storage is not configured. Please contact support."),
+                ImageStorageFailureKind.ProviderRejected => (
+                    StatusCodes.Status502BadGateway,
+                    "Image storage rejected the upload. Please contact support."),
+                _ => (
+                    StatusCodes.Status503ServiceUnavailable,
+                    "Image storage is temporarily unavailable. Please try again.")
+            };
             return StatusCode(
-                StatusCodes.Status502BadGateway,
-                new { error = "Image storage is temporarily unavailable. Please try again." });
+                statusCode,
+                new { error = message });
         }
     }
 

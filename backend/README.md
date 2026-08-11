@@ -15,6 +15,10 @@ ASP.NET Core 10 Web API using Entity Framework Core 10, PostgreSQL through Npgsq
 - Registration confirmations, password resets, and organizer-application decisions are committed to the PostgreSQL email outbox in the same transaction as their domain changes. Message-specific handlers revalidate time-sensitive state, the dispatcher retries provider failures, and stored payloads are cleared after terminal delivery status.
 - Event updates require the `version` returned by the latest event response. Concurrent stale edits receive `409` rather than silently overwriting newer changes.
 - A filtered unique index prevents more than one pending organizer application per Student.
+- Paid events cannot use the free-registration endpoint. Registration is created only after a signed Paystack webhook is independently verified for reference, amount, and currency.
+- Signed QR tickets expire after the event and can be checked in only once by the owning Organizer or an Admin.
+- Free votes are protected by a database unique constraint; paid vote quantities are recorded only after an idempotent verified webhook.
+- Certificates require confirmed attendance and a past event date, are stored once in a private Supabase bucket, and are returned through short-lived signed URLs.
 
 All API failures use:
 
@@ -34,6 +38,15 @@ export Jwt__Audience='EventManagement.Frontend'
 export BootstrapAdmin__Email='admin@cevents.com'
 export BootstrapAdmin__Password='a-strong-initial-password'
 export BootstrapAdmin__Name='System Administrator'
+export PAYSTACK_SECRET_KEY='set-in-the-deployment-secret-store'
+export QR_SIGNING_KEY='replace-with-a-stable-random-key-of-at-least-32-characters'
+export EMAIL_PROVIDER='Gmail'
+export GMAIL_SMTP_USERNAME='account@gmail.com'
+export GMAIL_APP_PASSWORD='google-app-password-not-account-password'
+export GMAIL_SENDER_EMAIL='account@gmail.com'
+export SUPABASE_URL='https://your-project.supabase.co'
+export SUPABASE_SERVICE_ROLE_KEY='set-in-the-deployment-secret-store'
+export CERTIFICATES_BUCKET='certificates'
 ```
 
 For local development, keep the signing key out of tracked settings and store it
@@ -87,6 +100,16 @@ Every list response contains `items`, `page`, `pageSize`, `totalCount`, and `tot
 | PUT | `/api/events/{id}` | Owner Organizer, Admin | Update an event |
 | DELETE | `/api/events/{id}` | Owner Organizer, Admin | Delete an event and its registrations |
 | POST | `/api/events/{id}/register` | Student | Register with duplicate/capacity enforcement |
+| POST | `/api/payments/events/{id}/initialize` | Student | Initialize Paystack checkout for a paid event |
+| GET | `/api/payments/{reference}` | Same Student only | Read server-verified payment status |
+| POST | `/api/payments/webhooks/paystack` | Paystack webhook | Verify booking or voting payment and apply it idempotently |
+| GET | `/api/tickets/{registrationId}` | Same Student only | Create a signed QR ticket token |
+| POST | `/api/events/{id}/check-in` | Owner Organizer, Admin | Validate a signed ticket and record one-time attendance |
+| POST | `/api/certificates/registrations/{registrationId}` | Same Student only | Generate once and return a short-lived certificate URL |
+| GET | `/api/events/{id}/voting` | Public; manager sees live totals | View an event voting campaign |
+| PUT | `/api/events/{id}/voting` | Owner Organizer, Admin | Configure voting dates, categories, nominees, and prices |
+| POST | `/api/voting/categories/{id}/votes` | Student | Cast one database-enforced free vote |
+| POST | `/api/voting/categories/{id}/payments/initialize` | Student | Initialize a 1–100 quantity paid-vote checkout |
 | GET | `/api/events/{id}/registration-status` | Student | Check registration without scanning the Student's history |
 | GET | `/api/events/{id}/registrants?search=&attended=&page=1&pageSize=20` | Owner Organizer, Admin | View paginated, filtered registrants |
 | PUT | `/api/events/{id}/attendance` | Owner Organizer, Admin | Bulk-update attendance |
@@ -205,10 +228,8 @@ CI or environments without local PostgreSQL binaries can point the suite at a de
 EMS_TEST_POSTGRES='Host=localhost;Port=5432;Database=event_management_tests;Username=postgres;Password=...' dotnet test EventManagement.slnx
 ```
 
-## Out of scope
+## Deployment notes
 
-Email notifications are implemented for event registration confirmations,
-Organizer application decisions, and upcoming-event reminders.
+Gmail SMTP requires 2FA and a Google App Password; a standard Gmail account is a scaling risk at roughly 500 messages per day. Keep Mailtrap selected for local sandbox delivery when needed. The private `certificates` bucket must exist before certificate generation is enabled.
 
-Payments, certificates, QR-code attendance, mobile app support, and refresh-token
-issuance remain out of scope.
+Production migrations are intentionally separate from source implementation and must be reviewed before `Database__ApplyMigrations=true` applies them. Native mobile apps and refresh-token issuance remain out of scope.
