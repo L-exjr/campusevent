@@ -7,6 +7,10 @@ public sealed class EventEntity
     public required string Description { get; set; }
     public DateTimeOffset Date { get; set; }
     public required string Location { get; set; }
+    public string Format { get; set; } = "Physical";
+    public string? MeetingUrl { get; set; }
+    public DateTimeOffset? SalesStartsAt { get; set; }
+    public DateTimeOffset? SalesEndsAt { get; set; }
     public int Capacity { get; set; }
     public long PriceMinor { get; set; }
     public string Currency { get; set; } = "GHS";

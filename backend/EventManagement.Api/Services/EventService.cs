@@ -90,7 +90,8 @@ public sealed class EventService(
     IEventAuthorizationService authorizationService,
     IImageLifecycleService imageLifecycleService,
     AdminAuditService auditService,
-    TimeProvider timeProvider) : IEventService
+    TimeProvider timeProvider,
+    IConfiguration configuration) : IEventService
 {
     private static readonly string[] SupportedCategories =
         ["Academic", "Career", "Culture", "Sports", "Technology", "Wellness"];
@@ -196,6 +197,10 @@ public sealed class EventService(
             ?? throw new ApiException(StatusCodes.Status404NotFound, "Creating user not found.");
         if (organizer.Role is not (UserRole.Organizer or UserRole.Admin))
             throw new ApiException(StatusCodes.Status403Forbidden, "Only Organizers or Admins can create events.");
+        if (input.PriceMinor > 0 && !configuration.GetValue("Payments:OrganizerSubaccountsEnabled", false))
+            throw new ApiException(
+                StatusCodes.Status409Conflict,
+                "Paid event creation is unavailable until organizer Paystack settlement accounts are configured.");
         var image = await imageLifecycleService.ClaimAsync(
             actorId,
             ImageUploadKind.Event,
@@ -209,6 +214,10 @@ public sealed class EventService(
             Description = input.Description,
             Date = input.Date,
             Location = input.Location,
+            Format = input.Format,
+            MeetingUrl = input.MeetingUrl,
+            SalesStartsAt = input.SalesStartsAt,
+            SalesEndsAt = input.SalesEndsAt,
             Capacity = input.Capacity,
             PriceMinor = input.PriceMinor,
             Currency = input.Currency,
@@ -278,10 +287,20 @@ public sealed class EventService(
             input.Date,
             timeProvider.GetUtcNow());
 
+        if (eventEntity.PriceMinor <= 0 && input.PriceMinor > 0 &&
+            !configuration.GetValue("Payments:OrganizerSubaccountsEnabled", false))
+            throw new ApiException(
+                StatusCodes.Status409Conflict,
+                "Paid event creation is unavailable until organizer Paystack settlement accounts are configured.");
+
         eventEntity.Title = input.Title;
         eventEntity.Description = input.Description;
         eventEntity.Date = input.Date;
         eventEntity.Location = input.Location;
+        eventEntity.Format = input.Format;
+        eventEntity.MeetingUrl = input.MeetingUrl;
+        eventEntity.SalesStartsAt = input.SalesStartsAt;
+        eventEntity.SalesEndsAt = input.SalesEndsAt;
         eventEntity.Capacity = input.Capacity;
         eventEntity.PriceMinor = input.PriceMinor;
         eventEntity.Currency = input.Currency;
@@ -696,7 +715,14 @@ public sealed class EventService(
     {
         var title = request.Title.Trim();
         var description = request.Description.Trim();
+        var requestedFormat = request.Format.Trim();
+        var format = string.Equals(requestedFormat, "Physical", StringComparison.OrdinalIgnoreCase)
+            ? "Physical"
+            : string.Equals(requestedFormat, "Virtual", StringComparison.OrdinalIgnoreCase)
+                ? "Virtual"
+                : null;
         var location = request.Location.Trim();
+        var meetingUrl = string.IsNullOrWhiteSpace(request.MeetingUrl) ? null : request.MeetingUrl.Trim();
         var requestedCategory = request.Category.Trim();
         var category = SupportedCategories.FirstOrDefault(item =>
             string.Equals(item, requestedCategory, StringComparison.OrdinalIgnoreCase));
@@ -705,13 +731,25 @@ public sealed class EventService(
             throw new ApiException(StatusCodes.Status400BadRequest, "Event titles must contain at least 3 characters.");
         if (description.Length < 10)
             throw new ApiException(StatusCodes.Status400BadRequest, "Event descriptions must contain at least 10 characters.");
-        if (location.Length == 0)
+        if (format is null)
+            throw new ApiException(StatusCodes.Status400BadRequest, "Choose whether the event is physical or virtual.");
+        if (format == "Physical" && location.Length == 0)
             throw new ApiException(StatusCodes.Status400BadRequest, "An event location is required.");
+        if (format == "Virtual" &&
+            (!Uri.TryCreate(meetingUrl, UriKind.Absolute, out var meetingUri) ||
+             (meetingUri.Scheme != Uri.UriSchemeHttps && meetingUri.Scheme != Uri.UriSchemeHttp)))
+            throw new ApiException(StatusCodes.Status400BadRequest, "A valid virtual meeting link is required.");
         if (category is null)
             throw new ApiException(StatusCodes.Status400BadRequest, "Choose a supported event category.");
 
         if (request.PriceMinor < 0)
             throw new ApiException(StatusCodes.Status400BadRequest, "Event price cannot be negative.");
+        if (request.PriceMinor > 0 && (request.SalesStartsAt is null || request.SalesEndsAt is null))
+            throw new ApiException(StatusCodes.Status400BadRequest, "Paid events require a sales start and end time.");
+        if (request.PriceMinor > 0 && request.SalesStartsAt >= request.SalesEndsAt)
+            throw new ApiException(StatusCodes.Status400BadRequest, "Ticket sales must end after they start.");
+        if (request.PriceMinor > 0 && request.SalesEndsAt > request.Date)
+            throw new ApiException(StatusCodes.Status400BadRequest, "Ticket sales must end no later than the event start.");
         var currency = request.Currency.Trim().ToUpperInvariant();
         if (!string.Equals(currency, "GHS", StringComparison.Ordinal))
             throw new ApiException(StatusCodes.Status400BadRequest, "Only GHS pricing is currently supported.");
@@ -720,12 +758,16 @@ public sealed class EventService(
             title,
             description,
             request.Date,
-            location,
+            format == "Physical" ? location : "Online",
             request.Capacity,
             category,
             string.IsNullOrWhiteSpace(request.ImageUrl) ? null : request.ImageUrl.Trim(),
             request.PriceMinor,
-            currency);
+            currency,
+            format,
+            format == "Virtual" ? meetingUrl : null,
+            request.PriceMinor > 0 ? request.SalesStartsAt : null,
+            request.PriceMinor > 0 ? request.SalesEndsAt : null);
     }
 
     private readonly record struct NormalizedEventInput(
@@ -737,5 +779,9 @@ public sealed class EventService(
         string Category,
         string? ImageUrl,
         long PriceMinor,
-        string Currency);
+        string Currency,
+        string Format,
+        string? MeetingUrl,
+        DateTimeOffset? SalesStartsAt,
+        DateTimeOffset? SalesEndsAt);
 }

@@ -59,6 +59,9 @@ public sealed class PaymentService(
                 throw new ApiException(StatusCodes.Status409Conflict, "Registration has closed for this event.");
             if (eventEntity.PriceMinor <= 0)
                 throw new ApiException(StatusCodes.Status409Conflict, "This event does not require payment.");
+            if (eventEntity.SalesStartsAt is null || eventEntity.SalesEndsAt is null ||
+                now < eventEntity.SalesStartsAt || now >= eventEntity.SalesEndsAt)
+                throw new ApiException(StatusCodes.Status409Conflict, "Ticket sales are not currently open for this event.");
             if (await dbContext.EventRegistrations.AnyAsync(
                 registration => registration.EventId == eventId && registration.StudentId == studentId,
                 cancellationToken))

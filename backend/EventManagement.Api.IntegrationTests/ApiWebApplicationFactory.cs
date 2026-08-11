@@ -24,6 +24,7 @@ internal sealed class ApiWebApplicationFactory : WebApplicationFactory<Program>
         SetEnvironment("BootstrapAdmin__Email", string.Empty);
         SetEnvironment("BootstrapAdmin__Password", string.Empty);
         SetEnvironment("QR_SIGNING_KEY", "integration-test-ticket-signing-key-which-is-long-enough");
+        SetEnvironment("Payments__OrganizerSubaccountsEnabled", "true");
     }
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)

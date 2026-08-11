@@ -31,12 +31,16 @@ import { EVENT_CATEGORIES } from '../types'
 import type { EventManagementApi } from './EventManagementApi'
 import bookingTransitionsContract from '../../contracts/booking-transitions.json'
 
-type StoredEvent = Omit<EventItem, 'registeredCount' | 'imageUrl' | 'isPublished' | 'version' | 'priceMinor' | 'currency'> & {
+type StoredEvent = Omit<EventItem, 'registeredCount' | 'imageUrl' | 'isPublished' | 'version' | 'priceMinor' | 'currency' | 'format' | 'meetingUrl' | 'salesStartsAt' | 'salesEndsAt'> & {
   imageUrl?: string | null
   isPublished?: boolean
   version?: number
   priceMinor?: number
   currency?: 'GHS'
+  format?: EventItem['format']
+  meetingUrl?: string | null
+  salesStartsAt?: string | null
+  salesEndsAt?: string | null
 }
 type StoredUser = Omit<User, 'imageUrl'> & { imageUrl?: string | null; password: string }
 
@@ -435,6 +439,10 @@ function eventWithCount(database: MockDatabase, event: StoredEvent): EventItem {
     version: event.version ?? 1,
     priceMinor: event.priceMinor ?? 0,
     currency: event.currency ?? 'GHS',
+    format: event.format ?? 'physical',
+    meetingUrl: event.meetingUrl ?? null,
+    salesStartsAt: event.salesStartsAt ?? null,
+    salesEndsAt: event.salesEndsAt ?? null,
     registeredCount: database.registrations.filter(
       (registration) => registration.eventId === event.id,
     ).length,
@@ -488,6 +496,9 @@ function normalizeEventInput(input: EventInput, requireFutureDate: boolean): Eve
   const title = input.title.trim()
   const description = input.description.trim()
   const location = input.location.trim()
+  const meetingUrl = input.meetingUrl?.trim() || null
+  const salesStartsAt = input.salesStartsAt ? new Date(input.salesStartsAt) : null
+  const salesEndsAt = input.salesEndsAt ? new Date(input.salesEndsAt) : null
   const date = new Date(input.date)
   const category = EVENT_CATEGORIES.find(
     (item) => item.toLowerCase() === input.category.trim().toLowerCase(),
@@ -495,7 +506,10 @@ function normalizeEventInput(input: EventInput, requireFutureDate: boolean): Eve
 
   if (title.length < 3) throw new Error('Event titles must contain at least 3 characters.')
   if (description.length < 10) throw new Error('Event descriptions must contain at least 10 characters.')
-  if (!location) throw new Error('An event location is required.')
+  if (input.format === 'physical' && !location) throw new Error('A physical event venue is required.')
+  if (input.format === 'virtual' && (!meetingUrl || !/^https?:\/\//i.test(meetingUrl))) {
+    throw new Error('A valid virtual meeting link is required.')
+  }
   if (!Number.isFinite(date.getTime())) throw new Error('Enter a valid event date and time.')
   if (requireFutureDate && date.getTime() <= Date.now()) {
     throw new Error('New events must be scheduled in the future.')
@@ -504,6 +518,16 @@ function normalizeEventInput(input: EventInput, requireFutureDate: boolean): Eve
     throw new Error('Event capacity must be between 1 and 100000.')
   }
   if (!category) throw new Error('Choose a supported event category.')
+  if (input.priceMinor > 0 && (!salesStartsAt || !salesEndsAt ||
+      !Number.isFinite(salesStartsAt.getTime()) || !Number.isFinite(salesEndsAt.getTime()))) {
+    throw new Error('Paid events require a sales start and end time.')
+  }
+  if (input.priceMinor > 0 && salesStartsAt! >= salesEndsAt!) {
+    throw new Error('Ticket sales must end after they start.')
+  }
+  if (input.priceMinor > 0 && salesEndsAt! > date) {
+    throw new Error('Ticket sales must end no later than the event start.')
+  }
 
   return {
     title,
@@ -511,7 +535,11 @@ function normalizeEventInput(input: EventInput, requireFutureDate: boolean): Eve
     date: date.toISOString(),
     capacity: input.capacity,
     category,
-    location,
+    location: input.format === 'virtual' ? 'Online' : location,
+    format: input.format,
+    meetingUrl: input.format === 'virtual' ? meetingUrl : null,
+    salesStartsAt: input.priceMinor > 0 ? salesStartsAt!.toISOString() : null,
+    salesEndsAt: input.priceMinor > 0 ? salesEndsAt!.toISOString() : null,
     imageUrl: input.imageUrl ?? null,
     isPublished: input.isPublished ?? true,
     version: input.version,

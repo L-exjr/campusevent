@@ -45,5 +45,9 @@ public static class DtoMappings
         eventEntity.IsPublished,
         eventEntity.Version,
         eventEntity.PriceMinor,
-        eventEntity.Currency);
+        eventEntity.Currency,
+        eventEntity.Format,
+        eventEntity.MeetingUrl,
+        eventEntity.SalesStartsAt,
+        eventEntity.SalesEndsAt);
 }

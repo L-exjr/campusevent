@@ -68,6 +68,11 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
             entity.Property(eventEntity => eventEntity.Title).HasMaxLength(200).IsRequired();
             entity.Property(eventEntity => eventEntity.Description).HasMaxLength(5000).IsRequired();
             entity.Property(eventEntity => eventEntity.Location).HasMaxLength(300).IsRequired();
+            entity.Property(eventEntity => eventEntity.Format)
+                .HasMaxLength(20)
+                .HasDefaultValue("Physical")
+                .IsRequired();
+            entity.Property(eventEntity => eventEntity.MeetingUrl).HasMaxLength(2048);
             entity.Property(eventEntity => eventEntity.Category).HasMaxLength(100).IsRequired();
             entity.Property(eventEntity => eventEntity.Currency)
                 .HasMaxLength(3)

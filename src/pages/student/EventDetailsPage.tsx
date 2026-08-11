@@ -13,7 +13,7 @@ import LoadingState from '../../components/shared/LoadingState'
 import LinkButton from '../../components/shared/LinkButton'
 import { useApiResource } from '../../hooks/useApiResource'
 import { useAuth } from '../../hooks/useAuth'
-import { formatDate, formatTime } from '../../utils/formatters'
+import { formatDate, formatDateTime, formatTime } from '../../utils/formatters'
 import { DEFAULT_EVENT_IMAGE } from '../../api/imageStorage'
 
 export default function EventDetailsPage() {
@@ -45,21 +45,33 @@ export default function EventDetailsPage() {
 
   useEffect(() => {
     if (!data?.event.date) return
-    const remaining = new Date(data.event.date).getTime() - currentTime
-    if (remaining <= 0) return
+    const nextBoundary = [data.event.salesStartsAt, data.event.salesEndsAt, data.event.date]
+      .filter((value): value is string => Boolean(value))
+      .map((value) => new Date(value).getTime())
+      .filter((value) => value > currentTime)
+      .sort((left, right) => left - right)[0]
+    if (!nextBoundary) return
+    const remaining = nextBoundary - currentTime
     const timeout = window.setTimeout(
       () => setCurrentTime(Date.now()),
       Math.min(remaining + 1, 2_147_483_647),
     )
     return () => window.clearTimeout(timeout)
-  }, [currentTime, data?.event.date])
+  }, [currentTime, data?.event.date, data?.event.salesEndsAt, data?.event.salesStartsAt])
 
   if (loading) return <LoadingState label="Loading event details" />
   if (error || !data) return <ErrorState message={error ?? 'No event returned.'} onRetry={() => void reload()} />
 
   const isRegistered = data.isRegistered
   const isFull = data.event.registeredCount >= data.event.capacity
-  const registrationClosed = new Date(data.event.date).getTime() <= currentTime
+  const eventStarted = new Date(data.event.date).getTime() <= currentTime
+  const salesNotOpen = data.event.priceMinor > 0 && Boolean(
+    data.event.salesStartsAt && new Date(data.event.salesStartsAt).getTime() > currentTime,
+  )
+  const salesEnded = data.event.priceMinor > 0 && Boolean(
+    data.event.salesEndsAt && new Date(data.event.salesEndsAt).getTime() <= currentTime,
+  )
+  const registrationClosed = eventStarted || salesEnded
   const spotsLeft = Math.max(data.event.capacity - data.event.registeredCount, 0)
   const fill = Math.min((data.event.registeredCount / data.event.capacity) * 100, 100)
 
@@ -112,17 +124,25 @@ export default function EventDetailsPage() {
                   <small>{formatTime(data.event.date)}</small>
                 </Col>
                 <Col sm={6}>
-                  <span className="detail-facts__label">Location</span>
+                  <span className="detail-facts__label">{data.event.format === 'virtual' ? 'Online' : 'Location'}</span>
                   <strong>{data.event.location}</strong>
-                  <small>Campus venue</small>
-                  <a
+                  <small>{data.event.format === 'virtual' ? 'Virtual event' : 'Campus venue'}</small>
+                  {data.event.format === 'physical' && <a
                     href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(data.event.location)}`}
                     target="_blank"
                     rel="noreferrer"
                     className="small d-block mt-2"
                   >
                     Open maps and directions ↗
-                  </a>
+                  </a>}
+                  {data.event.format === 'virtual' && data.event.meetingUrl && isRegistered && <a
+                    href={data.event.meetingUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="small d-block mt-2"
+                  >
+                    Join virtual meeting ↗
+                  </a>}
                 </Col>
                 <Col sm={6}>
                   <span className="detail-facts__label">Organizer</span>
@@ -143,7 +163,7 @@ export default function EventDetailsPage() {
             <Card.Body className="p-4">
               <p className="eyebrow mb-2">Registration</p>
               <h2 className="h4 mb-3">
-                {registrationClosed ? 'Registration closed' : 'Reserve your place'}
+                {salesNotOpen ? 'Ticket sales not open' : registrationClosed ? 'Registration closed' : 'Reserve your place'}
               </h2>
               <div className="d-flex justify-content-between mb-2">
                 <span className="text-secondary">Spots filled</span>
@@ -151,13 +171,19 @@ export default function EventDetailsPage() {
               </div>
               <ProgressBar now={fill} className="capacity-progress mb-3" />
               <p className="small text-secondary">
-                {registrationClosed
-                  ? 'This event has already started or ended.'
+                {salesNotOpen
+                  ? `Ticket sales open ${formatDateTime(data.event.salesStartsAt!)}.`
+                  : registrationClosed
+                  ? salesEnded && !eventStarted ? 'The ticket sales window has ended.' : 'This event has already started or ended.'
                   : isFull
                     ? 'This event has reached capacity.'
                     : `${spotsLeft} ${spotsLeft === 1 ? 'place remains' : 'places remain'}.`}
               </p>
-              {registrationClosed ? (
+              {salesNotOpen ? (
+                <Button size="lg" className="w-100" disabled>
+                  Sales not open
+                </Button>
+              ) : registrationClosed ? (
                 <Button size="lg" className="w-100" disabled>
                   Registration closed
                 </Button>

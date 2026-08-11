@@ -56,6 +56,10 @@ stored in this repository.
 | `SUPABASE_SERVICE_ROLE_KEY` | Server-only Supabase service-role key. Never use a `VITE_*` name or expose it to the browser. |
 | `PAYSTACK_SECRET_KEY` | Server-only Paystack key. Production requires `sk_live_`; staging requires its own `sk_test_` key. |
 | `PAYMENTS_PENDING_MINUTES` | Optional payment-reservation lifetime; defaults to 15 and is clamped to 5–60 minutes. |
+| `Payments__OrganizerSubaccountsEnabled` | Keep `false` until every paid organizer is routed to a verified Paystack subaccount. Paid-event creation is rejected while false. |
+| `Payments__PaystackGhanaProcessingFeeBasisPoints` | Current Ghana processing-fee disclosure; tracked default is `195` (1.95%). Re-verify against Paystack before changing. |
+| `Payments__PlatformFeeBasisPoints` | Project platform fee; tracked default is `0`. Changing this is a business-policy decision. |
+| `Payments__SettlementSchedule` | Organizer-facing settlement disclosure; tracked default is `AutomaticNextWorkingDay`, matching Paystack Ghana's current standard settlement schedule. |
 | `QR_SIGNING_KEY` | Stable random secret of at least 32 characters. Rotation invalidates every outstanding QR ticket and requires a re-issue plan. |
 | `CERTIFICATES_BUCKET` | Private Supabase bucket for attendee certificate PDFs; use `certificates`. |
 | `CERTIFICATE_SIGNED_URL_MINUTES` | Signed certificate URL lifetime; use 60. |
@@ -150,18 +154,21 @@ The production GitHub job runs `vercel pull --environment=production`,
 `VERCEL_TOKEN`, `VERCEL_ORG_ID`, and `VERCEL_PROJECT_ID` only in GitHub Actions
 Secrets.
 
-### Preview tradeoff
+### Preview and staging isolation
 
-Hosted PR preview deployments are intentionally disabled. The CD constraint says
-deployments must never run for pull requests or feature branches, while Vercel's
-native Git integration would deploy independently of this workflow and could
-bypass its test gates. Pull requests still run the exact Vite production build
-in `frontend-tests`.
+Manual Vercel Preview deployments use the separate Railway `staging` environment
+and its separate PostgreSQL database. Vercel Preview scope must set
+`VITE_API_BASE_URL=https://ems-api-staging.up.railway.app/api`; Production scope
+continues to use the production API. Each preview's exact origin must be added to
+staging CORS and `Frontend__BaseUrl` before testing it. Never point previews at
+production and never add wildcard Vercel preview origins.
 
-If hosted previews are introduced later, create a separate Railway staging API
-and database, configure Vercel Preview variables with that API URL, and add its
-stable origin to staging CORS. Do not point previews at production and do not add
-wildcard Vercel preview origins.
+Automatic PR/feature-branch deployment remains disabled, so a preview is an
+intentional release-candidate action after local checks. Keep
+`DemoData__Enabled=false` except for a deliberate, temporary staging seed, and
+remove `DemoData__Password` immediately after the test. Staging paid-lifecycle
+testing requires a dedicated `sk_test_` Paystack key; never copy the production
+live key into staging.
 
 ## First deployment and verification
 

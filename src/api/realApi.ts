@@ -61,6 +61,10 @@ interface ApiEvent {
   description: string
   date: string
   location: string
+  format: 'Physical' | 'Virtual'
+  meetingUrl: string | null
+  salesStartsAt: string | null
+  salesEndsAt: string | null
   capacity: number
   category: string
   organizerId: string
@@ -176,6 +180,10 @@ function mapEvent(event: ApiEvent): EventItem {
     capacity: event.capacity,
     category: event.category as EventItem['category'],
     location: event.location,
+    format: event.format.toLowerCase() as EventItem['format'],
+    meetingUrl: event.meetingUrl,
+    salesStartsAt: event.salesStartsAt,
+    salesEndsAt: event.salesEndsAt,
     organizerId: event.organizerId,
     organizerName: event.organizerName,
     createdAt: event.createdAt,
