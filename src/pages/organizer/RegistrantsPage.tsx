@@ -82,7 +82,7 @@ export default function RegistrantsPage() {
           <Card className="filter-card border-0 mb-4">
             <Card.Body>
               <Row className="g-3 align-items-end">
-                <Col md={7}>
+                <Col md={6}>
                   <Form.Group controlId="registrant-search">
                     <Form.Label>Search registrants</Form.Label>
                     <Form.Control
@@ -105,10 +105,10 @@ export default function RegistrantsPage() {
                     </Form.Select>
                   </Form.Group>
                 </Col>
-                <Col md={1}>
+                <Col md={2}>
                   <Button
                     variant="light"
-                    className="w-100"
+                    className="w-100 text-nowrap"
                     disabled={!search && !attendance}
                     onClick={clearFilters}
                   >

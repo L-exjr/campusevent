@@ -10,15 +10,18 @@ interface PasswordInputProps {
   autoComplete: string
   minLength?: number
   required?: boolean
+  isInvalid?: boolean
+  invalidFeedback?: string
 }
 
 export default function PasswordInput({
   id, value, onChange, autoComplete, minLength, required = true,
+  isInvalid = false, invalidFeedback,
 }: PasswordInputProps) {
   const [visible, setVisible] = useState(false)
   const label = visible ? 'Hide password' : 'Show password'
   return (
-    <InputGroup>
+    <InputGroup hasValidation>
       <Form.Control
         id={id}
         type={visible ? 'text' : 'password'}
@@ -26,6 +29,7 @@ export default function PasswordInput({
         minLength={minLength}
         autoComplete={autoComplete}
         value={value}
+        isInvalid={isInvalid}
         onChange={(event) => onChange(event.target.value)}
       />
       <Button
@@ -41,6 +45,9 @@ export default function PasswordInput({
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M3 12s3.5-8 9-8 9 8 9 8-3.5 8-9 8-9-8-9-8Z"/><circle cx="12" cy="12" r="3"/></svg>
         )}
       </Button>
+      {invalidFeedback && (
+        <Form.Control.Feedback type="invalid">{invalidFeedback}</Form.Control.Feedback>
+      )}
     </InputGroup>
   )
 }

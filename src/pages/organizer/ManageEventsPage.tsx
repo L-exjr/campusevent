@@ -1,5 +1,4 @@
 import { useCallback, useState } from 'react'
-import Alert from 'react-bootstrap/Alert'
 import Button from 'react-bootstrap/Button'
 import Modal from 'react-bootstrap/Modal'
 import { api } from '../../api'
@@ -10,6 +9,7 @@ import ConfirmModal from '../../components/shared/ConfirmModal'
 import EmptyState from '../../components/shared/EmptyState'
 import ErrorState from '../../components/shared/ErrorState'
 import LoadingState from '../../components/shared/LoadingState'
+import NotificationToast from '../../components/shared/NotificationToast'
 import PageHeader from '../../components/shared/PageHeader'
 import PaginationControls from '../../components/shared/PaginationControls'
 import { useApiResource } from '../../hooks/useApiResource'
@@ -84,7 +84,7 @@ export default function ManageEventsPage() {
         description="Create events, update details, review registrants, and record attendance."
         action={<Button size="lg" onClick={openCreate}>+ Create event</Button>}
       />
-      {notice && <Alert variant="success" dismissible onClose={() => setNotice(null)}>{notice}</Alert>}
+      <NotificationToast message={notice} onClose={() => setNotice(null)} />
       {loading ? (
         <LoadingState label="Loading your events" />
       ) : error ? (

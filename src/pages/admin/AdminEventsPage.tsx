@@ -15,6 +15,7 @@ import ConfirmModal from '../../components/shared/ConfirmModal'
 import EmptyState from '../../components/shared/EmptyState'
 import ErrorState from '../../components/shared/ErrorState'
 import LoadingState from '../../components/shared/LoadingState'
+import NotificationToast from '../../components/shared/NotificationToast'
 import PageHeader from '../../components/shared/PageHeader'
 import PaginationControls from '../../components/shared/PaginationControls'
 import { useApiResource } from '../../hooks/useApiResource'
@@ -113,12 +114,12 @@ export default function AdminEventsPage() {
         description="Create events and review, correct, or remove any event in the system."
         action={<Button size="lg" onClick={openCreate}>+ Create event</Button>}
       />
-      {notice && <Alert variant="success" dismissible onClose={() => setNotice(null)}>{notice}</Alert>}
+      <NotificationToast message={notice} onClose={() => setNotice(null)} />
       {actionError && !editorOpen && <Alert variant="danger" dismissible onClose={() => setActionError(null)}>{actionError}</Alert>}
       <Card className="filter-card border-0 mb-4">
         <Card.Body>
           <Row className="g-3 align-items-end">
-            <Col md={7}>
+            <Col md={6}>
               <Form.Group controlId="admin-event-search">
                 <Form.Label>Search events</Form.Label>
                 <Form.Control value={search} onChange={(event) => { setSearch(event.target.value); setPage(1) }} placeholder="Event title or organizer" />
@@ -133,8 +134,8 @@ export default function AdminEventsPage() {
                 </Form.Select>
               </Form.Group>
             </Col>
-            <Col md={1}>
-              <Button variant="light" className="w-100" onClick={() => { setSearch(''); setCategory(''); setPage(1) }}>Reset</Button>
+            <Col md={2}>
+              <Button variant="light" className="w-100 text-nowrap" onClick={() => { setSearch(''); setCategory(''); setPage(1) }}>Reset</Button>
             </Col>
           </Row>
         </Card.Body>

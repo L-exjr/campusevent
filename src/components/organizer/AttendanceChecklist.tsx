@@ -5,6 +5,7 @@ import Form from 'react-bootstrap/Form'
 import Table from 'react-bootstrap/Table'
 import { api } from '../../api'
 import type { EventRegistrant } from '../../types'
+import NotificationToast from '../shared/NotificationToast'
 
 interface AttendanceChecklistProps {
   eventId: string
@@ -46,7 +47,7 @@ export default function AttendanceChecklist({
 
   return (
     <>
-      {saved && <Alert variant="success">Attendance saved successfully.</Alert>}
+      <NotificationToast message={saved ? 'Attendance saved successfully.' : null} onClose={() => setSaved(false)} />
       {error && <Alert variant="danger">{error}</Alert>}
       <div className="d-flex flex-column flex-sm-row justify-content-between align-items-sm-center gap-3 mb-3">
         <p className="text-secondary mb-0">
