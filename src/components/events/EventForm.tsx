@@ -120,12 +120,16 @@ export default function EventForm({
       salesStartsAt: values.salesStartsAt || null,
       salesEndsAt: values.salesEndsAt || null,
     }
-    const hasValidVenue = normalizedValues.format === 'physical'
-      ? normalizedValues.location.length > 0
-      : Boolean(
+    const hasValidLocation = normalizedValues.location.length > 0
+    const hasValidMeetingUrl = Boolean(
           normalizedValues.meetingUrl &&
           /^https?:\/\//i.test(normalizedValues.meetingUrl),
         )
+    const hasValidVenue = normalizedValues.format === 'physical'
+      ? hasValidLocation
+      : normalizedValues.format === 'virtual'
+        ? hasValidMeetingUrl
+        : hasValidLocation && hasValidMeetingUrl
     const hasValidTrimmedText =
       normalizedValues.title.length >= 3 &&
       normalizedValues.description.length >= 10 &&
@@ -285,17 +289,16 @@ export default function EventForm({
               onChange={(eventValue) => setValues({
                 ...values,
                 format: eventValue.target.value as EventInput['format'],
-                location: eventValue.target.value === 'virtual' ? 'Online' : '',
-                meetingUrl: eventValue.target.value === 'physical' ? null : values.meetingUrl,
               })}
             >
               <option value="physical">Physical venue</option>
               <option value="virtual">Virtual meeting</option>
+              <option value="hybrid">Hybrid venue and virtual meeting</option>
             </Form.Select>
           </Form.Group>
         </Col>
-        <Col md={8}>
-          {values.format === 'physical' ? <Form.Group controlId="event-location">
+        {values.format !== 'virtual' && <Col md={values.format === 'hybrid' ? 6 : 8}>
+          <Form.Group controlId="event-location">
             <Form.Label>Venue</Form.Label>
             <Form.Control
               required
@@ -306,7 +309,10 @@ export default function EventForm({
               placeholder="Building, room, or full venue address"
             />
             <Form.Control.Feedback type="invalid">Enter the physical venue.</Form.Control.Feedback>
-          </Form.Group> : <Form.Group controlId="event-meeting-url">
+          </Form.Group>
+        </Col>}
+        {values.format !== 'physical' && <Col md={values.format === 'hybrid' ? 6 : 8}>
+          <Form.Group controlId="event-meeting-url">
             <Form.Label>Virtual meeting link</Form.Label>
             <Form.Control
               type="url"
@@ -320,8 +326,8 @@ export default function EventForm({
               placeholder="https://meet.example.com/your-event"
             />
             <Form.Control.Feedback type="invalid">Enter a valid meeting link beginning with http:// or https://.</Form.Control.Feedback>
-          </Form.Group>}
-        </Col>
+          </Form.Group>
+        </Col>}
         <Col md={4}>
           <Form.Group controlId="event-capacity">
             <Form.Label>Capacity</Form.Label>

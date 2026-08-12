@@ -126,8 +126,8 @@ export default function EventDetailsPage() {
                 <Col sm={6}>
                   <span className="detail-facts__label">{data.event.format === 'virtual' ? 'Online' : 'Location'}</span>
                   <strong>{data.event.location}</strong>
-                  <small>{data.event.format === 'virtual' ? 'Virtual event' : 'Campus venue'}</small>
-                  {data.event.format === 'physical' && <a
+                  <small>{data.event.format === 'virtual' ? 'Virtual event' : data.event.format === 'hybrid' ? 'Hybrid event' : 'Campus venue'}</small>
+                  {data.event.format !== 'virtual' && <a
                     href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(data.event.location)}`}
                     target="_blank"
                     rel="noreferrer"
@@ -135,7 +135,7 @@ export default function EventDetailsPage() {
                   >
                     Open maps and directions ↗
                   </a>}
-                  {data.event.format === 'virtual' && data.event.meetingUrl && isRegistered && <a
+                  {data.event.format !== 'physical' && data.event.meetingUrl && isRegistered && <a
                     href={data.event.meetingUrl}
                     target="_blank"
                     rel="noreferrer"

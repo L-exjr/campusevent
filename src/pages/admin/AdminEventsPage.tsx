@@ -10,6 +10,7 @@ import { api } from '../../api'
 import AdminEventTable from '../../components/admin/AdminEventTable'
 import TransferEventOwnershipModal from '../../components/admin/TransferEventOwnershipModal'
 import EventForm from '../../components/events/EventForm'
+import EventCreationWizard from '../../components/events/create-event/EventCreationWizard'
 import ConfirmModal from '../../components/shared/ConfirmModal'
 import EmptyState from '../../components/shared/EmptyState'
 import ErrorState from '../../components/shared/ErrorState'
@@ -175,15 +176,25 @@ export default function AdminEventsPage() {
           </Modal.Title>
         </Modal.Header>
         <Modal.Body className="p-4">
-          <EventForm
-            key={editing?.id ?? 'admin-new-event'}
-            event={editing}
-            busy={busy}
-            error={actionError}
-            submitLabel={editing ? 'Save changes' : 'Create event'}
-            onSubmit={saveEvent}
-            onCancel={() => setEditorOpen(false)}
-          />
+          {editing ? (
+            <EventForm
+              key={editing.id}
+              event={editing}
+              busy={busy}
+              error={actionError}
+              submitLabel="Save changes"
+              onSubmit={saveEvent}
+              onCancel={() => setEditorOpen(false)}
+            />
+          ) : (
+            <EventCreationWizard
+              key="admin-new-event"
+              busy={busy}
+              error={actionError}
+              onSubmit={saveEvent}
+              onCancel={() => setEditorOpen(false)}
+            />
+          )}
         </Modal.Body>
       </Modal>
       <ConfirmModal

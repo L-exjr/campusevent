@@ -4,6 +4,7 @@ import Button from 'react-bootstrap/Button'
 import Modal from 'react-bootstrap/Modal'
 import { api } from '../../api'
 import EventForm from '../../components/events/EventForm'
+import EventCreationWizard from '../../components/events/create-event/EventCreationWizard'
 import OrganizerEventTable from '../../components/organizer/OrganizerEventTable'
 import ConfirmModal from '../../components/shared/ConfirmModal'
 import EmptyState from '../../components/shared/EmptyState'
@@ -111,15 +112,25 @@ export default function ManageEventsPage() {
           <Modal.Title as="h2" className="h4">{editing ? 'Edit event' : 'Create an event'}</Modal.Title>
         </Modal.Header>
         <Modal.Body className="p-4">
-          <EventForm
-            key={editing?.id ?? 'new-event'}
-            event={editing}
-            busy={busy}
-            error={actionError}
-            submitLabel={editing ? 'Save changes' : 'Create event'}
-            onSubmit={saveEvent}
-            onCancel={() => setEditorOpen(false)}
-          />
+          {editing ? (
+            <EventForm
+              key={editing.id}
+              event={editing}
+              busy={busy}
+              error={actionError}
+              submitLabel="Save changes"
+              onSubmit={saveEvent}
+              onCancel={() => setEditorOpen(false)}
+            />
+          ) : (
+            <EventCreationWizard
+              key="new-event"
+              busy={busy}
+              error={actionError}
+              onSubmit={saveEvent}
+              onCancel={() => setEditorOpen(false)}
+            />
+          )}
         </Modal.Body>
       </Modal>
 
