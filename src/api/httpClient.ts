@@ -3,8 +3,13 @@ const API_BASE_URL = (
   configuredApiBaseUrl || (import.meta.env.DEV ? 'http://localhost:5080/api' : '')
 ).replace(/\/$/, '')
 
-if (!API_BASE_URL) {
-  throw new Error('VITE_API_BASE_URL must be configured for production builds.')
+function apiBaseUrl() {
+  if (API_BASE_URL) return API_BASE_URL
+
+  // Keep configuration failures scoped to API-backed features. Throwing while
+  // this module loads prevents React from mounting and turns a recoverable
+  // deployment mistake into a completely blank page.
+  throw new Error('The API is not configured for this deployment.')
 }
 
 const SESSION_KEY = 'campus_events_api_session'
@@ -48,7 +53,7 @@ export async function apiRequest<T>(path: string, options: RequestInit = {}): Pr
 
   let response: Response
   try {
-    response = await fetch(`${API_BASE_URL}${path}`, { ...options, headers })
+    response = await fetch(`${apiBaseUrl()}${path}`, { ...options, headers })
   } catch (caught) {
     if (caught instanceof Error && caught.name === 'AbortError') throw caught
     throw new Error(
@@ -79,7 +84,7 @@ export async function apiDownload(path: string): Promise<Blob> {
   const headers = new Headers()
   const token = readStoredSession()?.token
   if (token) headers.set('Authorization', `Bearer ${token}`)
-  const response = await fetch(`${API_BASE_URL}${path}`, { headers })
+  const response = await fetch(`${apiBaseUrl()}${path}`, { headers })
   if (!response.ok) {
     const body = await response.json().catch(() => null) as ApiErrorBody | null
     if (response.status === 401 && token) {
