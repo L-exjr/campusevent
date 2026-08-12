@@ -9,6 +9,7 @@ import QrTicketScanner from '../../components/organizer/QrTicketScanner'
 import EmptyState from '../../components/shared/EmptyState'
 import ErrorState from '../../components/shared/ErrorState'
 import LoadingState from '../../components/shared/LoadingState'
+import NotificationToast from '../../components/shared/NotificationToast'
 import LinkButton from '../../components/shared/LinkButton'
 import PageHeader from '../../components/shared/PageHeader'
 import PaginationControls from '../../components/shared/PaginationControls'
@@ -60,7 +61,7 @@ export default function AttendancePage() {
         description="Check each student who attended, then save the completed list."
         action={<Badge bg="success" className="summary-badge">{data.registrants.items.filter((item) => item.attended).length} present on this page</Badge>}
       />
-      {scanNotice && <Alert variant="success" dismissible onClose={() => setScanNotice(null)}>{scanNotice}</Alert>}
+      <NotificationToast message={scanNotice} onClose={() => setScanNotice(null)} title="Check-in complete" />
       {scanError && <Alert variant="danger" dismissible onClose={() => setScanError(null)}>{scanError}</Alert>}
       <Card className="detail-card border-0 mb-4">
         <Card.Body className="p-3 p-md-4">

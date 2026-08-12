@@ -12,7 +12,7 @@ export type EventCategory =
   | 'Technology'
   | 'Wellness'
 
-export type EventFormat = 'physical' | 'virtual'
+export type EventFormat = 'physical' | 'virtual' | 'hybrid'
 
 export interface User {
   id: string

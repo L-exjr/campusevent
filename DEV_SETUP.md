@@ -1,165 +1,135 @@
 # Local development setup
 
-## Supabase Storage backend
+Start with the root [README.md](README.md) for PostgreSQL, API, and frontend
+startup. This document covers optional providers and development-only behavior.
 
-The workspace uses the already-created Supabase project only for Storage. The
-application continues to use its ASP.NET Core JWTs and EF Core/PostgreSQL database.
+## Configuration boundaries
 
-1. Sign in to the [Supabase dashboard](https://supabase.com/dashboard), select the
-   correct organization, and open the existing Event Management System project.
-   Do not click **New project** for this setup.
-2. Copy the Project URL, then obtain the server-only service-role key from
-   **Settings → API Keys**.
-3. Store both with .NET User Secrets from `backend/EventManagement.Api`:
+- Put browser-safe values such as `VITE_API_BASE_URL` and
+  `VITE_GOOGLE_CLIENT_ID` in the ignored root `.env.local`.
+- Put backend secrets in .NET User Secrets from `backend/EventManagement.Api`.
+- ASP.NET Core does not load the root Vite `.env.local` file.
+- Never give a secret a `VITE_*` prefix; Vite embeds those values in browser code.
 
-   ```bash
-   dotnet user-secrets set "Supabase:Url" "https://your-project-ref.supabase.co"
-   dotnet user-secrets set "Supabase:ServiceRoleKey" "your-service-role-key"
-   ```
+The root `.env.example` lists both frontend and deployment environment names, but
+it is a reference inventory rather than a file that should be copied wholesale
+into one process.
 
-Never put the service-role key in `.env`, a `VITE_*` variable, or frontend code.
-The browser uploads multipart data to the authenticated ASP.NET API. See
-[SUPABASE_SETUP.md](SUPABASE_SETUP.md) for bucket and policy setup.
+## Supabase Storage
 
-## Mailtrap free-tier Sending API
-
-Create a Mailtrap Sending API token and use the demo sender shown in Mailtrap's
-integration page. Store both locally with User Secrets:
+The application uses Supabase only for object storage. Authentication and domain
+data remain in the ASP.NET Core API and PostgreSQL.
 
 ```bash
-dotnet user-secrets set "Email:Api:Token" "your-mailtrap-api-token"
-dotnet user-secrets set "Email:Api:SenderEmail" "hello@demomailtrap.co"
+cd backend/EventManagement.Api
+dotnet user-secrets set "Supabase:Url" "https://your-project-ref.supabase.co"
+dotnet user-secrets set "Supabase:ServiceRoleKey" "your-service-role-key"
 ```
 
-The free demo domain does not require DNS verification, but it can send only to
-the email address registered on the Mailtrap account. Use that address for the
-school demonstration. Sending to arbitrary users requires adding and verifying
-a custom domain later. The free plan is limited to 150 messages per day and up
-to 3,500 per month. See [SECURITY.md](SECURITY.md#transactional-email-credentials).
+The key must be the backend service-role key, not the public anon/publishable key.
+See [SUPABASE_SETUP.md](SUPABASE_SETUP.md) before testing uploads or certificates.
 
-The reminder worker checks hourly by default and sends once when a registered
-event is within 24 hours. The non-secret cadence can be changed with
-`Email:Reminders:LeadTimeHours` and `Email:Reminders:CheckIntervalMinutes`.
+## Email providers
+
+The outbox supports Mailtrap's Sending API and Gmail SMTP. Mailtrap is the default
+for local sandboxing; production currently selects Gmail through
+`EMAIL_PROVIDER=Gmail`.
+
+### Mailtrap
+
+```bash
+cd backend/EventManagement.Api
+dotnet user-secrets set "Email:Provider" "Mailtrap"
+dotnet user-secrets set "Email:Api:Token" "your-mailtrap-api-token"
+dotnet user-secrets set "Email:Api:SenderEmail" "hello@demomailtrap.co"
+dotnet user-secrets set "Email:Api:SenderName" "Campus Events"
+```
+
+Mailtrap's demo-domain recipient restrictions and account quotas can change;
+confirm them in the Mailtrap dashboard instead of relying on hard-coded limits.
+
+### Gmail SMTP
+
+Use a Google App Password from an account with 2-Step Verification enabled. Never
+store the normal account password.
+
+```bash
+cd backend/EventManagement.Api
+dotnet user-secrets set "Email:Provider" "Gmail"
+dotnet user-secrets set "Email:Gmail:Username" "account@gmail.com"
+dotnet user-secrets set "Email:Gmail:AppPassword" "google-app-password"
+dotnet user-secrets set "Email:Gmail:SenderEmail" "account@gmail.com"
+dotnet user-secrets set "Email:Gmail:SenderName" "Campus Events"
+```
+
+The tracked host and port defaults are `smtp.gmail.com` and `587`. The application
+logs a warning as accepted-send volume approaches
+`Email:Gmail:DailyWarningThreshold`; that per-process counter is not a replacement
+for provider-side monitoring.
 
 ## Google sign-in
 
-1. In [Google Cloud Console](https://console.cloud.google.com/apis/credentials),
-   create or select a development project and configure its OAuth consent screen.
-2. Create an **OAuth client ID** with application type **Web application**.
-3. Add `http://localhost:5173` under **Authorized JavaScript origins**. This app uses
-   the Google Identity Services JavaScript callback and does not need a redirect URI.
-4. Put the web client ID in the frontend's ignored `.env`:
+1. Create a Google OAuth client with application type **Web application**.
+2. Add `http://localhost:5173` as an authorized JavaScript origin.
+3. Put the public client ID in `.env.local`:
 
    ```dotenv
    VITE_GOOGLE_CLIENT_ID=your-web-client-id.apps.googleusercontent.com
    ```
 
-5. Configure the same audience for backend verification from
-   `backend/EventManagement.Api`:
+4. Configure the same audience in the backend:
 
    ```bash
+   cd backend/EventManagement.Api
    dotnet user-secrets set "Google:ClientId" "your-web-client-id.apps.googleusercontent.com"
    ```
 
-Restart Vite after changing `.env`. Do not put a Google client secret in the
-frontend. The current ID-token flow does not need one; see [SECURITY.md](SECURITY.md#google-sign-in-configuration)
-for the storage rule if a future server-side authorization-code flow introduces it.
+The current Google Identity Services flow verifies an ID token and does not use a
+client secret or redirect URI. Restart Vite after changing `.env.local`.
 
-## npm audit resolution
+## Paystack and signed tickets
 
-The initial `npm audit` reported two high findings. They were two dependency
-nodes for one vulnerable package family: `react-router-dom@7.11.0` was a direct
-runtime dependency and pulled in the transitive `react-router@7.11.0`.
+The API needs test secrets to exercise paid checkout and QR tickets:
 
-```text
-# npm audit report
-
-react-router  6.0.0 - 7.17.0
-Severity: high
-React Router vulnerable to XSS via Open Redirects - https://github.com/advisories/GHSA-2w69-qvjg-hvjx
-React Router SSR XSS in ScrollRestoration - https://github.com/advisories/GHSA-8v8x-cx79-35w7
-React Router's vendored turbo-stream v2 allows arbitrary constructor invocation via TYPE_ERROR deserialization leading to Unauth RCE - https://github.com/advisories/GHSA-49rj-9fvp-4h2h
-React Router's same-origin redirect with path starting // causes open redirect via protocol-relative URL reinterpretation - https://github.com/advisories/GHSA-2j2x-hqr9-3h42
-React Router vulnerable to XSS in unstable RSC redirect handling via javascript: redirect targets - https://github.com/advisories/GHSA-8646-j5j9-6r62
-React Router has stored XSS via unescaped Location header in prerendered redirect HTML - https://github.com/advisories/GHSA-f22v-gfqf-p8f3
-React Router vulnerable to DoS via unbounded path expansion in __manifest endpoint - https://github.com/advisories/GHSA-8x6r-g9mw-2r78
-React Router vulnerable to Denial of Service via reflected user input in single-fetch - https://github.com/advisories/GHSA-rxv8-25v2-qmq8
-React Router has CSRF issue in Action/Server Action Request Processing - https://github.com/advisories/GHSA-h5cw-625j-3rxh
-React Router: Open redirect via backslash in <Link> and useNavigate (CVE-2025-68470 bypass) - https://github.com/advisories/GHSA-wrjc-x8rr-h8h6
-React Router: Open redirect leading to XSS - https://github.com/advisories/GHSA-jjmj-jmhj-qwj2
-React Router: RSCErrorHandler Missing Protocol Validation (XSS) - https://github.com/advisories/GHSA-h8fp-f39c-q6mh
-React Router: Arbitrary Constructor Injection via deserializeErrors() in React Router SSR Hydration - https://github.com/advisories/GHSA-337j-9hxr-rhxg
-React Router: Unauthenticated Denial of Service via Inefficient Route Matching - https://github.com/advisories/GHSA-chx6-hx7r-mcp5
-fix available via `npm audit fix`
-node_modules/react-router
-  react-router-dom  7.0.0-pre.0 - 7.11.0
-  Depends on vulnerable versions of react-router
-  node_modules/react-router-dom
-
-2 high severity vulnerabilities
-
-To address all issues, run:
-  npm audit fix
+```bash
+cd backend/EventManagement.Api
+dotnet user-secrets set "Payments:Paystack:SecretKey" "sk_test_replace-me"
+dotnet user-secrets set "Tickets:SigningKey" "replace-with-at-least-32-random-characters"
 ```
 
-`npm audit fix --dry-run` showed a same-major update from 7.11.0 to 7.18.2,
-so the non-forced fix was applied. This closes the client-side redirect/XSS
-advisories relevant to this Vite single-page app. No major version was accepted.
+Keep the QR signing key stable; rotating it invalidates outstanding tickets.
+Paid-event creation is rejected while
+`Payments:OrganizerSubaccountsEnabled=false`, which is the tracked safe default.
 
-After that update, the advisory feed exposed a newer issue affecting React Router
-RSC mode. This application does not use SSR, RSC mode, server actions, or React
-Router's server runtime, so that code path is not reachable here. Nevertheless,
-`npm audit` correctly continues to report the installed direct/transitive pair:
+## Development-only seed accounts
 
-```text
-# npm audit report
-
-react-router  7.12.0 - 8.2.0
-Severity: high
-React Router: RSC Mode CSRF Bypass Allows Action Execution Before 400 Response - https://github.com/advisories/GHSA-qwww-vcr4-c8h2
-fix available via `npm audit fix --force`
-Will install react-router-dom@7.11.0, which is a breaking change
-node_modules/react-router
-  react-router-dom  >=7.12.0-pre.0
-  Depends on vulnerable versions of react-router
-  node_modules/react-router-dom
-
-2 high severity vulnerabilities
-
-To address all issues (including breaking changes), run:
-  npm audit fix --force
-```
-
-At the time of this maintenance pass, `react-router-dom@7.18.2` is the latest
-published DOM package and it pins `react-router@7.18.2`; the fixed core router is
-8.3.x. The actual forced dry run proposed downgrading both packages to `7.11.0`,
-which would reintroduce the older redirect/XSS advisory range resolved above:
-
-```text
-npm warn using --force Recommended protections disabled.
-npm warn audit Updating react-router-dom to 7.11.0, which is a SemVer major change.
-change react-router-dom 7.18.2 => 7.11.0
-change react-router 7.18.2 => 7.11.0
-```
-
-Forcing that downgrade or overriding the transitive router with incompatible
-8.3.x code was intentionally not done. Re-run `npm audit` and update both packages
-together when a compatible patched `react-router-dom` is released. Until then,
-the remaining advisory is accepted as a documented, unreachable RSC-only risk in
-this client-rendered Vite application; the earlier reachable findings are fixed.
-
-## Development accounts
-
-Starting the API in the `Development` environment idempotently seeds:
+Running the API with `ASPNETCORE_ENVIRONMENT=Development` idempotently creates:
 
 | Role | Email | Password |
 | --- | --- | --- |
 | Admin | `admin@dev.local` | `Dev-Admin-Password-123!` |
 | Organizer | `organizer@dev.local` | `Dev-Organizer-Password-123!` |
 
-Passwords use the application's `IPasswordHasher`. The Organizer starts with the
-normal Student role and is promoted through `UserService.UpdateRoleAsync`, the same
-role mutation path used by an Admin. Both `Program.cs` and the seed method enforce
-`Development`, and email lookups make repeated starts safe. Credentials are logged
-only when each user is first created and only in Development; no seed credential
-message is emitted on later starts or in Production.
+The Organizer follows the same promotion service used by the application. The
+seed is guarded by the Development environment and does not run in Production.
+
+## Mock frontend mode
+
+Set `VITE_USE_MOCK_API=true` only when running `npm run dev`. Mock mode is removed
+from production builds and does not exercise the .NET API, PostgreSQL, provider
+credentials, migrations, or webhook verification.
+
+## Dependency audits
+
+Run current audits rather than relying on a captured historical report:
+
+```bash
+npm audit
+dotnet list backend/EventManagement.slnx package --vulnerable --include-transitive
+```
+
+CI fails for new high or critical findings. Its narrowly reviewed React Router
+RSC-only exception is encoded in `.github/workflows/ci.yml`; this client-rendered
+Vite application does not enable React Server Components. Reassess the exception
+whenever React Router is updated, and never use `npm audit fix --force` without
+reviewing the proposed dependency changes.

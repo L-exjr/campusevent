@@ -7,6 +7,22 @@ import AuthProvider from '../../../context/AuthProvider'
 import { server } from '../../mocks/server'
 
 describe('LoginPage', () => {
+  it('shows inline feedback before sending an incomplete form', async () => {
+    const user = userEvent.setup()
+    render(
+      <MemoryRouter>
+        <AuthProvider>
+          <LoginPage />
+        </AuthProvider>
+      </MemoryRouter>,
+    )
+
+    await user.click(screen.getByRole('button', { name: 'Sign in' }))
+
+    expect(screen.getByText('Enter a valid email address.')).toBeVisible()
+    expect(screen.getByText('Enter your password.')).toBeVisible()
+  })
+
   it('shows the API failure as an accessible error state', async () => {
     server.use(
       http.post('http://localhost:5080/api/auth/login', () =>

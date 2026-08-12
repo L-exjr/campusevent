@@ -506,9 +506,12 @@ function normalizeEventInput(input: EventInput, requireFutureDate: boolean): Eve
 
   if (title.length < 3) throw new Error('Event titles must contain at least 3 characters.')
   if (description.length < 10) throw new Error('Event descriptions must contain at least 10 characters.')
-  if (input.format === 'physical' && !location) throw new Error('A physical event venue is required.')
-  if (input.format === 'virtual' && (!meetingUrl || !/^https?:\/\//i.test(meetingUrl))) {
-    throw new Error('A valid virtual meeting link is required.')
+  if ((input.format === 'physical' || input.format === 'hybrid') && !location) {
+    throw new Error('An in-person venue is required.')
+  }
+  if ((input.format === 'virtual' || input.format === 'hybrid') &&
+      (!meetingUrl || !/^https?:\/\//i.test(meetingUrl))) {
+    throw new Error('A valid online meeting link is required.')
   }
   if (!Number.isFinite(date.getTime())) throw new Error('Enter a valid event date and time.')
   if (requireFutureDate && date.getTime() <= Date.now()) {
@@ -537,7 +540,7 @@ function normalizeEventInput(input: EventInput, requireFutureDate: boolean): Eve
     category,
     location: input.format === 'virtual' ? 'Online' : location,
     format: input.format,
-    meetingUrl: input.format === 'virtual' ? meetingUrl : null,
+    meetingUrl: input.format === 'physical' ? null : meetingUrl,
     salesStartsAt: input.priceMinor > 0 ? salesStartsAt!.toISOString() : null,
     salesEndsAt: input.priceMinor > 0 ? salesEndsAt!.toISOString() : null,
     imageUrl: input.imageUrl ?? null,

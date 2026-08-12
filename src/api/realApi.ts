@@ -61,7 +61,7 @@ interface ApiEvent {
   description: string
   date: string
   location: string
-  format: 'Physical' | 'Virtual'
+  format: 'Physical' | 'Virtual' | 'Hybrid'
   meetingUrl: string | null
   salesStartsAt: string | null
   salesEndsAt: string | null

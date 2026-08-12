@@ -7,6 +7,72 @@ public sealed class EventsControllerTests(ApiIntegrationFixture fixture)
     : IntegrationTestBase(fixture), IClassFixture<ApiIntegrationFixture>
 {
     [Fact]
+    public async Task Organizer_can_create_and_read_a_hybrid_event()
+    {
+        await ResetAsync();
+        var organizer = await CreateActorAsync("hybrid-owner@example.test", "Organizer");
+        using var client = CreateAuthenticatedClient(organizer.Token);
+        using var create = await client.PostAsJsonAsync(
+            "/api/events",
+            new
+            {
+                title = "Hybrid engineering forum",
+                description = "A forum that attendees can join on campus or online.",
+                date = DateTimeOffset.UtcNow.AddDays(7),
+                location = "Engineering Auditorium",
+                capacity = 200,
+                category = "Technology",
+                format = "Hybrid",
+                meetingUrl = "https://meet.example.test/engineering-forum",
+                priceMinor = 0,
+                currency = "GHS"
+            });
+
+        Assert.Equal(HttpStatusCode.Created, create.StatusCode);
+        var created = await ReadJsonAsync(create);
+        Assert.Equal("Hybrid", created.GetProperty("format").GetString());
+        Assert.Equal("Engineering Auditorium", created.GetProperty("location").GetString());
+        Assert.Equal(
+            "https://meet.example.test/engineering-forum",
+            created.GetProperty("meetingUrl").GetString());
+
+        using var management = await client.GetAsync(
+            $"/api/events/{created.GetProperty("id").GetGuid()}/management");
+        management.EnsureSuccessStatusCode();
+        var stored = await ReadJsonAsync(management);
+        Assert.Equal("Hybrid", stored.GetProperty("format").GetString());
+        Assert.Equal("Engineering Auditorium", stored.GetProperty("location").GetString());
+        Assert.Equal(
+            "https://meet.example.test/engineering-forum",
+            stored.GetProperty("meetingUrl").GetString());
+    }
+
+    [Fact]
+    public async Task Hybrid_event_requires_an_online_meeting_link()
+    {
+        await ResetAsync();
+        var organizer = await CreateActorAsync("hybrid-invalid@example.test", "Organizer");
+        using var client = CreateAuthenticatedClient(organizer.Token);
+
+        using var response = await client.PostAsJsonAsync(
+            "/api/events",
+            new
+            {
+                title = "Incomplete hybrid forum",
+                description = "A hybrid forum without the required online meeting link.",
+                date = DateTimeOffset.UtcNow.AddDays(7),
+                location = "Engineering Auditorium",
+                capacity = 200,
+                category = "Technology",
+                format = "Hybrid",
+                priceMinor = 0,
+                currency = "GHS"
+            });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
     public async Task Admin_can_transfer_event_ownership_to_an_active_organizer()
     {
         await ResetAsync();

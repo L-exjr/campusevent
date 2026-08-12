@@ -5,9 +5,10 @@ interface LinkButtonProps extends Omit<ButtonProps, 'href' | 'onClick'> {
   to: To
   replace?: boolean
   state?: unknown
+  onNavigate?: () => void
 }
 
-export default function LinkButton({ to, replace = false, state, ...props }: LinkButtonProps) {
+export default function LinkButton({ to, replace = false, state, onNavigate, ...props }: LinkButtonProps) {
   const navigate = useNavigate()
-  return <Button {...props} onClick={() => navigate(to, { replace, state })} />
+  return <Button {...props} onClick={() => { onNavigate?.(); navigate(to, { replace, state }) }} />
 }

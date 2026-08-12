@@ -57,9 +57,9 @@ stored in this repository.
 | `PAYSTACK_SECRET_KEY` | Server-only Paystack key. Production requires `sk_live_`; staging requires its own `sk_test_` key. |
 | `PAYMENTS_PENDING_MINUTES` | Optional payment-reservation lifetime; defaults to 15 and is clamped to 5–60 minutes. |
 | `Payments__OrganizerSubaccountsEnabled` | Keep `false` until every paid organizer is routed to a verified Paystack subaccount. Paid-event creation is rejected while false. |
-| `Payments__PaystackGhanaProcessingFeeBasisPoints` | Current Ghana processing-fee disclosure; tracked default is `195` (1.95%). Re-verify against Paystack before changing. |
+| `Payments__PaystackGhanaProcessingFeeBasisPoints` | Fee disclosure used by the UI; tracked default is `195` (1.95%). Re-verify with Paystack before each production release. |
 | `Payments__PlatformFeeBasisPoints` | Project platform fee; tracked default is `0`. Changing this is a business-policy decision. |
-| `Payments__SettlementSchedule` | Organizer-facing settlement disclosure; tracked default is `AutomaticNextWorkingDay`, matching Paystack Ghana's current standard settlement schedule. |
+| `Payments__SettlementSchedule` | Organizer-facing settlement disclosure; tracked default is `AutomaticNextWorkingDay`. Confirm that value against the production Paystack account before launch. |
 | `QR_SIGNING_KEY` | Stable random secret of at least 32 characters. Rotation invalidates every outstanding QR ticket and requires a re-issue plan. |
 | `CERTIFICATES_BUCKET` | Private Supabase bucket for attendee certificate PDFs; use `certificates`. |
 | `CERTIFICATE_SIGNED_URL_MINUTES` | Signed certificate URL lifetime; use 60. |
@@ -70,9 +70,8 @@ stored in this repository.
 | `GMAIL_APP_PASSWORD` | Google App Password created after enabling 2-Step Verification; never use the account password. |
 | `GMAIL_SENDER_EMAIL` / `GMAIL_SENDER_NAME` | Approved From address and display name. |
 | `GMAIL_DAILY_WARNING_THRESHOLD` | Per-process accepted-send warning threshold; defaults to 400. |
-| `MAILTRAP_API_TOKEN` | Mailtrap Sending API token. Store it only in Railway variables. |
-| `MAILTRAP_SENDER_EMAIL` | Sender accepted by Mailtrap; use `hello@demomailtrap.co` with the free demo domain. |
-| `MAILTRAP_SENDER_NAME` | Optional sender display name; defaults to `Campus Events`. |
+| `MAILTRAP_API_TOKEN` | Required only when `EMAIL_PROVIDER=Mailtrap`. Store it only in Railway variables. |
+| `MAILTRAP_SENDER_EMAIL` / `MAILTRAP_SENDER_NAME` | Mailtrap sender configuration, required only for the Mailtrap provider. |
 
 Optional production tuning uses normal ASP.NET Core double-underscore keys. The
 tracked defaults are safe starting points: `AuthRateLimiting__Ip__Login__PermitLimit=30`,
@@ -173,10 +172,9 @@ live key into staging.
 ## First deployment and verification
 
 1. Merge only additive, reviewed EF migrations into `main`. The email outbox,
-   image lifecycle, and distributed auth limiter each add an independent table;
-   later additive migrations add the user session version, nullable email
-   outbox payload, and event concurrency version. The image migration also adds nullable `ImageObjectKey`
-   columns to `Users` and `Events`.
+   authentication, booking, image lifecycle, payments, certificates, voting,
+   event format, and sales-window migrations must all be present in the reviewed
+   deployment artifact. Never generate a migration during deployment.
 2. Confirm both GitHub test jobs pass and both deploy jobs succeed.
 3. In Railway logs, confirm `EF Core database migrations are up to date`, the
    Production environment, and a successful `/health` deployment check.
@@ -196,14 +194,11 @@ live key into staging.
    `/api/uploads/*`, the authenticated API writes it to Supabase, and the returned
    public URL is readable. Remove all Supabase `anon` INSERT/UPDATE/DELETE storage
    policies after the backend service-role configuration is deployed.
-7. Request a password reset or trigger another notification to the email address
-   registered on the Mailtrap account. The free demo domain can send only to that
-   address. It cannot deliver to arbitrary app users unless a custom domain is
-   added and verified later. Mailtrap's free plan currently allows 150 messages
-   per day and up to 3,500 per month.
-
-The API uses Mailtrap's HTTPS Sending API. Failed provider responses and
-exceptions are logged without printing the API token or raw response body.
+7. Request a password reset or trigger another notification. Confirm that the
+   provider selected by `EMAIL_PROVIDER` accepts the message, the outbox marks it
+   delivered, and no credential or raw provider response appears in logs. For
+   Mailtrap, use a recipient permitted by the selected domain/account. For Gmail,
+   verify the App Password and sender account before testing.
 8. Test Google sign-in using the production Vercel origin.
 
 These live checks require the platform projects, domains, and credentials; they
@@ -219,17 +214,13 @@ cannot be completed from a source-only checkout.
   production deployment, and **Promote to Production**. Then revert the bad Git
   commit so the next main deployment remains consistent.
 
-## Railway plan expectations
+## Capacity and cost controls
 
-Railway currently describes Free as experimentation with a small monthly credit
-and Hobby as a paid `$5/month` minimum that includes the first `$5` of resource
-usage. Current documented per-service limits include 0.5 GB RAM, 1 vCPU, 1 GB
-ephemeral storage, and 0.5 GB volume storage on Free; Hobby allows larger compute,
-100 GB ephemeral storage, and 5 GB volume storage by default. Usage above included
-credit is billed, so configure usage alerts/hard limits and monitor PostgreSQL
-volume consumption. App sleeping is an optional cost-control feature; enabling it
-introduces wake-up latency/cold starts. Database backups and restore testing remain
-an operational responsibility.
+Railway plan limits and pricing change independently of this repository. Review
+the current plan before launch, configure usage alerts or hard limits where
+available, monitor PostgreSQL storage, and test database restores. Enabling a
+sleeping/cold-start option can add latency and must be tested against the API
+healthcheck and the frontend's loading behavior.
 
 Current platform references: [Railway PostgreSQL](https://docs.railway.com/databases/postgresql),
 [Railway Dockerfiles](https://docs.railway.com/builds/dockerfiles),

@@ -12,8 +12,12 @@ export default function ForgotPassword() {
   const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const [validated, setValidated] = useState(false)
   const submit = async (event: FormEvent) => {
-    event.preventDefault(); setBusy(true); setError(null)
+    event.preventDefault()
+    const form = event.currentTarget as HTMLFormElement
+    if (!form.checkValidity()) { event.stopPropagation(); setValidated(true); return }
+    setValidated(true); setBusy(true); setError(null)
     try { setMessage(await api.forgotPassword(email)) }
     catch (caught) { setError(caught instanceof Error ? caught.message : 'Unable to request a reset link.') }
     finally { setBusy(false) }
@@ -22,7 +26,7 @@ export default function ForgotPassword() {
     <h1 className="h2">Forgot your password?</h1>
     <p className="text-secondary">Enter your email. If it belongs to an account, we’ll send a 30-minute reset link.</p>
     {message && <Alert variant="success">{message}</Alert>}{error && <Alert variant="danger">{error}</Alert>}
-    {!message && <Form onSubmit={(event) => void submit(event)}><Form.Group className="mb-3" controlId="forgot-email"><Form.Label>Email address</Form.Label><Form.Control type="email" autoComplete="email" required value={email} onChange={(event) => setEmail(event.target.value)} /></Form.Group><Button type="submit" className="w-100" disabled={busy}>{busy ? 'Sending…' : 'Send reset link'}</Button></Form>}
+    {!message && <Form noValidate validated={validated} onSubmit={(event) => void submit(event)}><Form.Group className="mb-3" controlId="forgot-email"><Form.Label>Email address</Form.Label><Form.Control type="email" autoComplete="email" required value={email} onChange={(event) => setEmail(event.target.value)} /><Form.Control.Feedback type="invalid">Enter a valid email address.</Form.Control.Feedback></Form.Group><Button type="submit" className="w-100" disabled={busy}>{busy ? 'Sending…' : 'Send reset link'}</Button></Form>}
     <p className="text-center mt-4 mb-0"><Link to="/login">Back to sign in</Link></p>
   </Card.Body></Card></Container></main>
 }

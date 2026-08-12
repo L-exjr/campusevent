@@ -11,6 +11,7 @@ import ConfirmModal from '../../components/shared/ConfirmModal'
 import EmptyState from '../../components/shared/EmptyState'
 import ErrorState from '../../components/shared/ErrorState'
 import LoadingState from '../../components/shared/LoadingState'
+import NotificationToast from '../../components/shared/NotificationToast'
 import PageHeader from '../../components/shared/PageHeader'
 import PaginationControls from '../../components/shared/PaginationControls'
 import { useApiResource } from '../../hooks/useApiResource'
@@ -69,12 +70,12 @@ export default function AdminUsersPage() {
         title="Manage users"
         description="Review accounts, assign Organizer access, and control account status."
       />
-      {notice && <Alert variant="success" dismissible onClose={() => setNotice(null)}>{notice}</Alert>}
+      <NotificationToast message={notice} onClose={() => setNotice(null)} />
       {actionError && <Alert variant="danger" dismissible onClose={() => setActionError(null)}>{actionError}</Alert>}
       <Card className="filter-card border-0 mb-4">
         <Card.Body>
           <Row className="g-3 align-items-end">
-            <Col md={8}>
+            <Col md={7}>
               <Form.Group controlId="user-search">
                 <Form.Label>Search accounts</Form.Label>
                 <Form.Control value={search} onChange={(event) => { setSearch(event.target.value); setPage(1) }} placeholder="Name or email address" />
@@ -91,8 +92,8 @@ export default function AdminUsersPage() {
                 </Form.Select>
               </Form.Group>
             </Col>
-            <Col md={1}>
-              <Button variant="light" className="w-100" onClick={() => { setSearch(''); setRole(''); setPage(1) }}>Reset</Button>
+            <Col md={2}>
+              <Button variant="light" className="w-100 text-nowrap" onClick={() => { setSearch(''); setRole(''); setPage(1) }}>Reset</Button>
             </Col>
           </Row>
         </Card.Body>

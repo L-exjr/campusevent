@@ -63,7 +63,11 @@ export function apiEvent(overrides: Partial<EventItem> = {}) {
     capacity: item.capacity,
     category: item.category,
     location: item.location,
-    format: item.format === 'physical' ? 'Physical' : 'Virtual',
+    format: item.format === 'physical'
+      ? 'Physical'
+      : item.format === 'virtual'
+        ? 'Virtual'
+        : 'Hybrid',
     meetingUrl: item.meetingUrl,
     salesStartsAt: item.salesStartsAt,
     salesEndsAt: item.salesEndsAt,

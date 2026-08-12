@@ -644,7 +644,11 @@ public sealed class EventService(
                     registration.Event.IsPublished,
                     registration.Event.Version,
                     registration.Event.PriceMinor,
-                    registration.Event.Currency)))
+                    registration.Event.Currency,
+                    registration.Event.Format,
+                    registration.Event.MeetingUrl,
+                    registration.Event.SalesStartsAt,
+                    registration.Event.SalesEndsAt)))
             .ToListAsync(cancellationToken);
         return new PaginatedResponse<StudentRegistrationResponse>(
             items, page, pageSize, totalCount, Pagination.TotalPages(totalCount, pageSize));
@@ -667,7 +671,11 @@ public sealed class EventService(
             eventEntity.IsPublished,
             eventEntity.Version,
             eventEntity.PriceMinor,
-            eventEntity.Currency));
+            eventEntity.Currency,
+            eventEntity.Format,
+            eventEntity.MeetingUrl,
+            eventEntity.SalesStartsAt,
+            eventEntity.SalesEndsAt));
 
     private static IQueryable<EventEntity> ApplyEventFilters(
         IQueryable<EventEntity> query,
@@ -720,7 +728,9 @@ public sealed class EventService(
             ? "Physical"
             : string.Equals(requestedFormat, "Virtual", StringComparison.OrdinalIgnoreCase)
                 ? "Virtual"
-                : null;
+                : string.Equals(requestedFormat, "Hybrid", StringComparison.OrdinalIgnoreCase)
+                    ? "Hybrid"
+                    : null;
         var location = request.Location.Trim();
         var meetingUrl = string.IsNullOrWhiteSpace(request.MeetingUrl) ? null : request.MeetingUrl.Trim();
         var requestedCategory = request.Category.Trim();
@@ -732,13 +742,13 @@ public sealed class EventService(
         if (description.Length < 10)
             throw new ApiException(StatusCodes.Status400BadRequest, "Event descriptions must contain at least 10 characters.");
         if (format is null)
-            throw new ApiException(StatusCodes.Status400BadRequest, "Choose whether the event is physical or virtual.");
-        if (format == "Physical" && location.Length == 0)
+            throw new ApiException(StatusCodes.Status400BadRequest, "Choose whether the event is physical, virtual, or hybrid.");
+        if ((format == "Physical" || format == "Hybrid") && location.Length == 0)
             throw new ApiException(StatusCodes.Status400BadRequest, "An event location is required.");
-        if (format == "Virtual" &&
+        if ((format == "Virtual" || format == "Hybrid") &&
             (!Uri.TryCreate(meetingUrl, UriKind.Absolute, out var meetingUri) ||
              (meetingUri.Scheme != Uri.UriSchemeHttps && meetingUri.Scheme != Uri.UriSchemeHttp)))
-            throw new ApiException(StatusCodes.Status400BadRequest, "A valid virtual meeting link is required.");
+            throw new ApiException(StatusCodes.Status400BadRequest, "A valid online meeting link is required.");
         if (category is null)
             throw new ApiException(StatusCodes.Status400BadRequest, "Choose a supported event category.");
 
@@ -758,14 +768,14 @@ public sealed class EventService(
             title,
             description,
             request.Date,
-            format == "Physical" ? location : "Online",
+            format == "Virtual" ? "Online" : location,
             request.Capacity,
             category,
             string.IsNullOrWhiteSpace(request.ImageUrl) ? null : request.ImageUrl.Trim(),
             request.PriceMinor,
             currency,
             format,
-            format == "Virtual" ? meetingUrl : null,
+            format == "Physical" ? null : meetingUrl,
             request.PriceMinor > 0 ? request.SalesStartsAt : null,
             request.PriceMinor > 0 ? request.SalesEndsAt : null);
     }
