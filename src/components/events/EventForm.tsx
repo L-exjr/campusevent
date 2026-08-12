@@ -115,8 +115,8 @@ export default function EventForm({
       ...values,
       title: values.title.trim(),
       description: values.description.trim(),
-      location: values.location.trim(),
-      meetingUrl: values.meetingUrl?.trim() || null,
+      location: values.format === 'virtual' ? 'Online' : values.location.trim(),
+      meetingUrl: values.format === 'physical' ? null : values.meetingUrl?.trim() || null,
       salesStartsAt: values.salesStartsAt || null,
       salesEndsAt: values.salesEndsAt || null,
     }
