@@ -12,10 +12,15 @@ public sealed class UploadsControllerTests(ApiIntegrationFixture fixture)
     public async Task Anonymous_profile_upload_is_rejected_before_file_processing()
     {
         await ResetAsync();
-        using var client = Fixture.CreateClient();
-        using var response = await client.PostAsync(
-            "/api/uploads/profile-image",
-            CreatePngUpload());
+        using var client = CookieClient();
+        using var csrfResponse = await client.GetAsync("/api/auth/csrf");
+        csrfResponse.EnsureSuccessStatusCode();
+        var csrf = (await ReadJsonAsync(csrfResponse)).GetProperty("token").GetString()!;
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/api/uploads/profile-image") {
+            Content = CreatePngUpload()
+        };
+        request.Headers.Add("X-CSRF-TOKEN", csrf);
+        using var response = await client.SendAsync(request);
 
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }

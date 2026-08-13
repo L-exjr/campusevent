@@ -28,6 +28,7 @@ public interface IUserService
         string? imageUrl,
         CancellationToken cancellationToken);
     Task DeactivateAsync(Guid userId, Guid adminId, CancellationToken cancellationToken);
+    Task<UserResponse> GetByIdAsync(Guid userId, CancellationToken cancellationToken);
 }
 
 public sealed class UserService(
@@ -36,6 +37,10 @@ public sealed class UserService(
     AdminAuditService auditService,
     TimeProvider timeProvider) : IUserService
 {
+    public async Task<UserResponse> GetByIdAsync(Guid userId, CancellationToken cancellationToken) =>
+        (await dbContext.Users.AsNoTracking().SingleOrDefaultAsync(user => user.Id == userId, cancellationToken))?.ToResponse()
+        ?? throw new ApiException(StatusCodes.Status401Unauthorized, "The authenticated account no longer exists.");
+
     public async Task<PaginatedResponse<UserResponse>> GetAsync(
         string? search,
         UserRole? role,

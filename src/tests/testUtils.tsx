@@ -17,7 +17,6 @@ export function authValue(
 ): AuthContextValue {
   return {
     user,
-    token: user ? 'test-token' : null,
     loading: false,
     isAuthenticated: Boolean(user),
     login: vi.fn(),

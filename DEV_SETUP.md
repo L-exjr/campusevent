@@ -84,6 +84,62 @@ for provider-side monitoring.
    dotnet user-secrets set "Google:ClientId" "your-web-client-id.apps.googleusercontent.com"
    ```
 
+Restart Vite after changing `.env`. Do not put a Google client secret in the
+frontend. The current ID-token flow does not need one; see [SECURITY.md](SECURITY.md#google-sign-in-configuration)
+for the storage rule if a future server-side authorization-code flow introduces it.
+
+## npm audit resolution
+
+## Optional local secret scan
+
+Before committing, developers with Gitleaks installed can scan staged changes:
+
+```bash
+gitleaks git --pre-commit --staged --redact=100
+```
+
+The repository-level `.gitleaks.toml` extends the default rules with provider-specific
+checks used by CI. Do not bypass a finding unless it has been manually verified and
+given a narrow fingerprint allowlist entry.
+
+The initial `npm audit` reported two high findings. They were two dependency
+nodes for one vulnerable package family: `react-router-dom@7.11.0` was a direct
+runtime dependency and pulled in the transitive `react-router@7.11.0`.
+
+```text
+# npm audit report
+
+react-router  6.0.0 - 7.17.0
+Severity: high
+React Router vulnerable to XSS via Open Redirects - https://github.com/advisories/GHSA-2w69-qvjg-hvjx
+React Router SSR XSS in ScrollRestoration - https://github.com/advisories/GHSA-8v8x-cx79-35w7
+React Router's vendored turbo-stream v2 allows arbitrary constructor invocation via TYPE_ERROR deserialization leading to Unauth RCE - https://github.com/advisories/GHSA-49rj-9fvp-4h2h
+React Router's same-origin redirect with path starting // causes open redirect via protocol-relative URL reinterpretation - https://github.com/advisories/GHSA-2j2x-hqr9-3h42
+React Router vulnerable to XSS in unstable RSC redirect handling via javascript: redirect targets - https://github.com/advisories/GHSA-8646-j5j9-6r62
+React Router has stored XSS via unescaped Location header in prerendered redirect HTML - https://github.com/advisories/GHSA-f22v-gfqf-p8f3
+React Router vulnerable to DoS via unbounded path expansion in __manifest endpoint - https://github.com/advisories/GHSA-8x6r-g9mw-2r78
+React Router vulnerable to Denial of Service via reflected user input in single-fetch - https://github.com/advisories/GHSA-rxv8-25v2-qmq8
+React Router has CSRF issue in Action/Server Action Request Processing - https://github.com/advisories/GHSA-h5cw-625j-3rxh
+React Router: Open redirect via backslash in <Link> and useNavigate (CVE-2025-68470 bypass) - https://github.com/advisories/GHSA-wrjc-x8rr-h8h6
+React Router: Open redirect leading to XSS - https://github.com/advisories/GHSA-jjmj-jmhj-qwj2
+React Router: RSCErrorHandler Missing Protocol Validation (XSS) - https://github.com/advisories/GHSA-h8fp-f39c-q6mh
+React Router: Arbitrary Constructor Injection via deserializeErrors() in React Router SSR Hydration - https://github.com/advisories/GHSA-337j-9hxr-rhxg
+React Router: Unauthenticated Denial of Service via Inefficient Route Matching - https://github.com/advisories/GHSA-chx6-hx7r-mcp5
+fix available via `npm audit fix`
+node_modules/react-router
+  react-router-dom  7.0.0-pre.0 - 7.11.0
+  Depends on vulnerable versions of react-router
+  node_modules/react-router-dom
+
+2 high severity vulnerabilities
+
+To address all issues, run:
+  npm audit fix
+```
+
+`npm audit fix --dry-run` showed a same-major update from 7.11.0 to 7.18.2,
+so the non-forced fix was applied. This closes the client-side redirect/XSS
+advisories relevant to this Vite single-page app. No major version was accepted.
 The current Google Identity Services flow verifies an ID token and does not use a
 client secret or redirect URI. Restart Vite after changing `.env.local`.
 

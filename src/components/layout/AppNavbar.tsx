@@ -19,6 +19,7 @@ export default function AppNavbar() {
     : [{ label: 'Explore events', to: '/events' }, { label: 'Request an Organizer', to: '/request-organizer' }, { label: 'About', to: '/about' }]
 
   const handleLogout = async () => {
+    setExpanded(false)
     await logout()
     navigate('/login', { replace: true })
   }
@@ -38,7 +39,7 @@ export default function AppNavbar() {
           </span>
           <span>Campus Events</span>
         </Navbar.Brand>
-        <Navbar.Toggle aria-controls="main-navigation" aria-expanded={expanded} />
+        <Navbar.Toggle aria-controls="main-navigation" aria-expanded={expanded} label={expanded ? 'Close navigation' : 'Open navigation'} />
         <Navbar.Collapse id="main-navigation">
           <Nav className="mx-auto gap-lg-2" onSelect={() => setExpanded(false)}>
             {navigation.map((item) => (

@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using EventManagement.Api.Models;
+using System.Text.Json.Serialization;
 
 namespace EventManagement.Api.DTOs.Auth;
 
@@ -34,6 +35,6 @@ public sealed record UserResponse(
     string? ImageUrl);
 
 public sealed record AuthResponse(
-    string Token,
+    [property: JsonIgnore] string Token,
     DateTimeOffset ExpiresAt,
     UserResponse User);

@@ -4,6 +4,8 @@ import { apiEvent, event, paginated, users } from './fixtures'
 const apiUrl = 'http://localhost:5080/api'
 
 export const handlers = [
+  http.get(`${apiUrl}/auth/csrf`, () => HttpResponse.json({ token: 'test-csrf-token' })),
+  http.get(`${apiUrl}/auth/session`, () => new HttpResponse(null, { status: 401 })),
   http.get(`${apiUrl}/events`, () => HttpResponse.json(paginated([apiEvent()]))),
   http.get(`${apiUrl}/events/mine`, () => HttpResponse.json(paginated([apiEvent()]))),
   http.get(`${apiUrl}/events/all`, () => HttpResponse.json(paginated([apiEvent()]))),

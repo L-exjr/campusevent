@@ -10,9 +10,9 @@ public sealed class BookingRequestsControllerTests(ApiIntegrationFixture fixture
     public async Task Honeypot_submission_is_accepted_but_not_stored()
     {
         await ResetAsync();
-        using var client = Fixture.CreateClient();
+        using var client = CookieClient();
         SetClientAddress(client, "203.0.113.20");
-        using var response = await client.PostAsJsonAsync("/api/booking-requests", Payload("bot.example"));
+        using var response = await SendWithCsrfAsync(client, HttpMethod.Post, "/api/booking-requests", Payload("bot.example"));
         Assert.Equal(HttpStatusCode.Accepted, response.StatusCode);
         Assert.Equal(0, await Fixture.CountBookingRequestsAsync());
     }
@@ -23,9 +23,9 @@ public sealed class BookingRequestsControllerTests(ApiIntegrationFixture fixture
         await ResetAsync();
         var organizer = await CreateActorAsync("booking-organizer@example.test", "Organizer");
         var admin = await LoginAdminAsync();
-        using var publicClient = Fixture.CreateClient();
+        using var publicClient = CookieClient();
         SetClientAddress(publicClient, "203.0.113.21");
-        using var submission = await publicClient.PostAsJsonAsync("/api/booking-requests", Payload());
+        using var submission = await SendWithCsrfAsync(publicClient, HttpMethod.Post, "/api/booking-requests", Payload());
         var bookingId = (await ReadJsonAsync(submission)).GetProperty("id").GetGuid();
 
         using var adminClient = CreateAuthenticatedClient(admin.Token);
@@ -55,9 +55,9 @@ public sealed class BookingRequestsControllerTests(ApiIntegrationFixture fixture
     public async Task Admin_can_list_submitted_booking_requests()
     {
         await ResetAsync();
-        using var publicClient = Fixture.CreateClient();
+        using var publicClient = CookieClient();
         SetClientAddress(publicClient, "203.0.113.27");
-        using var submission = await publicClient.PostAsJsonAsync("/api/booking-requests", Payload());
+        using var submission = await SendWithCsrfAsync(publicClient, HttpMethod.Post, "/api/booking-requests", Payload());
         submission.EnsureSuccessStatusCode();
         var bookingId = (await ReadJsonAsync(submission)).GetProperty("id").GetGuid();
         var admin = await LoginAdminAsync();
@@ -76,9 +76,9 @@ public sealed class BookingRequestsControllerTests(ApiIntegrationFixture fixture
     {
         await ResetAsync();
         var organizer = await CreateActorAsync("unassigned-organizer@example.test", "Organizer");
-        using var publicClient = Fixture.CreateClient();
+        using var publicClient = CookieClient();
         SetClientAddress(publicClient, "203.0.113.22");
-        using var submission = await publicClient.PostAsJsonAsync("/api/booking-requests", Payload());
+        using var submission = await SendWithCsrfAsync(publicClient, HttpMethod.Post, "/api/booking-requests", Payload());
         var bookingId = (await ReadJsonAsync(submission)).GetProperty("id").GetGuid();
         using var organizerClient = CreateAuthenticatedClient(organizer.Token);
         using var response = await organizerClient.PutAsJsonAsync(
@@ -90,9 +90,9 @@ public sealed class BookingRequestsControllerTests(ApiIntegrationFixture fixture
     public async Task Closed_request_cannot_return_to_under_review()
     {
         await ResetAsync();
-        using var publicClient = Fixture.CreateClient();
+        using var publicClient = CookieClient();
         SetClientAddress(publicClient, "203.0.113.23");
-        using var submission = await publicClient.PostAsJsonAsync("/api/booking-requests", Payload());
+        using var submission = await SendWithCsrfAsync(publicClient, HttpMethod.Post, "/api/booking-requests", Payload());
         var bookingId = (await ReadJsonAsync(submission)).GetProperty("id").GetGuid();
         var admin = await LoginAdminAsync();
         using var client = CreateAuthenticatedClient(admin.Token);
@@ -114,9 +114,9 @@ public sealed class BookingRequestsControllerTests(ApiIntegrationFixture fixture
         await ResetAsync();
         var organizer = await CreateActorAsync("concurrent-booking-organizer@example.test", "Organizer");
         var admin = await LoginAdminAsync();
-        using var publicClient = Fixture.CreateClient();
+        using var publicClient = CookieClient();
         SetClientAddress(publicClient, "203.0.113.24");
-        using var submission = await publicClient.PostAsJsonAsync("/api/booking-requests", Payload());
+        using var submission = await SendWithCsrfAsync(publicClient, HttpMethod.Post, "/api/booking-requests", Payload());
         var bookingId = (await ReadJsonAsync(submission)).GetProperty("id").GetGuid();
 
         using var adminClient = CreateAuthenticatedClient(admin.Token);
@@ -159,9 +159,9 @@ public sealed class BookingRequestsControllerTests(ApiIntegrationFixture fixture
         var firstOrganizer = await CreateActorAsync("first-race-organizer@example.test", "Organizer");
         var secondOrganizer = await CreateActorAsync("second-race-organizer@example.test", "Organizer");
         var admin = await LoginAdminAsync();
-        using var publicClient = Fixture.CreateClient();
+        using var publicClient = CookieClient();
         SetClientAddress(publicClient, "203.0.113.25");
-        using var submission = await publicClient.PostAsJsonAsync("/api/booking-requests", Payload());
+        using var submission = await SendWithCsrfAsync(publicClient, HttpMethod.Post, "/api/booking-requests", Payload());
         var bookingId = (await ReadJsonAsync(submission)).GetProperty("id").GetGuid();
         using var adminClient = CreateAuthenticatedClient(admin.Token);
         using var initialAssignment = await adminClient.PutAsJsonAsync(
@@ -237,16 +237,16 @@ public sealed class BookingRequestRateLimitTests(ApiIntegrationFixture fixture)
     public async Task Public_submission_is_limited_to_five_requests_per_IP_per_hour()
     {
         await ResetAsync();
-        using var client = Fixture.CreateClient();
+        using var client = CookieClient();
         client.DefaultRequestHeaders.Add("X-Real-IP", "203.0.113.26");
         client.DefaultRequestHeaders.Add("X-Forwarded-Proto", "https");
         for (var index = 0; index < 5; index++)
         {
-            using var allowed = await client.PostAsJsonAsync("/api/booking-requests", Payload(index));
+            using var allowed = await SendWithCsrfAsync(client, HttpMethod.Post, "/api/booking-requests", Payload(index));
             Assert.Equal(HttpStatusCode.Accepted, allowed.StatusCode);
         }
 
-        using var blocked = await client.PostAsJsonAsync("/api/booking-requests", Payload(6));
+        using var blocked = await SendWithCsrfAsync(client, HttpMethod.Post, "/api/booking-requests", Payload(6));
         Assert.Equal(HttpStatusCode.TooManyRequests, blocked.StatusCode);
     }
 

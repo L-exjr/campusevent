@@ -2,29 +2,47 @@ using EventManagement.Api.DTOs.Auth;
 using EventManagement.Api.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using EventManagement.Api.Infrastructure;
+using System.Security.Cryptography;
 
 namespace EventManagement.Api.Controllers;
 
 [ApiController]
 [Route("api/auth")]
-public sealed class AuthController(IAuthService authService) : ControllerBase
+public sealed class AuthController(IAuthService authService, IUserService userService) : ControllerBase
 {
+    [AllowAnonymous]
+    [HttpGet("csrf")]
+    public ActionResult<object> Csrf()
+    {
+        var token = Convert.ToHexString(RandomNumberGenerator.GetBytes(32)).ToLowerInvariant();
+        Response.Cookies.Append("campus_events_csrf", token, new CookieOptions {
+            HttpOnly = false, Secure = true, SameSite = SameSiteMode.None, Path = "/", IsEssential = true
+        });
+        return Ok(new { token });
+    }
+
     [AllowAnonymous]
     [HttpPost("register")]
     public async Task<ActionResult<AuthResponse>> Register(
         RegisterRequest request,
         CancellationToken cancellationToken)
     {
-        var user = await authService.RegisterAsync(request, cancellationToken);
-        return StatusCode(StatusCodes.Status201Created, user);
+        var session = await authService.RegisterAsync(request, cancellationToken);
+        IssueCookie(session);
+        return StatusCode(StatusCodes.Status201Created, session);
     }
 
     [AllowAnonymous]
     [HttpPost("login")]
     public async Task<ActionResult<AuthResponse>> Login(
         LoginRequest request,
-        CancellationToken cancellationToken) =>
-        Ok(await authService.LoginAsync(request, cancellationToken));
+        CancellationToken cancellationToken)
+    {
+        var session = await authService.LoginAsync(request, cancellationToken);
+        IssueCookie(session);
+        return Ok(session);
+    }
 
     [AllowAnonymous]
     [HttpPost("forgot-password")]
@@ -44,6 +62,26 @@ public sealed class AuthController(IAuthService authService) : ControllerBase
     [HttpPost("google")]
     public async Task<ActionResult<AuthResponse>> GoogleLogin(
         GoogleLoginRequest request,
-        CancellationToken cancellationToken) =>
-        Ok(await authService.GoogleLoginAsync(request, cancellationToken));
+        CancellationToken cancellationToken)
+    {
+        var session = await authService.GoogleLoginAsync(request, cancellationToken);
+        IssueCookie(session);
+        return Ok(session);
+    }
+
+    [Authorize]
+    [HttpGet("session")]
+    public async Task<ActionResult<UserResponse>> Session(CancellationToken cancellationToken) =>
+        Ok(await userService.GetByIdAsync(User.GetRequiredUserId(), cancellationToken));
+
+    [Authorize]
+    [HttpPost("logout")]
+    public IActionResult Logout()
+    {
+        Response.Cookies.Delete(AuthCookie.Name, AuthCookie.Options(DateTimeOffset.UnixEpoch));
+        return NoContent();
+    }
+
+    private void IssueCookie(AuthResponse session)
+        => Response.Cookies.Append(AuthCookie.Name, session.Token, AuthCookie.Options(session.ExpiresAt));
 }

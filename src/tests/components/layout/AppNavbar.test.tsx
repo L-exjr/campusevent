@@ -1,10 +1,31 @@
-import { screen } from '@testing-library/react'
+import { screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import AppNavbar from '../../../components/layout/AppNavbar'
 import { users } from '../../mocks/fixtures'
 import { renderWithAuth } from '../../testUtils'
 
 describe('AppNavbar', () => {
+  it('toggles the mobile menu and closes it after navigation', async () => {
+    const user = userEvent.setup()
+    renderWithAuth(<AppNavbar />)
+
+    const toggle = screen.getByRole('button', { name: 'Open navigation' })
+    const navigation = document.querySelector('#main-navigation')
+
+    await user.click(toggle)
+    expect(screen.getByRole('button', { name: 'Close navigation' })).toHaveAttribute('aria-expanded', 'true')
+    await waitFor(() => expect(navigation).toHaveClass('show'))
+
+    await user.click(screen.getByRole('link', { name: 'Explore events' }))
+    expect(screen.getByRole('button', { name: 'Open navigation' })).toHaveAttribute('aria-expanded', 'false')
+    expect(navigation).not.toHaveClass('show')
+
+    await user.click(toggle)
+    await user.click(screen.getByRole('button', { name: 'Close navigation' }))
+    expect(toggle).toHaveAttribute('aria-expanded', 'false')
+    expect(navigation).not.toHaveClass('show')
+  })
+
   it('shows Student navigation without organizer or Admin tools', () => {
     renderWithAuth(<AppNavbar />, { user: users.student })
 
@@ -42,7 +63,7 @@ describe('AppNavbar', () => {
     const user = userEvent.setup()
     renderWithAuth(<AppNavbar />, { user: users.student })
 
-    const toggle = screen.getByRole('button', { name: 'Toggle navigation' })
+    const toggle = screen.getByRole('button', { name: 'Open navigation' })
     await user.click(toggle)
     expect(toggle).toHaveAttribute('aria-expanded', 'true')
 

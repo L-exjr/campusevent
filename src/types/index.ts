@@ -247,7 +247,6 @@ export interface EventRegistrant {
 }
 
 export interface AuthSession {
-  token: string
   expiresAt: string
   user: User
 }

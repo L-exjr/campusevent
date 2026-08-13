@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react'
 import Alert from 'react-bootstrap/Alert'
+import Badge from 'react-bootstrap/Badge'
 import Button from 'react-bootstrap/Button'
 import Card from 'react-bootstrap/Card'
 import Col from 'react-bootstrap/Col'
@@ -10,9 +11,11 @@ import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../hooks/useAuth'
 import { getHomeForRole } from '../../utils/permissions'
 import PasswordInput from '../../components/auth/PasswordInput'
+import GoogleSignInButton from '../../components/auth/GoogleSignInButton'
+import { usingMockApi } from '../../api'
 
 export default function RegisterPage() {
-  const { register } = useAuth()
+  const { register, googleLogin } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
   const returnPath = (location.state as { from?: unknown } | null)?.from
@@ -50,19 +53,40 @@ export default function RegisterPage() {
     }
   }
 
+  const handleGoogleCredential = async (credential: string) => {
+    setBusy(true); setError(null)
+    try {
+      const session = await googleLogin(credential)
+      navigate(getHomeForRole(session.user.role), { replace: true })
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'Google sign-up failed.')
+    } finally { setBusy(false) }
+  }
+
   return (
     <main className="auth-page">
       <Container>
-        <Row className="justify-content-center">
-          <Col xl={7} lg={8}>
-            <Card className="auth-card border-0">
-              <Card.Body className="p-4 p-md-5">
-                <Link to="/" className="auth-brand text-dark mb-5">
-                  <span className="brand-mark">C</span>
-                  Campus Events
-                </Link>
+        <Row className="g-0 align-items-stretch auth-layout auth-layout--register">
+          <Col lg={{ span: 6, order: 2 }}>
+            <section className="auth-hero h-100">
+              <Link to="/" className="auth-brand"><span className="brand-mark">C</span>Campus Events</Link>
+              <div className="my-auto py-5">
+                <Badge bg="light" text="dark" className="auth-kicker mb-4">Join your campus community</Badge>
+                <h1>Find your next experience. Start here.</h1>
+                <p>Create one account for event discovery, registration, tickets, and everything that comes next.</p>
+              </div>
+              <div className="auth-quote"><div>
+                <strong>Already have an account?</strong>
+                <p>Welcome back—your events and registrations are waiting.</p>
+                <Link to="/login" state={location.state} className="btn btn-outline-light auth-switch-link">Sign in</Link>
+              </div></div>
+            </section>
+          </Col>
+          <Col lg={{ span: 6, order: 1 }}>
+            <Card className="auth-card border-0 h-100">
+              <Card.Body className="p-4 p-md-5 d-flex flex-column justify-content-center">
                 <p className="eyebrow mb-2">Student registration</p>
-                <h1 className="h2 mb-2">Create your account</h1>
+                <h2 className="h1 mb-2">Create your account</h2>
                 <p className="text-secondary mb-4">
                   New accounts start as Students. An Admin can promote your account to Organizer later.
                 </p>
@@ -124,6 +148,7 @@ export default function RegisterPage() {
                     {busy ? 'Creating account…' : 'Create student account'}
                   </Button>
                 </Form>
+                {!usingMockApi && <><div className="auth-divider"><span>or continue with</span></div><GoogleSignInButton onCredential={(credential) => void handleGoogleCredential(credential)} onUnavailable={setError} /></>}
                 <p className="text-center text-secondary mt-4 mb-0">
                   Already have an account? <Link to="/login" state={location.state}>Sign in</Link>
                 </p>
