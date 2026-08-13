@@ -45,7 +45,7 @@ export default function EventsPage() {
       <Card className="filter-card border-0 mb-4">
         <Card.Body className="p-3 p-lg-4">
           <Row className="g-3 align-items-end">
-            <Col lg={5}>
+            <Col lg={4}>
               <Form.Group controlId="event-search">
                 <Form.Label>Search</Form.Label>
                 <InputGroup>
@@ -75,8 +75,8 @@ export default function EventsPage() {
                 <Form.Control type="date" value={date} onChange={(event) => { setDate(event.target.value); setPage(1) }} />
               </Form.Group>
             </Col>
-            <Col md={2} lg={1}>
-              <Button variant="light" className="w-100" onClick={clearFilters} aria-label="Clear filters">
+            <Col md={2} lg={2}>
+              <Button variant="light" className="w-100 text-nowrap" onClick={clearFilters} aria-label="Clear filters">
                 Reset
               </Button>
             </Col>

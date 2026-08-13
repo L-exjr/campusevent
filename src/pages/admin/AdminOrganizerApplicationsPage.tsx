@@ -12,6 +12,7 @@ import ConfirmModal from '../../components/shared/ConfirmModal'
 import EmptyState from '../../components/shared/EmptyState'
 import ErrorState from '../../components/shared/ErrorState'
 import LoadingState from '../../components/shared/LoadingState'
+import NotificationToast from '../../components/shared/NotificationToast'
 import PageHeader from '../../components/shared/PageHeader'
 import PaginationControls from '../../components/shared/PaginationControls'
 import { useApiResource } from '../../hooks/useApiResource'
@@ -113,7 +114,7 @@ export default function AdminOrganizerApplicationsPage() {
         }
       />
 
-      {notice && <Alert variant="success" dismissible onClose={() => setNotice(null)}>{notice}</Alert>}
+      <NotificationToast message={notice} onClose={() => setNotice(null)} />
       {actionError && <Alert variant="danger" dismissible onClose={() => setActionError(null)}>{actionError}</Alert>}
 
       {loading ? (
@@ -138,7 +139,7 @@ export default function AdminOrganizerApplicationsPage() {
                 <Col md={2}>
                   <Button
                     variant="light"
-                    className="w-100"
+                    className="w-100 text-nowrap"
                     disabled={!search}
                     onClick={() => { setSearch(''); setPage(1) }}
                   >

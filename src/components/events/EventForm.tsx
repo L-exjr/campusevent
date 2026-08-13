@@ -6,7 +6,7 @@ import Form from 'react-bootstrap/Form'
 import Row from 'react-bootstrap/Row'
 import type { EventInput, EventItem } from '../../types'
 import { EVENT_CATEGORIES } from '../../types'
-import { toDateTimeLocal } from '../../utils/formatters'
+import { formatDateTime, toDateTimeLocal } from '../../utils/formatters'
 import {
   calculatePaidEventSettlement,
   PAYSTACK_GHANA_PROCESSING_FEE_BASIS_POINTS,
@@ -65,6 +65,15 @@ function initialValues(event?: EventItem | null): EventInput {
       }
 }
 
+function splitDateTime(value: string | null | undefined) {
+  if (!value) return { date: '', time: '' }
+  return { date: value.slice(0, 10), time: value.slice(11, 16) }
+}
+
+function combineDateTime(date: string, time: string) {
+  return date && time ? `${date}T${time}` : ''
+}
+
 export default function EventForm({
   event,
   busy = false,
@@ -73,14 +82,18 @@ export default function EventForm({
   onSubmit,
   onCancel,
 }: EventFormProps) {
-  const [values, setValues] = useState<EventInput>(() => initialValues(event))
+  const [initial] = useState(() => initialValues(event))
+  const [values, setValues] = useState<EventInput>(initial)
+  const initialEventDateTime = splitDateTime(initial.date)
+  const [eventDate, setEventDate] = useState(initialEventDateTime.date)
+  const [eventTime, setEventTime] = useState(initialEventDateTime.time)
   const [validated, setValidated] = useState(false)
   const [imageFile, setImageFile] = useState<File | null>(null)
   const [imagePreview, setImagePreview] = useState(event?.imageUrl ?? DEFAULT_EVENT_IMAGE)
   const [imageError, setImageError] = useState<string | null>(null)
   const [uploading, setUploading] = useState(false)
   const [reviewing, setReviewing] = useState(false)
-  const [minimumDate] = useState(() =>
+  const [minimumDateTime] = useState(() =>
     toDateTimeLocal(new Date(Date.now() + 5 * 60_000).toISOString()),
   )
   const paidSettlement = calculatePaidEventSettlement(values.priceMinor)
@@ -115,6 +128,7 @@ export default function EventForm({
       ...values,
       title: values.title.trim(),
       description: values.description.trim(),
+      date: combineDateTime(eventDate, eventTime),
       location: values.format === 'virtual' ? 'Online' : values.location.trim(),
       meetingUrl: values.format === 'physical' ? null : values.meetingUrl?.trim() || null,
       salesStartsAt: values.salesStartsAt || null,
@@ -170,13 +184,31 @@ export default function EventForm({
   }
 
   return (
-    <Form noValidate validated={validated} onSubmit={(submission) => void handleSubmit(submission)}>
-      {(error || imageError) && <Alert variant="danger">{error ?? imageError}</Alert>}
+    <Form
+      noValidate
+      validated={validated}
+      aria-busy={busy || uploading}
+      onSubmit={(submission) => void handleSubmit(submission)}
+    >
+      <ol className="form-progress" aria-label="Event form progress">
+        <li
+          className={!reviewing ? 'is-active' : 'is-complete'}
+          aria-current={!reviewing ? 'step' : undefined}
+        >
+          <span>1</span> Event details
+        </li>
+        <li className={reviewing ? 'is-active' : ''} aria-current={reviewing ? 'step' : undefined}>
+          <span>2</span> Review
+        </li>
+      </ol>
+      {(error || imageError) && <Alert variant="danger" role="alert">{error ?? imageError}</Alert>}
       {reviewing ? <>
         <h3 className="h5">Review before {event ? 'saving' : 'creating'}</h3>
-        <dl className="row mb-3">
+        <p className="text-secondary">Confirm the public details below. Use Back to edit if anything needs changing.</p>
+        <dl className="row review-list mb-3">
           <dt className="col-sm-4">Event</dt><dd className="col-sm-8">{values.title}</dd>
-          <dt className="col-sm-4">Format</dt><dd className="col-sm-8">{values.format === 'physical' ? values.location : `Virtual · ${values.meetingUrl}`}</dd>
+          <dt className="col-sm-4">Starts</dt><dd className="col-sm-8">{formatDateTime(values.date)}</dd>
+          <dt className="col-sm-4">Format</dt><dd className="col-sm-8">{values.format === 'physical' ? values.location : values.format === 'virtual' ? `Virtual · ${values.meetingUrl}` : `Hybrid · ${values.location} · ${values.meetingUrl}`}</dd>
           <dt className="col-sm-4">Capacity</dt><dd className="col-sm-8">{values.capacity}</dd>
           <dt className="col-sm-4">Ticketing</dt><dd className="col-sm-8">{values.priceMinor > 0 ? `${values.currency} ${(values.priceMinor / 100).toFixed(2)} · Single general-admission price` : 'Free event'}</dd>
           {values.priceMinor > 0 && <>
@@ -192,6 +224,12 @@ export default function EventForm({
           Paid-event creation remains blocked until an administrator provisions and verifies an organizer-specific Paystack subaccount. This prevents ticket revenue from being routed to an unverified destination.
         </Alert>}
       </> : <Row className="g-3">
+        <Col xs={12}>
+          <div className="form-section-heading">
+            <span>01</span>
+            <div><h3>Event story</h3><p>Give students enough context to decide whether to attend.</p></div>
+          </div>
+        </Col>
         <Col xs={12}>
           <Form.Group controlId="event-image">
             <Form.Label>Cover image</Form.Label>
@@ -248,22 +286,49 @@ export default function EventForm({
             <Form.Control.Feedback type="invalid">Add a short description.</Form.Control.Feedback>
           </Form.Group>
         </Col>
-        <Col md={6}>
+        <Col xs={12}>
+          <div className="form-section-heading mt-2">
+            <span>02</span>
+            <div><h3>Schedule and place</h3><p>Set when it starts and how attendees will join.</p></div>
+          </div>
+        </Col>
+        <Col md={4}>
           <Form.Group controlId="event-date">
-            <Form.Label>Date and time</Form.Label>
+            <Form.Label>Event date</Form.Label>
             <Form.Control
-              type="datetime-local"
+              type="date"
               required
-              min={event ? undefined : minimumDate}
-              value={values.date}
-              onChange={(eventValue) => setValues({ ...values, date: eventValue.target.value })}
+              min={event ? undefined : minimumDateTime.slice(0, 10)}
+              value={eventDate}
+              onChange={(eventValue) => {
+                const date = eventValue.target.value
+                setEventDate(date)
+                setValues({ ...values, date: combineDateTime(date, eventTime) })
+              }}
             />
             <Form.Control.Feedback type="invalid">
-              {event ? 'Choose a date and time.' : 'Choose a future date and time.'}
+              {event ? 'Choose the event date.' : 'Choose a future event date.'}
             </Form.Control.Feedback>
           </Form.Group>
         </Col>
-        <Col md={6}>
+        <Col md={4}>
+          <Form.Group controlId="event-time">
+            <Form.Label>Start time</Form.Label>
+            <Form.Control
+              type="time"
+              required
+              min={!event && eventDate === minimumDateTime.slice(0, 10) ? minimumDateTime.slice(11, 16) : undefined}
+              value={eventTime}
+              onChange={(eventValue) => {
+                const time = eventValue.target.value
+                setEventTime(time)
+                setValues({ ...values, date: combineDateTime(eventDate, time) })
+              }}
+            />
+            <Form.Control.Feedback type="invalid">Choose the start time.</Form.Control.Feedback>
+          </Form.Group>
+        </Col>
+        <Col md={4}>
           <Form.Group controlId="event-category">
             <Form.Label>Category</Form.Label>
             <Form.Select
@@ -344,6 +409,12 @@ export default function EventForm({
             <Form.Control.Feedback type="invalid">Use at least 1.</Form.Control.Feedback>
           </Form.Group>
         </Col>
+        <Col xs={12}>
+          <div className="form-section-heading mt-2">
+            <span>03</span>
+            <div><h3>Tickets and visibility</h3><p>Choose free or paid admission, then decide whether to publish.</p></div>
+          </div>
+        </Col>
         <Col md={8}>
           <Form.Group controlId="event-price">
             <Form.Label>Ticket price</Form.Label>
@@ -418,7 +489,7 @@ export default function EventForm({
           {event && !event.isPublished && <Form.Text>This event is currently a private draft.</Form.Text>}
         </Col>
       </Row>}
-      <div className="d-flex justify-content-end gap-2 mt-4">
+      <div className="form-actions mt-4">
         <Button variant="light" onClick={reviewing ? () => setReviewing(false) : onCancel} disabled={busy || uploading}>
           {reviewing ? 'Back to edit' : 'Cancel'}
         </Button>

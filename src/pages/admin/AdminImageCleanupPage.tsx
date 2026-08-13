@@ -6,6 +6,7 @@ import { api } from '../../api'
 import EmptyState from '../../components/shared/EmptyState'
 import ErrorState from '../../components/shared/ErrorState'
 import LoadingState from '../../components/shared/LoadingState'
+import NotificationToast from '../../components/shared/NotificationToast'
 import PageHeader from '../../components/shared/PageHeader'
 import PaginationControls from '../../components/shared/PaginationControls'
 import { useApiResource } from '../../hooks/useApiResource'
@@ -32,7 +33,7 @@ export default function AdminImageCleanupPage() {
 
   return <>
     <PageHeader eyebrow="Storage operations" title="Failed image cleanup" description="Inspect and retry orphaned files that exhausted automatic deletion attempts." />
-    {notice && <Alert variant="success">{notice}</Alert>}
+    <NotificationToast message={notice} onClose={() => setNotice(null)} />
     {actionError && <Alert variant="danger">{actionError}</Alert>}
     {loading ? <LoadingState label="Loading failed image cleanup" /> : error ? (
       <ErrorState message={error} onRetry={() => void reload()} />

@@ -7,6 +7,7 @@ import { api } from '../../api'
 import EmptyState from '../../components/shared/EmptyState'
 import ErrorState from '../../components/shared/ErrorState'
 import LoadingState from '../../components/shared/LoadingState'
+import NotificationToast from '../../components/shared/NotificationToast'
 import PageHeader from '../../components/shared/PageHeader'
 import PaginationControls from '../../components/shared/PaginationControls'
 import { useApiResource } from '../../hooks/useApiResource'
@@ -42,7 +43,7 @@ export default function AdminEmailOutboxPage() {
         title="Failed emails"
         description="Inspect exhausted delivery attempts and retry messages that remain safe and valid."
       />
-      {notice && <Alert variant="success">{notice}</Alert>}
+      <NotificationToast message={notice} onClose={() => setNotice(null)} />
       {actionError && <Alert variant="danger">{actionError}</Alert>}
       {loading ? (
         <LoadingState label="Loading failed emails" />

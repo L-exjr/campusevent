@@ -1,5 +1,9 @@
 # Testing the API
 
+Use the .NET 10 SDK. The integration suite requires either local PostgreSQL
+server binaries (`initdb` and `postgres`) or an explicitly configured disposable
+PostgreSQL database.
+
 The solution has two independent xUnit test projects:
 
 - `EventManagement.Api.UnitTests/` contains fast service/controller tests. The
@@ -52,7 +56,7 @@ Tests live in `src/tests/`, mirroring the corresponding `src/` component or page
 path. Run them from the repository root:
 
 ```bash
-npm install
+npm ci
 npm test
 ```
 
@@ -73,3 +77,16 @@ Role-routing and navigation tests use `renderWithAuth` from
 `src/tests/testUtils.tsx` to inject a focused mocked `AuthContext`. Integration-style
 page tests combine that context with MSW so routing, request serialization,
 response mapping, and visible UI updates are exercised together.
+
+Run the complete frontend gate before handing off UI work:
+
+```bash
+npm run lint
+npm test
+npm run build
+```
+
+Shared feedback components, authentication validation, mobile navigation, and
+major page flows have focused component/page tests. Visual browser checks remain
+necessary for responsive layout, backdrop blur, contrast, focus indicators, and
+reduced-motion behavior because jsdom does not render those effects.

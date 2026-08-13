@@ -25,16 +25,16 @@ export default function RegisterPage() {
   const [confirmPassword, setConfirmPassword] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [validated, setValidated] = useState(false)
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     setError(null)
-    if (password.length < 8) {
-      setError('Use at least 8 characters for your password.')
-      return
-    }
-    if (password !== confirmPassword) {
-      setError('The passwords do not match.')
+    const form = event.currentTarget
+    const fieldsValid = form.checkValidity() && name.trim().length >= 2 && password.length >= 8 && password === confirmPassword
+    setValidated(true)
+    if (!fieldsValid) {
+      event.stopPropagation()
       return
     }
     setBusy(true)
@@ -91,15 +91,18 @@ export default function RegisterPage() {
                   New accounts start as Students. An Admin can promote your account to Organizer later.
                 </p>
                 {error && <Alert variant="danger">{error}</Alert>}
-                <Form onSubmit={(event) => void handleSubmit(event)}>
+                <Form noValidate validated={validated} onSubmit={(event) => void handleSubmit(event)}>
                   <Form.Group className="mb-3" controlId="register-name">
                     <Form.Label>Full name</Form.Label>
                     <Form.Control
                       required
+                      minLength={2}
+                      isInvalid={validated && name.trim().length < 2}
                       autoComplete="name"
                       value={name}
                       onChange={(event) => setName(event.target.value)}
                     />
+                    <Form.Control.Feedback type="invalid">Enter your full name.</Form.Control.Feedback>
                   </Form.Group>
                   <Form.Group className="mb-3" controlId="register-email">
                     <Form.Label>Email address</Form.Label>
@@ -110,18 +113,34 @@ export default function RegisterPage() {
                       value={email}
                       onChange={(event) => setEmail(event.target.value)}
                     />
+                    <Form.Control.Feedback type="invalid">Enter a valid email address.</Form.Control.Feedback>
                   </Form.Group>
                   <Row>
                     <Col md={6}>
-                      <Form.Group className="mb-3" controlId="register-password">
+                      <Form.Group className="mb-3">
                         <Form.Label htmlFor="register-password">Password</Form.Label>
-                        <PasswordInput id="register-password" minLength={8} autoComplete="new-password" value={password} onChange={setPassword} />
+                        <PasswordInput
+                          id="register-password"
+                          minLength={8}
+                          autoComplete="new-password"
+                          value={password}
+                          onChange={setPassword}
+                          isInvalid={validated && password.length < 8}
+                          invalidFeedback="Use at least 8 characters."
+                        />
                       </Form.Group>
                     </Col>
                     <Col md={6}>
-                      <Form.Group className="mb-3" controlId="register-confirm-password">
+                      <Form.Group className="mb-3">
                         <Form.Label htmlFor="register-confirm-password">Confirm password</Form.Label>
-                        <PasswordInput id="register-confirm-password" autoComplete="new-password" value={confirmPassword} onChange={setConfirmPassword} />
+                        <PasswordInput
+                          id="register-confirm-password"
+                          autoComplete="new-password"
+                          value={confirmPassword}
+                          onChange={setConfirmPassword}
+                          isInvalid={validated && (confirmPassword.length === 0 || password !== confirmPassword)}
+                          invalidFeedback="Enter the same password again."
+                        />
                       </Form.Group>
                     </Col>
                   </Row>

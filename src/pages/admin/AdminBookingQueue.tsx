@@ -8,6 +8,7 @@ import BookingRequestCard from '../../components/admin/BookingRequestCard'
 import EmptyState from '../../components/shared/EmptyState'
 import ErrorState from '../../components/shared/ErrorState'
 import LoadingState from '../../components/shared/LoadingState'
+import NotificationToast from '../../components/shared/NotificationToast'
 import PageHeader from '../../components/shared/PageHeader'
 import PaginationControls from '../../components/shared/PaginationControls'
 import { useApiResource } from '../../hooks/useApiResource'
@@ -91,7 +92,7 @@ export default function AdminBookingQueue() {
         title="Booking request queue"
         description="Review incoming organization requests and route them to an active Organizer."
       />
-      {notice && <Alert variant="success">{notice}</Alert>}
+      <NotificationToast message={notice} onClose={() => setNotice(null)} />
       {actionError && <Alert variant="danger">{actionError}</Alert>}
       <Card className="filter-card border-0 mb-4">
         <Card.Body>

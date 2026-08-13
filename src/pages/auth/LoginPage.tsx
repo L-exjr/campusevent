@@ -29,9 +29,16 @@ export default function LoginPage() {
   const [password, setPassword] = useState(usingMockApi ? 'demo123' : '')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [validated, setValidated] = useState(false)
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
+    if (!event.currentTarget.checkValidity()) {
+      event.stopPropagation()
+      setValidated(true)
+      return
+    }
+    setValidated(true)
     setBusy(true)
     setError(null)
     try {
@@ -104,7 +111,7 @@ export default function LoginPage() {
                   {usingMockApi ? 'Use a demo account or your registered student account.' : 'Use your Campus Events account.'}
                 </p>
                 {error && <Alert variant="danger">{error}</Alert>}
-                <Form onSubmit={(event) => void handleSubmit(event)}>
+                <Form noValidate validated={validated} onSubmit={(event) => void handleSubmit(event)}>
                   <Form.Group className="mb-3" controlId="login-email">
                     <Form.Label>Email address</Form.Label>
                     <Form.Control
@@ -114,11 +121,21 @@ export default function LoginPage() {
                       value={email}
                       onChange={(event) => setEmail(event.target.value)}
                     />
+                    <Form.Control.Feedback type="invalid">Enter a valid email address.</Form.Control.Feedback>
                   </Form.Group>
                   <Form.Group className="mb-4">
                     <div className="d-flex justify-content-between"><Form.Label htmlFor="login-password">Password</Form.Label></div>
                     <PasswordInput id="login-password" autoComplete="current-password" value={password} onChange={setPassword} />
                     <Link className="auth-recovery-link" to="/forgot-password">Forgot password?</Link>
+                    <PasswordInput
+                      id="login-password"
+                      autoComplete="current-password"
+                      value={password}
+                      onChange={setPassword}
+                      isInvalid={validated && password.length === 0}
+                      invalidFeedback="Enter your password."
+                    />
+                    <Link to="/forgot-password">Forgot password?</Link>
                   </Form.Group>
                   <Button type="submit" size="lg" className="w-100" disabled={busy}>
                     {busy ? 'Signing in…' : 'Sign in'}

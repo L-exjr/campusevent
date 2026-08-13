@@ -8,6 +8,7 @@ import Row from 'react-bootstrap/Row'
 import { useParams } from 'react-router-dom'
 import { api } from '../../api'
 import LoadingState from '../../components/shared/LoadingState'
+import NotificationToast from '../../components/shared/NotificationToast'
 import LinkButton from '../../components/shared/LinkButton'
 import PageHeader from '../../components/shared/PageHeader'
 import { useAuth } from '../../hooks/useAuth'
@@ -130,7 +131,7 @@ export default function ManageVotingPage() {
         action={<LinkButton to={back}>Back to events</LinkButton>}
       />
       {error && <Alert variant="danger">{error}</Alert>}
-      {saved && <Alert variant="success">Voting campaign saved.</Alert>}
+      <NotificationToast message={saved ? 'Voting campaign saved.' : null} onClose={() => setSaved(false)} />
       <Alert variant="light">
         Category and nominee structure locks as soon as anyone votes or opens a paid checkout.
       </Alert>

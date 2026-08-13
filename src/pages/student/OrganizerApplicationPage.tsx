@@ -6,9 +6,11 @@ import Card from 'react-bootstrap/Card'
 import Col from 'react-bootstrap/Col'
 import Form from 'react-bootstrap/Form'
 import Row from 'react-bootstrap/Row'
+import Spinner from 'react-bootstrap/Spinner'
 import { api } from '../../api'
 import ErrorState from '../../components/shared/ErrorState'
 import LoadingState from '../../components/shared/LoadingState'
+import NotificationToast from '../../components/shared/NotificationToast'
 import PageHeader from '../../components/shared/PageHeader'
 import { useApiResource } from '../../hooks/useApiResource'
 import { formatDateTime } from '../../utils/formatters'
@@ -33,6 +35,7 @@ export default function OrganizerApplicationPage() {
   const [busy, setBusy] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
+  const [reviewing, setReviewing] = useState(false)
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -49,11 +52,18 @@ export default function OrganizerApplicationPage() {
       return
     }
 
+    if (!reviewing) {
+      setReason(normalizedReason)
+      setReviewing(true)
+      return
+    }
+
     setBusy(true)
     try {
       const submitted = await api.submitOrganizerApplication(normalizedReason)
       setData(submitted)
       setReason('')
+      setReviewing(false)
       setNotice('Your application has been submitted for Admin review.')
     } catch (caught) {
       setSubmitError(caught instanceof Error ? caught.message : 'Unable to submit your application.')
@@ -76,7 +86,7 @@ export default function OrganizerApplicationPage() {
         description="Tell the Admin team how you plan to create useful, well-run events for the campus community."
       />
 
-      {notice && <Alert variant="success">{notice}</Alert>}
+      <NotificationToast message={notice} onClose={() => setNotice(null)} title="Application submitted" />
 
       <Row className="g-4 align-items-start">
         <Col lg={8}>
@@ -122,38 +132,62 @@ export default function OrganizerApplicationPage() {
                 <p className="eyebrow mb-2">
                   {application ? 'Apply again' : 'Your application'}
                 </p>
-                <h2 className="h3 mb-2">
-                  {application ? 'Submit a revised application' : 'Why do you want to organize events?'}
-                </h2>
-                <p className="text-secondary mb-4">
-                  Share the kinds of events you want to run, your relevant experience, and how students will benefit.
-                </p>
+                <ol className="form-progress" aria-label="Organizer application progress">
+                  <li className={!reviewing ? 'is-active' : 'is-complete'} aria-current={!reviewing ? 'step' : undefined}><span>1</span> Your plan</li>
+                  <li className={reviewing ? 'is-active' : ''} aria-current={reviewing ? 'step' : undefined}><span>2</span> Review</li>
+                </ol>
 
-                {submitError && <Alert variant="danger">{submitError}</Alert>}
-                <Form onSubmit={(event) => void handleSubmit(event)}>
-                  <Form.Group controlId="organizer-application-reason">
-                    <Form.Label>Application reason</Form.Label>
-                    <Form.Control
-                      as="textarea"
-                      rows={8}
-                      required
-                      minLength={MINIMUM_REASON_LENGTH}
-                      maxLength={MAXIMUM_REASON_LENGTH}
-                      value={reason}
-                      placeholder="I would like to organize…"
-                      onChange={(event) => {
-                        setReason(event.target.value)
-                        setSubmitError(null)
-                      }}
-                    />
-                    <div className="d-flex justify-content-between gap-3 mt-2">
-                      <Form.Text>Minimum {MINIMUM_REASON_LENGTH} characters.</Form.Text>
-                      <Form.Text>{reason.length}/{MAXIMUM_REASON_LENGTH}</Form.Text>
-                    </div>
-                  </Form.Group>
-                  <Button type="submit" size="lg" className="mt-4" disabled={busy}>
-                    {busy ? 'Submitting…' : 'Submit application'}
-                  </Button>
+                {submitError && reviewing && <Alert variant="danger" role="alert">{submitError}</Alert>}
+                <Form noValidate aria-busy={busy} onSubmit={(event) => void handleSubmit(event)}>
+                  {reviewing ? (
+                    <section aria-labelledby="application-review-title">
+                      <h2 id="application-review-title" className="h3 mb-2">Review your application</h2>
+                      <p className="text-secondary mb-4">The Admin team will use this statement to understand your plans and readiness.</p>
+                      <div className="application-review-copy">{reason}</div>
+                    </section>
+                  ) : (
+                    <>
+                      <h2 className="h3 mb-2">
+                        {application ? 'Submit a revised application' : 'Why do you want to organize events?'}
+                      </h2>
+                      <p className="text-secondary mb-3">A strong response briefly covers:</p>
+                      <ul className="application-prompts">
+                        <li>The events you want to create</li>
+                        <li>Your relevant experience</li>
+                        <li>How students will benefit</li>
+                      </ul>
+                      <Form.Group controlId="organizer-application-reason">
+                        <Form.Label>Your plan</Form.Label>
+                        <Form.Control
+                          as="textarea"
+                          rows={8}
+                          required
+                          minLength={MINIMUM_REASON_LENGTH}
+                          maxLength={MAXIMUM_REASON_LENGTH}
+                          isInvalid={Boolean(submitError)}
+                          aria-describedby="organizer-application-guidance organizer-application-count"
+                          value={reason}
+                          placeholder="I would like to organize practical career workshops because…"
+                          onChange={(event) => {
+                            setReason(event.target.value)
+                            setSubmitError(null)
+                          }}
+                        />
+                        <Form.Control.Feedback type="invalid">{submitError}</Form.Control.Feedback>
+                        <div className="d-flex justify-content-between gap-3 mt-2">
+                          <Form.Text id="organizer-application-guidance">Minimum {MINIMUM_REASON_LENGTH} characters.</Form.Text>
+                          <Form.Text id="organizer-application-count" className={reason.length > MAXIMUM_REASON_LENGTH ? 'text-danger' : undefined}>{reason.length}/{MAXIMUM_REASON_LENGTH}</Form.Text>
+                        </div>
+                      </Form.Group>
+                    </>
+                  )}
+                  <div className="form-actions mt-4">
+                    {reviewing && <Button type="button" variant="light" disabled={busy} onClick={() => setReviewing(false)}>Back to edit</Button>}
+                    <Button type="submit" size="lg" disabled={busy}>
+                      {busy && <Spinner size="sm" className="me-2" aria-hidden="true" />}
+                      {busy ? 'Submitting application…' : reviewing ? 'Submit application' : 'Review application'}
+                    </Button>
+                  </div>
                 </Form>
               </Card.Body>
             </Card>

@@ -35,9 +35,6 @@ export ConnectionStrings__DefaultConnection='Host=localhost;Port=5432;Database=e
 export Jwt__SigningKey='replace-with-a-new-random-signing-key'
 export Jwt__Issuer='EventManagement.Api'
 export Jwt__Audience='EventManagement.Frontend'
-export BootstrapAdmin__Email='admin@cevents.com'
-export BootstrapAdmin__Password='a-strong-initial-password'
-export BootstrapAdmin__Name='System Administrator'
 export PAYSTACK_SECRET_KEY='set-in-the-deployment-secret-store'
 export QR_SIGNING_KEY='replace-with-a-stable-random-key-of-at-least-32-characters'
 export EMAIL_PROVIDER='Gmail'
@@ -54,15 +51,19 @@ export CERTIFICATE_SIGNED_URL_MINUTES='60'
 export CERTIFICATE_TEMPLATE_VERSION='1'
 ```
 
+`BootstrapAdmin__*` is an optional one-time bootstrap mechanism, not a normal
+production requirement. Prefer public Student registration followed by a
+controlled promotion; if bootstrap credentials are used for an empty database,
+remove the password immediately after the first successful startup.
+
 Gmail SMTP requires 2-Step Verification and a Google App Password; never use the
-account password. Standard consumer Gmail accounts are commonly constrained to
-about 500 outgoing messages per day. Each accepted Gmail send emits a structured
+account password. Each accepted Gmail send emits a structured
 `Gmail daily send count` log and warns at `GMAIL_DAILY_WARNING_THRESHOLD` (400 by
-default), then every 25 messages. This lightweight counter is per process and resets
-on restart, so replace it with a shared metric before running multiple replicas.
-If sustained volume approaches the account limit, move to Google Workspace with
-its higher applicable limits or a transactional email provider with delivery and
-bounce monitoring.
+default), then every 25 messages. This lightweight counter is per process and
+resets on restart, so replace it with a shared metric before running multiple
+replicas. Confirm the account's current provider quota in Google before launch;
+if sustained volume approaches it, move to an appropriate transactional provider
+with delivery and bounce monitoring.
 
 For local development, keep the signing key out of tracked settings and store it
 with .NET User Secrets:
@@ -99,6 +100,9 @@ Every list response contains `items`, `page`, `pageSize`, `totalCount`, and `tot
 | --- | --- | --- | --- |
 | POST | `/api/auth/register` | Public | Create a Student account and issue a 75-minute JWT |
 | POST | `/api/auth/login` | Public | Validate credentials and issue a 75-minute JWT |
+| POST | `/api/auth/forgot-password` | Public | Enqueue a neutral password-reset response without revealing account existence |
+| POST | `/api/auth/reset-password` | Public | Consume a one-time reset token and revoke older sessions |
+| POST | `/api/auth/google` | Public | Verify a Google ID token and issue the application JWT |
 | POST | `/api/organizer-applications` | Student | Submit an Organizer application |
 | GET | `/api/organizer-applications/mine` | Student | View the current Student's latest application and review status |
 | GET | `/api/organizer-applications?status=Pending&search=&page=1&pageSize=20` | Admin | Paginated, searchable application queue |
@@ -107,12 +111,15 @@ Every list response contains `items`, `page`, `pageSize`, `totalCount`, and `tot
 | GET | `/api/users?search=&role=&isActive=&page=1&pageSize=20` | Admin | Paginated user management list |
 | PUT | `/api/users/{id}/role` | Admin | Promote to Organizer or demote to Student |
 | PUT | `/api/users/{id}/deactivate` | Admin | Soft-disable an account |
+| PUT | `/api/users/{id}/profile` | Same user | Update the authenticated user's profile |
 | GET | `/api/events?search=&category=&from=&to=&page=1&pageSize=20` | Public | Paginated filtered event list |
 | GET | `/api/events/{id}` | Public | Event detail |
+| GET | `/api/events/{id}/management` | Owner Organizer, Admin | Management-safe event detail, including unpublished events |
 | GET | `/api/events/mine?page=1&pageSize=20` | Organizer, Admin | Events created by the current user |
 | GET | `/api/events/all?search=&category=&page=1&pageSize=20` | Admin | Paginated event-management list including drafts |
 | POST | `/api/events` | Organizer, Admin | Create an event |
 | PUT | `/api/events/{id}` | Owner Organizer, Admin | Update an event |
+| PUT | `/api/events/{id}/organizer` | Admin | Transfer event ownership with concurrency enforcement |
 | DELETE | `/api/events/{id}` | Owner Organizer, Admin | Delete an event and its registrations |
 | POST | `/api/events/{id}/register` | Student | Register with duplicate/capacity enforcement |
 | POST | `/api/payments/events/{id}/initialize` | Student | Initialize Paystack checkout for a paid event |
@@ -125,16 +132,29 @@ Every list response contains `items`, `page`, `pageSize`, `totalCount`, and `tot
 | PUT | `/api/events/{id}/voting` | Owner Organizer, Admin | Configure voting dates, categories, nominees, and prices |
 | POST | `/api/voting/categories/{id}/votes` | Student | Cast one database-enforced free vote |
 | POST | `/api/voting/categories/{id}/payments/initialize` | Student | Initialize a 1–100 quantity paid-vote checkout |
+| GET | `/api/voting/payments/{reference}` | Same Student only | Read server-verified paid-vote status |
 | GET | `/api/events/{id}/registration-status` | Student | Check registration without scanning the Student's history |
 | GET | `/api/events/{id}/registrants?search=&attended=&page=1&pageSize=20` | Owner Organizer, Admin | View paginated, filtered registrants |
 | PUT | `/api/events/{id}/attendance` | Owner Organizer, Admin | Bulk-update attendance |
 | GET | `/api/students/{id}/registrations?page=1&pageSize=20` | Same Student only | View paginated own registrations |
 | GET | `/api/booking-requests?status=&page=1&pageSize=20` | Admin | Paginated booking-request queue |
+| POST | `/api/booking-requests` | Public | Submit a rate-limited booking request; honeypot submissions receive a neutral response |
 | GET | `/api/booking-requests/assigned?status=&page=1&pageSize=20` | Organizer | Paginated assigned booking requests |
+| PUT | `/api/booking-requests/{id}/assign` | Admin | Assign an Organizer to a request |
+| PUT | `/api/booking-requests/{id}/respond` | Assigned Organizer | Record the Organizer response |
+| PUT | `/api/booking-requests/{id}/status` | Admin | Move a request through the allowed workflow |
 | GET | `/api/reports/summary` | Admin | Totals and overall attendance rate |
 | GET | `/api/reports/events?page=1&pageSize=20` | Admin | Paginated per-event registration and attendance aggregates |
 | GET | `/api/reports/events/{id}` | Admin | One event's registration and attendance aggregate |
 | GET | `/api/reports/organizers?page=1&pageSize=20` | Admin | Paginated activity grouped by Organizer |
+| POST | `/api/uploads/profile-image` | Authenticated | Validate and stage a profile image in Supabase |
+| POST | `/api/uploads/event-image` | Organizer, Admin | Validate and stage an event image in Supabase |
+| GET | `/api/admin-audit-logs` | Admin | Paginated audit-log search |
+| GET | `/api/admin-audit-logs/export` | Admin | Export filtered audit logs |
+| GET | `/api/email-outbox/failed` | Admin | List terminally failed email messages |
+| PUT | `/api/email-outbox/{id}/retry` | Admin | Retry a failed email message |
+| GET | `/api/image-cleanup/failed` | Admin | List failed image-cleanup work |
+| PUT | `/api/image-cleanup/{id}/retry` | Admin | Retry failed image cleanup |
 
 Authenticated requests use `Authorization: Bearer <token>`.
 
@@ -199,12 +219,23 @@ Create or update an event:
   "location": "Innovation Hall",
   "capacity": 120,
   "category": "Technology",
+  "imageUrl": null,
+  "isPublished": true,
+  "priceMinor": 0,
+  "currency": "GHS",
+  "format": "Physical",
+  "meetingUrl": null,
+  "salesStartsAt": null,
+  "salesEndsAt": null,
   "version": 3
 }
 ```
 
 Omit `version` when creating an event. For updates, send the value from the
-latest event response; every successful update increments it.
+latest event response; every successful update increments it. A paid event uses
+`priceMinor > 0` and requires both sales-window timestamps. `format` is
+`Physical` or `Virtual`; virtual events require `meetingUrl`. The current model
+has one general-admission price and capacity per event, not ticket tiers.
 
 Bulk attendance:
 
@@ -245,6 +276,9 @@ EMS_TEST_POSTGRES='Host=localhost;Port=5432;Database=event_management_tests;User
 
 ## Deployment notes
 
-Gmail SMTP requires 2FA and a Google App Password; a standard Gmail account is a scaling risk at roughly 500 messages per day. Keep Mailtrap selected for local sandbox delivery when needed. The private `certificates` bucket must exist before certificate generation is enabled.
+Gmail SMTP requires 2FA and a Google App Password. Keep Mailtrap selected for
+local sandbox delivery when needed, and confirm provider quotas before launch.
+The private `certificates` bucket must exist before certificate generation is
+enabled.
 
 Production migrations are intentionally separate from source implementation and must be reviewed before `Database__ApplyMigrations=true` applies them. Native mobile apps and refresh-token issuance remain out of scope.

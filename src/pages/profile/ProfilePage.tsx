@@ -12,6 +12,7 @@ import {
   validateImageFile,
 } from '../../api/imageStorage'
 import PageHeader from '../../components/shared/PageHeader'
+import NotificationToast from '../../components/shared/NotificationToast'
 import { useAuth } from '../../hooks/useAuth'
 
 export default function ProfilePage() {
@@ -83,7 +84,7 @@ export default function ProfilePage() {
         <Col lg={8}>
           <Card className="border-0">
             <Card.Body className="p-4 p-md-5">
-              {saved && <Alert variant="success">Profile picture updated.</Alert>}
+              <NotificationToast message={saved ? 'Profile picture updated.' : null} onClose={() => setSaved(false)} />
               {error && <Alert variant="danger">{error}</Alert>}
               <Form onSubmit={(submission) => void saveProfile(submission)}>
                 <div className="d-flex flex-column flex-md-row gap-4 align-items-md-center">

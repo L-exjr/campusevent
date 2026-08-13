@@ -4,7 +4,7 @@ The GitHub Actions workflow in `.github/workflows/ci.yml` runs on every push to
 `main` and every pull request targeting `main`. Test jobs run for both event types;
 production deployment jobs run only for a push to `main` after both test jobs pass.
 
-The two jobs run independently and in parallel:
+The two test jobs run independently and in parallel:
 
 - **Backend tests** starts a health-checked PostgreSQL 16 service, validates the
   required test-only secrets, restores and audits NuGet dependencies, builds the
@@ -12,8 +12,8 @@ The two jobs run independently and in parallel:
   integration fixture applies migrations and truncates application tables, so
   the connection must point only to the disposable CI database.
 - **Frontend tests** installs the lockfile exactly with `npm ci`, audits npm
-  dependencies, runs the existing ESLint configuration, executes the Vitest/RTL
-  suite, and creates a production Vite build.
+  dependencies on Node.js 24, runs ESLint, executes the Vitest/React Testing
+  Library/MSW suite, and creates a production Vite build.
 
 Both audit steps fail on high or critical findings. The npm gate permits only the
 previously reviewed React Router RSC advisory `GHSA-qwww-vcr4-c8h2` at high
@@ -37,6 +37,24 @@ password, JWT key, Mailtrap credential, or Supabase credential into these
 secrets. Mailtrap and Supabase secrets are not required: CI does not send external
 email or call live storage. Email failure isolation is exercised without a live API
 provider, and storage tests use local test doubles.
+
+## Run the same checks locally
+
+From the repository root:
+
+```bash
+npm ci
+npm run lint
+npm test
+npm run build
+dotnet restore backend/EventManagement.slnx
+dotnet build backend/EventManagement.slnx --configuration Release --no-restore
+dotnet test backend/EventManagement.slnx --configuration Release --no-build
+```
+
+Backend integration tests use local PostgreSQL binaries when available or the
+destructive, test-only `EMS_TEST_POSTGRES` connection described in
+[backend/TESTING.md](backend/TESTING.md).
 
 GitHub does not expose repository secrets to workflows triggered from untrusted
 forks. The backend job will therefore fail during service startup or secret

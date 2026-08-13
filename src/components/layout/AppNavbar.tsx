@@ -26,6 +26,13 @@ export default function AppNavbar() {
 
   return (
     <Navbar expanded={expanded} onToggle={setExpanded} expand="lg" className="app-navbar" sticky="top">
+    <Navbar
+      expand="lg"
+      className="app-navbar"
+      sticky="top"
+      expanded={expanded}
+      onToggle={setExpanded}
+    >
       <Container>
         <Navbar.Brand as={NavLink} to="/" className="d-flex align-items-center gap-2">
           <span className="brand-mark" aria-hidden="true">
@@ -34,10 +41,18 @@ export default function AppNavbar() {
           <span>Campus Events</span>
         </Navbar.Brand>
         <Navbar.Toggle aria-controls="main-navigation" aria-expanded={expanded} label={expanded ? 'Close navigation' : 'Open navigation'} />
+        <Navbar.Toggle aria-controls="main-navigation" aria-expanded={expanded} />
         <Navbar.Collapse id="main-navigation">
-          <Nav className="mx-auto gap-lg-2">
+          <Nav className="mx-auto gap-lg-2" onSelect={() => setExpanded(false)}>
             {navigation.map((item) => (
               <Nav.Link key={item.to} as={NavLink} to={item.to} end={item.to.split('/').length === 2} onClick={() => setExpanded(false)}>
+              <Nav.Link
+                key={item.to}
+                as={NavLink}
+                to={item.to}
+                end={item.to.split('/').length === 2}
+                onClick={() => setExpanded(false)}
+              >
                 {item.label}
               </Nav.Link>
             ))}
@@ -65,7 +80,7 @@ export default function AppNavbar() {
                   {ROLE_LABELS[user.role]}
                 </Badge>
               </div>
-              <Nav.Link onClick={() => void handleLogout()} className="logout-link">
+              <Nav.Link onClick={() => { setExpanded(false); void handleLogout() }} className="logout-link">
                 Log out
               </Nav.Link>
             </div>
@@ -76,6 +91,10 @@ export default function AppNavbar() {
                 Sign in
               </LinkButton>
               <LinkButton to="/register" onClick={() => setExpanded(false)}>
+              <LinkButton to="/login" variant="light" onNavigate={() => setExpanded(false)}>
+                Sign in
+              </LinkButton>
+              <LinkButton to="/register" onNavigate={() => setExpanded(false)}>
                 Create account
               </LinkButton>
             </div>

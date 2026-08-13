@@ -25,17 +25,23 @@
   is low-risk before public deployment, but requires coordinated session expiry
   and user reauthentication once real users exist.
 
+The root `.env.example` is a configuration inventory containing both frontend and
+backend names. A frontend `.env.local` should contain only browser-safe `VITE_*`
+values; ASP.NET secrets belong in User Secrets locally or Railway variables.
+
 ## Transactional email credentials
 
-Email uses Mailtrap's HTTPS Sending API. Store `MAILTRAP_API_TOKEN` only in User
-Secrets locally or Railway variables when deployed, and rotate it immediately if
-it is printed, logged, or committed. Configure `MAILTRAP_SENDER_EMAIL` separately;
-the school-project setup uses Mailtrap's `hello@demomailtrap.co` demo sender.
+The outbox can send through Mailtrap's HTTPS Sending API or Gmail SMTP. Store
+`MAILTRAP_API_TOKEN` and `GMAIL_APP_PASSWORD` only in User Secrets locally or
+Railway variables when deployed, and rotate either immediately if it is printed,
+logged, or committed. `EMAIL_PROVIDER` selects the implementation; local
+development defaults to Mailtrap and the documented production setup uses Gmail.
 
-Mailtrap's demo domain needs no custom DNS setup, but it can send only to the
-email address registered on the Mailtrap account. A missing token or sender logs
-an error and sends nothing. Provider failures are logged without exposing the
-token or raw response body.
+Gmail requires 2-Step Verification and a Google App Password; never configure the
+normal account password. Mailtrap sender and recipient restrictions vary by
+account and must be checked in its dashboard. A missing provider credential logs
+an error and sends nothing. Provider failures are logged without exposing tokens,
+passwords, or raw response bodies.
 
 ## Image upload credentials
 
