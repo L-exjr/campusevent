@@ -186,7 +186,7 @@ public abstract class IntegrationTestBase(ApiIntegrationFixture fixture)
         }, out _);
     }
 
-    private HttpClient CookieClient() => Fixture.CreateClient(new Microsoft.AspNetCore.Mvc.Testing.WebApplicationFactoryClientOptions {
+    protected HttpClient CookieClient() => Fixture.CreateClient(new Microsoft.AspNetCore.Mvc.Testing.WebApplicationFactoryClientOptions {
         BaseAddress = new Uri("https://localhost"), HandleCookies = true, AllowAutoRedirect = false
     });
 

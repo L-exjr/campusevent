@@ -105,10 +105,6 @@ public sealed class AuthControllerTests(ApiIntegrationFixture fixture)
         Assert.False(rejected.Headers.Contains("Access-Control-Allow-Origin"));
     }
 
-    private HttpClient CookieClient() => Fixture.CreateClient(new WebApplicationFactoryClientOptions {
-        BaseAddress = new Uri("https://localhost"), HandleCookies = true, AllowAutoRedirect = false
-    });
-
     private static async Task<string> GetCsrfAsync(HttpClient client)
     {
         using var response = await client.GetAsync("/api/auth/csrf");
@@ -132,9 +128,9 @@ public sealed class AuthControllerTests(ApiIntegrationFixture fixture)
     {
         await ResetAsync();
         await RegisterStudentAsync("known-reset@example.test");
-        using var client = Fixture.CreateClient();
-        using var known = await client.PostAsJsonAsync("/api/auth/forgot-password", new { email = "known-reset@example.test" });
-        using var unknown = await client.PostAsJsonAsync("/api/auth/forgot-password", new { email = "unknown-reset@example.test" });
+        using var client = CookieClient();
+        using var known = await SendWithCsrfAsync(client, HttpMethod.Post, "/api/auth/forgot-password", new { email = "known-reset@example.test" });
+        using var unknown = await SendWithCsrfAsync(client, HttpMethod.Post, "/api/auth/forgot-password", new { email = "unknown-reset@example.test" });
 
         known.EnsureSuccessStatusCode(); unknown.EnsureSuccessStatusCode();
         Assert.Equal(
@@ -149,10 +145,10 @@ public sealed class AuthControllerTests(ApiIntegrationFixture fixture)
         await ResetAsync();
         var student = await RegisterStudentAsync("reset-once@example.test");
         var token = await Fixture.CreateResetTokenAsync(student.UserId, DateTimeOffset.UtcNow.AddMinutes(30));
-        using var client = Fixture.CreateClient();
-        using var reset = await client.PostAsJsonAsync("/api/auth/reset-password", new { token, newPassword = "New-Integration-Password-123!" });
-        using var reuse = await client.PostAsJsonAsync("/api/auth/reset-password", new { token, newPassword = "Another-Integration-Password-123!" });
-        using var login = await client.PostAsJsonAsync("/api/auth/login", new { email = "reset-once@example.test", password = "New-Integration-Password-123!" });
+        using var client = CookieClient();
+        using var reset = await SendWithCsrfAsync(client, HttpMethod.Post, "/api/auth/reset-password", new { token, newPassword = "New-Integration-Password-123!" });
+        using var reuse = await SendWithCsrfAsync(client, HttpMethod.Post, "/api/auth/reset-password", new { token, newPassword = "Another-Integration-Password-123!" });
+        using var login = await SendWithCsrfAsync(client, HttpMethod.Post, "/api/auth/login", new { email = "reset-once@example.test", password = "New-Integration-Password-123!" });
 
         Assert.Equal(HttpStatusCode.OK, reset.StatusCode);
         Assert.Equal(HttpStatusCode.BadRequest, reuse.StatusCode);
@@ -167,10 +163,9 @@ public sealed class AuthControllerTests(ApiIntegrationFixture fixture)
         var token = await Fixture.CreateResetTokenAsync(
             student.UserId,
             DateTimeOffset.UtcNow.AddMinutes(30));
-        using var anonymousClient = Fixture.CreateClient();
-        using var reset = await anonymousClient.PostAsJsonAsync(
-            "/api/auth/reset-password",
-            new { token, newPassword = "New-Integration-Password-123!" });
+        using var anonymousClient = CookieClient();
+        using var reset = await SendWithCsrfAsync(anonymousClient, HttpMethod.Post,
+            "/api/auth/reset-password", new { token, newPassword = "New-Integration-Password-123!" });
         reset.EnsureSuccessStatusCode();
         using var staleClient = CreateAuthenticatedClient(student.Token);
 
@@ -203,12 +198,12 @@ public sealed class AuthControllerTests(ApiIntegrationFixture fixture)
     {
         await ResetAsync();
         var local = await RegisterStudentAsync("linked@example.test");
-        using var client = Fixture.CreateClient();
-        using var response = await client.PostAsJsonAsync("/api/auth/google", new { idToken = "google-subject|LINKED@example.test|Linked User" });
+        using var client = CookieClient();
+        using var response = await SendWithCsrfAsync(client, HttpMethod.Post, "/api/auth/google", new { idToken = "google-subject|LINKED@example.test|Linked User" });
         response.EnsureSuccessStatusCode();
         var body = await ReadJsonAsync(response);
-        using var repeated = await client.PostAsJsonAsync("/api/auth/google", new { idToken = "google-subject|linked@example.test|Linked User" });
-        using var passwordLogin = await client.PostAsJsonAsync("/api/auth/login", new { email = "linked@example.test", password = TestPassword });
+        using var repeated = await SendWithCsrfAsync(client, HttpMethod.Post, "/api/auth/google", new { idToken = "google-subject|linked@example.test|Linked User" });
+        using var passwordLogin = await SendWithCsrfAsync(client, HttpMethod.Post, "/api/auth/login", new { email = "linked@example.test", password = TestPassword });
 
         Assert.Equal(local.UserId, body.GetProperty("user").GetProperty("id").GetGuid());
         Assert.Equal(HttpStatusCode.OK, repeated.StatusCode);
@@ -220,8 +215,8 @@ public sealed class AuthControllerTests(ApiIntegrationFixture fixture)
     public async Task Google_login_creates_only_a_Student_for_a_new_email()
     {
         await ResetAsync();
-        using var client = Fixture.CreateClient();
-        using var response = await client.PostAsJsonAsync("/api/auth/google", new { idToken = "new-google-subject|new-google@example.test|New Google User" });
+        using var client = CookieClient();
+        using var response = await SendWithCsrfAsync(client, HttpMethod.Post, "/api/auth/google", new { idToken = "new-google-subject|new-google@example.test|New Google User" });
         response.EnsureSuccessStatusCode();
         Assert.Equal("Student", (await ReadJsonAsync(response)).GetProperty("user").GetProperty("role").GetString());
     }
@@ -333,12 +328,11 @@ public sealed class AuthRateLimitTests(ApiIntegrationFixture fixture)
         await ResetAsync();
         const string forwardedAddress = "203.0.113.10";
         await Fixture.SetAuthRateLimitCountAsync("Ip", "Login", forwardedAddress, 10000);
-        using var client = Fixture.CreateClient();
+        using var client = CookieClient();
         client.DefaultRequestHeaders.Add("X-Real-IP", forwardedAddress);
         client.DefaultRequestHeaders.Add("X-Forwarded-Proto", "https");
 
-        using var response = await client.PostAsJsonAsync(
-            "/api/auth/login",
+        using var response = await SendWithCsrfAsync(client, HttpMethod.Post, "/api/auth/login",
             new { email = ApiIntegrationFixture.AdminEmail, password = ApiIntegrationFixture.AdminPassword });
 
         Assert.Equal(HttpStatusCode.TooManyRequests, response.StatusCode);
@@ -353,12 +347,11 @@ public sealed class AuthRateLimitTests(ApiIntegrationFixture fixture)
             "Login",
             ApiIntegrationFixture.AdminEmail,
             10000);
-        using var client = Fixture.CreateClient();
+        using var client = CookieClient();
         client.DefaultRequestHeaders.Add("X-Real-IP", "203.0.113.11");
         client.DefaultRequestHeaders.Add("X-Forwarded-Proto", "https");
 
-        using var response = await client.PostAsJsonAsync(
-            "/api/auth/login",
+        using var response = await SendWithCsrfAsync(client, HttpMethod.Post, "/api/auth/login",
             new { email = ApiIntegrationFixture.AdminEmail, password = ApiIntegrationFixture.AdminPassword });
 
         Assert.Equal(HttpStatusCode.TooManyRequests, response.StatusCode);

@@ -1,4 +1,4 @@
-import { screen } from '@testing-library/react'
+import { screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import AppNavbar from '../../../components/layout/AppNavbar'
 import { users } from '../../mocks/fixtures'
@@ -14,7 +14,7 @@ describe('AppNavbar', () => {
 
     await user.click(toggle)
     expect(screen.getByRole('button', { name: 'Close navigation' })).toHaveAttribute('aria-expanded', 'true')
-    expect(navigation).toHaveClass('collapsing')
+    await waitFor(() => expect(navigation).toHaveClass('show'))
 
     await user.click(screen.getByRole('link', { name: 'Explore events' }))
     expect(screen.getByRole('button', { name: 'Open navigation' })).toHaveAttribute('aria-expanded', 'false')
@@ -63,7 +63,7 @@ describe('AppNavbar', () => {
     const user = userEvent.setup()
     renderWithAuth(<AppNavbar />, { user: users.student })
 
-    const toggle = screen.getByRole('button', { name: 'Toggle navigation' })
+    const toggle = screen.getByRole('button', { name: 'Open navigation' })
     await user.click(toggle)
     expect(toggle).toHaveAttribute('aria-expanded', 'true')
 

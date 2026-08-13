@@ -25,7 +25,6 @@ export default function AppNavbar() {
   }
 
   return (
-    <Navbar expanded={expanded} onToggle={setExpanded} expand="lg" className="app-navbar" sticky="top">
     <Navbar
       expand="lg"
       className="app-navbar"
@@ -41,11 +40,9 @@ export default function AppNavbar() {
           <span>Campus Events</span>
         </Navbar.Brand>
         <Navbar.Toggle aria-controls="main-navigation" aria-expanded={expanded} label={expanded ? 'Close navigation' : 'Open navigation'} />
-        <Navbar.Toggle aria-controls="main-navigation" aria-expanded={expanded} />
         <Navbar.Collapse id="main-navigation">
           <Nav className="mx-auto gap-lg-2" onSelect={() => setExpanded(false)}>
             {navigation.map((item) => (
-              <Nav.Link key={item.to} as={NavLink} to={item.to} end={item.to.split('/').length === 2} onClick={() => setExpanded(false)}>
               <Nav.Link
                 key={item.to}
                 as={NavLink}
@@ -87,10 +84,6 @@ export default function AppNavbar() {
           )}
           {!user && (
             <div className="d-flex align-items-center gap-2 mt-3 mt-lg-0">
-              <LinkButton to="/login" variant="light" onClick={() => setExpanded(false)}>
-                Sign in
-              </LinkButton>
-              <LinkButton to="/register" onClick={() => setExpanded(false)}>
               <LinkButton to="/login" variant="light" onNavigate={() => setExpanded(false)}>
                 Sign in
               </LinkButton>
