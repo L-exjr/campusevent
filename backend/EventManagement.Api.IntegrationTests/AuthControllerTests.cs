@@ -2,12 +2,131 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Security.Claims;
 using EventManagement.Api.Infrastructure;
+using Microsoft.AspNetCore.Mvc.Testing;
 
 namespace EventManagement.Api.IntegrationTests;
 
 public sealed class AuthControllerTests(ApiIntegrationFixture fixture)
     : IntegrationTestBase(fixture), IClassFixture<ApiIntegrationFixture>
 {
+    [Fact]
+    public async Task Login_issues_secure_httponly_cross_site_cookie_without_returning_token()
+    {
+        await ResetAsync();
+        using var client = CookieClient();
+        await RegisterWithCsrfAsync(client, "cookie-login@example.test");
+        var csrf = await GetCsrfAsync(client);
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/api/auth/login") {
+            Content = JsonContent.Create(new { email = "cookie-login@example.test", password = TestPassword })
+        };
+        request.Headers.Add("X-CSRF-TOKEN", csrf);
+        using var response = await client.SendAsync(request);
+        var body = await ReadJsonAsync(response);
+
+        response.EnsureSuccessStatusCode();
+        Assert.False(body.TryGetProperty("token", out _));
+        var cookie = response.Headers.GetValues("Set-Cookie").Single(value => value.StartsWith("campus_events_session="));
+        Assert.Contains("httponly", cookie, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("secure", cookie, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("samesite=none", cookie, StringComparison.OrdinalIgnoreCase);
+        using var session = await client.GetAsync("/api/auth/session");
+        Assert.Equal(HttpStatusCode.OK, session.StatusCode);
+    }
+
+    [Fact]
+    public async Task State_changing_request_rejects_missing_csrf_token()
+    {
+        await ResetAsync();
+        using var client = CookieClient();
+        using var response = await client.PostAsJsonAsync("/api/auth/register", new {
+            name = "Missing CSRF", email = "missing-csrf@example.test", password = TestPassword
+        });
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal("The CSRF token is missing or invalid.", (await ReadJsonAsync(response)).GetProperty("error").GetString());
+    }
+
+    [Fact]
+    public async Task State_changing_request_rejects_invalid_csrf_token()
+    {
+        using var client = CookieClient();
+        await GetCsrfAsync(client);
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/api/auth/register") {
+            Content = JsonContent.Create(new { name = "Invalid CSRF", email = "invalid-csrf@example.test", password = TestPassword })
+        };
+        request.Headers.Add("X-CSRF-TOKEN", "invalid-token");
+        using var response = await client.SendAsync(request);
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Expired_session_cookie_is_rejected()
+    {
+        await ResetAsync();
+        var valid = await LoginAdminAsync();
+        var expired = CreateExpiredToken(valid.Token);
+        using var client = CookieClient();
+        client.DefaultRequestHeaders.Add("Cookie", $"campus_events_session={expired}");
+        using var response = await client.GetAsync("/api/auth/session");
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Logout_expires_cookie_and_clears_authenticated_session()
+    {
+        await ResetAsync();
+        using var client = CookieClient();
+        await RegisterWithCsrfAsync(client, "cookie-logout@example.test");
+        var csrf = await GetCsrfAsync(client);
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/api/auth/logout");
+        request.Headers.Add("X-CSRF-TOKEN", csrf);
+        using var logout = await client.SendAsync(request);
+        Assert.Equal(HttpStatusCode.NoContent, logout.StatusCode);
+        Assert.Contains(logout.Headers.GetValues("Set-Cookie"), value =>
+            value.StartsWith("campus_events_session=") && value.Contains("expires=", StringComparison.OrdinalIgnoreCase));
+        using var session = await client.GetAsync("/api/auth/session");
+        Assert.Equal(HttpStatusCode.Unauthorized, session.StatusCode);
+    }
+
+    [Fact]
+    public async Task Cors_allows_configured_frontend_credentials_but_not_unknown_origins()
+    {
+        using var client = CookieClient();
+        using var allowedRequest = new HttpRequestMessage(HttpMethod.Options, "/api/auth/login");
+        allowedRequest.Headers.Add("Origin", "http://localhost:5173");
+        allowedRequest.Headers.Add("Access-Control-Request-Method", "POST");
+        using var allowed = await client.SendAsync(allowedRequest);
+        Assert.Equal("http://localhost:5173", allowed.Headers.GetValues("Access-Control-Allow-Origin").Single());
+        Assert.Equal("true", allowed.Headers.GetValues("Access-Control-Allow-Credentials").Single());
+
+        using var rejectedRequest = new HttpRequestMessage(HttpMethod.Options, "/api/auth/login");
+        rejectedRequest.Headers.Add("Origin", "https://untrusted.example");
+        rejectedRequest.Headers.Add("Access-Control-Request-Method", "POST");
+        using var rejected = await client.SendAsync(rejectedRequest);
+        Assert.False(rejected.Headers.Contains("Access-Control-Allow-Origin"));
+    }
+
+    private HttpClient CookieClient() => Fixture.CreateClient(new WebApplicationFactoryClientOptions {
+        BaseAddress = new Uri("https://localhost"), HandleCookies = true, AllowAutoRedirect = false
+    });
+
+    private static async Task<string> GetCsrfAsync(HttpClient client)
+    {
+        using var response = await client.GetAsync("/api/auth/csrf");
+        response.EnsureSuccessStatusCode();
+        return (await ReadJsonAsync(response)).GetProperty("token").GetString()!;
+    }
+
+    private static async Task RegisterWithCsrfAsync(HttpClient client, string email)
+    {
+        var csrf = await GetCsrfAsync(client);
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/api/auth/register") {
+            Content = JsonContent.Create(new { name = "Cookie User", email, password = TestPassword })
+        };
+        request.Headers.Add("X-CSRF-TOKEN", csrf);
+        using var response = await client.SendAsync(request);
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+    }
+
     [Fact]
     public async Task Forgot_password_returns_same_message_for_known_and_unknown_email()
     {

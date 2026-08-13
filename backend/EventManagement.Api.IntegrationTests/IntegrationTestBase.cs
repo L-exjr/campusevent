@@ -19,25 +19,22 @@ public abstract class IntegrationTestBase(ApiIntegrationFixture fixture)
 
     protected async Task<TestSession> RegisterStudentAsync(string email)
     {
-        using var client = Fixture.CreateClient();
-        using var response = await client.PostAsJsonAsync("/api/auth/register", new
-        {
+        using var client = CookieClient();
+        using var response = await SendWithCsrfAsync(client, HttpMethod.Post, "/api/auth/register", new {
             name = email.Split('@')[0],
             email,
             password = TestPassword
         });
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
-        return ReadSession(await ReadJsonAsync(response));
+        return ReadSession(response, await ReadJsonAsync(response));
     }
 
     protected async Task<TestSession> LoginAsync(string email, string password = TestPassword)
     {
-        using var client = Fixture.CreateClient();
-        using var response = await client.PostAsJsonAsync(
-            "/api/auth/login",
-            new { email, password });
+        using var client = CookieClient();
+        using var response = await SendWithCsrfAsync(client, HttpMethod.Post, "/api/auth/login", new { email, password });
         response.EnsureSuccessStatusCode();
-        return ReadSession(await ReadJsonAsync(response));
+        return ReadSession(response, await ReadJsonAsync(response));
     }
 
     protected Task<TestSession> LoginAdminAsync() => LoginAsync(
@@ -189,9 +186,22 @@ public abstract class IntegrationTestBase(ApiIntegrationFixture fixture)
         }, out _);
     }
 
-    private static TestSession ReadSession(JsonElement body) => new(
-        body.GetProperty("token").GetString()
-            ?? throw new InvalidOperationException("The API returned no token."),
+    private HttpClient CookieClient() => Fixture.CreateClient(new Microsoft.AspNetCore.Mvc.Testing.WebApplicationFactoryClientOptions {
+        BaseAddress = new Uri("https://localhost"), HandleCookies = true, AllowAutoRedirect = false
+    });
+
+    protected static async Task<HttpResponseMessage> SendWithCsrfAsync(HttpClient client, HttpMethod method, string path, object? body = null)
+    {
+        using var csrfResponse = await client.GetAsync("/api/auth/csrf");
+        csrfResponse.EnsureSuccessStatusCode();
+        var csrf = (await ReadJsonAsync(csrfResponse)).GetProperty("token").GetString()!;
+        var request = new HttpRequestMessage(method, path) { Content = body is null ? null : JsonContent.Create(body) };
+        request.Headers.Add("X-CSRF-TOKEN", csrf);
+        return await client.SendAsync(request);
+    }
+
+    private static TestSession ReadSession(HttpResponseMessage response, JsonElement body) => new(
+        Uri.UnescapeDataString(response.Headers.GetValues("Set-Cookie").Single(value => value.StartsWith("campus_events_session=")).Split(';')[0].Split('=', 2)[1]),
         body.GetProperty("user").GetProperty("id").GetGuid());
 
     protected sealed record TestSession(string Token, Guid UserId);

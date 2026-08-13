@@ -9,7 +9,6 @@ interface AuthProviderProps {
 
 export default function AuthProvider({ children }: AuthProviderProps) {
   const [user, setUser] = useState<User | null>(null)
-  const [token, setToken] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -20,7 +19,6 @@ export default function AuthProvider({ children }: AuthProviderProps) {
       .then((session) => {
         if (!active || !session) return
         setUser(session.user)
-        setToken(session.token)
       })
       .catch(() => api.logout())
       .finally(() => active && setLoading(false))
@@ -32,7 +30,6 @@ export default function AuthProvider({ children }: AuthProviderProps) {
   useEffect(() => {
     const clearSession = () => {
       setUser(null)
-      setToken(null)
     }
     window.addEventListener('campus-events:unauthorized', clearSession)
     return () => window.removeEventListener('campus-events:unauthorized', clearSession)
@@ -45,31 +42,26 @@ export default function AuthProvider({ children }: AuthProviderProps) {
   const value = useMemo<AuthContextValue>(
     () => ({
       user,
-      token,
       loading,
-      isAuthenticated: Boolean(user && token),
+      isAuthenticated: Boolean(user),
       login: async (email, password) => {
         const session = await api.login(email, password)
         setUser(session.user)
-        setToken(session.token)
         return session
       },
       register: async (name, email, password) => {
         const session = await api.register(name, email, password)
         setUser(session.user)
-        setToken(session.token)
         return session
       },
       googleLogin: async (idToken) => {
         const session = await api.googleLogin(idToken)
         setUser(session.user)
-        setToken(session.token)
         return session
       },
       logout: async () => {
         await api.logout()
         setUser(null)
-        setToken(null)
       },
       updateProfileImage: async (imageUrl) => {
         if (!user) throw new Error('Authentication is required.')
@@ -78,7 +70,7 @@ export default function AuthProvider({ children }: AuthProviderProps) {
         return updated
       },
     }),
-    [loading, token, user],
+    [loading, user],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

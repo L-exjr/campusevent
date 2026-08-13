@@ -1,0 +1,15 @@
+# Exact fingerprints manually reviewed during the 2026-08 full-history audit.
+# These are documentation placeholders, examples, or deterministic test fixtures.
+19615be301b8d9fef33503856868595860763acb:README.md:postgres-connection-string-password:85
+dbf7744ca3241f6b63fe3f0befe53fa2a2b08dcb:backend/EventManagement.Api.IntegrationTests/ApiWebApplicationFactory.cs:jwt-signing-secret-assignment:26
+dbf7744ca3241f6b63fe3f0befe53fa2a2b08dcb:backend/EventManagement.Api/Services/GmailSmtpEmailService.cs:smtp-app-password-assignment:20
+dbf7744ca3241f6b63fe3f0befe53fa2a2b08dcb:.env.example:jwt-signing-secret-assignment:39
+dbf7744ca3241f6b63fe3f0befe53fa2a2b08dcb:.env.example:smtp-app-password-assignment:30
+dbf7744ca3241f6b63fe3f0befe53fa2a2b08dcb:backend/README.md:smtp-app-password-assignment:45
+dbf7744ca3241f6b63fe3f0befe53fa2a2b08dcb:backend/README.md:jwt-signing-secret-assignment:42
+28676390f570736459198c8a5e2db7d65e1efb18:DEPLOYMENT.md:postgres-connection-string-password:27
+709a4116fd75bf7af273b815660daed269842f77:CI.md:postgres-connection-string-password:32
+3540bb2d76e65f5a70248358cdb2e8898fdfbc9f:backend/README.md:jwt-signing-secret-assignment:29
+3540bb2d76e65f5a70248358cdb2e8898fdfbc9f:backend/TESTING.md:postgres-connection-string-password:30
+e98dfa51cf1ca45ae3d5c0d2abda8d5f795962bd:backend/README.md:postgres-connection-string-password:28
+e98dfa51cf1ca45ae3d5c0d2abda8d5f795962bd:backend/README.md:generic-api-key:112

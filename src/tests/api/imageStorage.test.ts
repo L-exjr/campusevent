@@ -28,27 +28,29 @@ describe('imageStorage image validation', () => {
   })
 
   it('routes uploads through the authenticated backend API', async () => {
-    window.sessionStorage.setItem('campus_events_api_session', JSON.stringify({
-      token: 'app-jwt',
-      expiresAt: '2099-01-01T00:00:00Z',
-      user: {},
-    }))
-    const fetchMock = vi.fn().mockResolvedValue(new Response(
-      JSON.stringify({ url: 'https://example.supabase.co/storage/image.png' }),
-      { status: 200, headers: { 'Content-Type': 'application/json' } },
-    ))
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ token: 'test-csrf-token' }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }))
+      .mockResolvedValueOnce(new Response(
+        JSON.stringify({ url: 'https://example.supabase.co/storage/image.png' }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } },
+      ))
     vi.stubGlobal('fetch', fetchMock)
     const file = new File(['image'], 'profile.png', { type: 'image/png' })
 
     const url = await uploadImage(file, 'profile-images')
 
     expect(url).toBe('https://example.supabase.co/storage/image.png')
-    const [requestUrl, request] = fetchMock.mock.calls[0]
+    expect(fetchMock.mock.calls[0][0]).toBe('http://localhost:5080/api/auth/csrf')
+    const [requestUrl, request] = fetchMock.mock.calls[1]
     expect(requestUrl).toBe('http://localhost:5080/api/uploads/profile-image')
-    expect(request.headers.get('Authorization')).toBe('Bearer app-jwt')
+    expect(request.credentials).toBe('include')
+    expect(request.headers.has('Authorization')).toBe(false)
+    expect(request.headers.get('X-CSRF-TOKEN')).toBe('test-csrf-token')
     expect(request.headers.has('Content-Type')).toBe(false)
     expect(request.body).toBeInstanceOf(FormData)
     vi.unstubAllGlobals()
-    window.sessionStorage.clear()
   })
 })

@@ -70,7 +70,7 @@ export default function LoginPage() {
   return (
     <main className="auth-page">
       <Container>
-        <Row className="g-4 align-items-stretch auth-layout">
+        <Row className="g-0 align-items-stretch auth-layout auth-layout--signin">
           <Col lg={6}>
             <section className="auth-hero h-100">
               <Link to="/" className="auth-brand">
@@ -88,8 +88,9 @@ export default function LoginPage() {
               </div>
               <div className="auth-quote">
                 <div>
-                  <strong>Everything you need to show up prepared.</strong>
-                  <p className="mb-0">One calendar. Clear roles. Better events.</p>
+                  <strong>New to Campus Events?</strong>
+                  <p>Create a Student account and start discovering what’s happening.</p>
+                  <Link to="/register" state={location.state} className="btn btn-outline-light auth-switch-link">Create an account</Link>
                 </div>
               </div>
             </section>
@@ -117,7 +118,7 @@ export default function LoginPage() {
                   <Form.Group className="mb-4">
                     <div className="d-flex justify-content-between"><Form.Label htmlFor="login-password">Password</Form.Label></div>
                     <PasswordInput id="login-password" autoComplete="current-password" value={password} onChange={setPassword} />
-                    <Link to="/forgot-password">Forgot password?</Link>
+                    <Link className="auth-recovery-link" to="/forgot-password">Forgot password?</Link>
                   </Form.Group>
                   <Button type="submit" size="lg" className="w-100" disabled={busy}>
                     {busy ? 'Signing in…' : 'Sign in'}

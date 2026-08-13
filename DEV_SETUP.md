@@ -67,6 +67,18 @@ for the storage rule if a future server-side authorization-code flow introduces 
 
 ## npm audit resolution
 
+## Optional local secret scan
+
+Before committing, developers with Gitleaks installed can scan staged changes:
+
+```bash
+gitleaks git --pre-commit --staged --redact=100
+```
+
+The repository-level `.gitleaks.toml` extends the default rules with provider-specific
+checks used by CI. Do not bypass a finding unless it has been manually verified and
+given a narrow fingerprint allowlist entry.
+
 The initial `npm audit` reported two high findings. They were two dependency
 nodes for one vulnerable package family: `react-router-dom@7.11.0` was a direct
 runtime dependency and pulled in the transitive `react-router@7.11.0`.

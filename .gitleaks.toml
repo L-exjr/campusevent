@@ -1,0 +1,40 @@
+[extend]
+useDefault = true
+
+[[rules]]
+id = "paystack-secret-key"
+description = "Paystack secret key"
+regex = '''\bsk_(?:live|test)_[A-Za-z0-9]{16,}\b'''
+keywords = ["sk_live_", "sk_test_"]
+
+[[rules]]
+id = "supabase-service-role-jwt"
+description = "Supabase service-role JWT"
+regex = '''\beyJ[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,}\b'''
+keywords = ["SUPABASE_SERVICE_ROLE_KEY", "ServiceRoleKey", "eyJ"]
+
+[[rules]]
+id = "google-oauth-client-secret"
+description = "Google OAuth client secret"
+regex = '''\bGOCSPX-[A-Za-z0-9_-]{20,}\b'''
+keywords = ["GOCSPX-"]
+
+[[rules]]
+id = "smtp-app-password-assignment"
+description = "Hardcoded SMTP or Gmail app password literal"
+regex = '''(?i)(?:GMAIL_APP_PASSWORD|AppPassword|smtp[_-]?password)["' ]{0,8}(?:=|:)[ ]*["']([A-Za-z0-9 _-]{16,})["']'''
+secretGroup = 1
+entropy = 3.2
+
+[[rules]]
+id = "jwt-signing-secret-assignment"
+description = "JWT or QR signing secret assignment"
+regex = '''(?i)(?:Jwt(?::|__)?SigningKey|QR_SIGNING_KEY|Tickets:SigningKey)["' ]{0,8}(?:=|:|,)["' ]{0,8}([A-Za-z0-9+/=_-]{24,})'''
+secretGroup = 1
+entropy = 3.0
+
+[[rules]]
+id = "postgres-connection-string-password"
+description = "PostgreSQL connection string containing password"
+regex = '''(?i)(?:Host|Server)=[^;\r\n]+;[^\r\n]{0,300}Password=([^;\s'"$]{4,})'''
+secretGroup = 1

@@ -18,6 +18,8 @@ public sealed class ApiIntegrationFixture : IAsyncLifetime
     private ApiWebApplicationFactory _factory = null!;
 
     public HttpClient CreateClient() => _factory.CreateClient();
+    public HttpClient CreateClient(Microsoft.AspNetCore.Mvc.Testing.WebApplicationFactoryClientOptions options) =>
+        _factory.CreateClient(options);
 
     public async Task InitializeAsync()
     {

@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import Badge from 'react-bootstrap/Badge'
 import Container from 'react-bootstrap/Container'
 import Nav from 'react-bootstrap/Nav'
@@ -12,17 +13,19 @@ import { DEFAULT_PROFILE_IMAGE } from '../../api/imageStorage'
 export default function AppNavbar() {
   const { user, logout } = useAuth()
   const navigate = useNavigate()
+  const [expanded, setExpanded] = useState(false)
   const navigation = user
     ? getNavigationForRole(user.role)
     : [{ label: 'Explore events', to: '/events' }, { label: 'Request an Organizer', to: '/request-organizer' }, { label: 'About', to: '/about' }]
 
   const handleLogout = async () => {
+    setExpanded(false)
     await logout()
     navigate('/login', { replace: true })
   }
 
   return (
-    <Navbar expand="lg" className="app-navbar" sticky="top">
+    <Navbar expanded={expanded} onToggle={setExpanded} expand="lg" className="app-navbar" sticky="top">
       <Container>
         <Navbar.Brand as={NavLink} to="/" className="d-flex align-items-center gap-2">
           <span className="brand-mark" aria-hidden="true">
@@ -30,11 +33,11 @@ export default function AppNavbar() {
           </span>
           <span>Campus Events</span>
         </Navbar.Brand>
-        <Navbar.Toggle aria-controls="main-navigation" />
+        <Navbar.Toggle aria-controls="main-navigation" aria-expanded={expanded} label={expanded ? 'Close navigation' : 'Open navigation'} />
         <Navbar.Collapse id="main-navigation">
           <Nav className="mx-auto gap-lg-2">
             {navigation.map((item) => (
-              <Nav.Link key={item.to} as={NavLink} to={item.to} end={item.to.split('/').length === 2}>
+              <Nav.Link key={item.to} as={NavLink} to={item.to} end={item.to.split('/').length === 2} onClick={() => setExpanded(false)}>
                 {item.label}
               </Nav.Link>
             ))}
@@ -69,10 +72,10 @@ export default function AppNavbar() {
           )}
           {!user && (
             <div className="d-flex align-items-center gap-2 mt-3 mt-lg-0">
-              <LinkButton to="/login" variant="light">
+              <LinkButton to="/login" variant="light" onClick={() => setExpanded(false)}>
                 Sign in
               </LinkButton>
-              <LinkButton to="/register">
+              <LinkButton to="/register" onClick={() => setExpanded(false)}>
                 Create account
               </LinkButton>
             </div>

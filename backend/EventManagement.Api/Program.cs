@@ -56,6 +56,12 @@ builder.Services
         };
         options.Events = new JwtBearerEvents
         {
+            OnMessageReceived = context =>
+            {
+                if (context.Request.Cookies.TryGetValue(AuthCookie.Name, out var token))
+                    context.Token = token;
+                return Task.CompletedTask;
+            },
             OnChallenge = context =>
             {
                 context.HandleResponse();
@@ -130,7 +136,7 @@ builder.Services.AddCors(options =>
     options.AddPolicy("Frontend", policy =>
     {
         var origins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? [];
-        policy.WithOrigins(origins).AllowAnyHeader().AllowAnyMethod();
+        policy.WithOrigins(origins).AllowAnyHeader().AllowAnyMethod().AllowCredentials();
     });
 });
 
@@ -212,6 +218,26 @@ app.UseMiddleware<SecurityHeadersMiddleware>();
 if (!app.Environment.IsDevelopment()) app.UseHsts();
 app.UseHttpsRedirection();
 app.UseCors("Frontend");
+app.Use(async (context, next) =>
+{
+    var isProviderWebhook = context.Request.Path.Equals("/api/payments/webhooks/paystack");
+    var usesExplicitBearerToken = context.Request.Headers.Authorization.ToString()
+        .StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase);
+    if (!isProviderWebhook && !usesExplicitBearerToken && (HttpMethods.IsPost(context.Request.Method) || HttpMethods.IsPut(context.Request.Method) ||
+        HttpMethods.IsPatch(context.Request.Method) || HttpMethods.IsDelete(context.Request.Method))
+       )
+    {
+        var cookieToken = context.Request.Cookies["campus_events_csrf"];
+        var headerToken = context.Request.Headers["X-CSRF-TOKEN"].FirstOrDefault();
+        var valid = cookieToken is not null && headerToken is not null &&
+            cookieToken.Length == headerToken.Length &&
+            System.Security.Cryptography.CryptographicOperations.FixedTimeEquals(
+                System.Text.Encoding.UTF8.GetBytes(cookieToken),
+                System.Text.Encoding.UTF8.GetBytes(headerToken));
+        if (!valid) throw new Microsoft.AspNetCore.Antiforgery.AntiforgeryValidationException("Invalid CSRF token.");
+    }
+    await next();
+});
 app.UseAuthentication();
 app.UseMiddleware<AuthIpRateLimitMiddleware>();
 app.UseRateLimiter();

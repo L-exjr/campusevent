@@ -1,13 +1,6 @@
 import type { EventManagementApi } from './EventManagementApi'
-import {
-  apiRequest,
-  apiDownload,
-  clearStoredSession,
-  readStoredSession,
-  writeStoredSession,
-} from './httpClient'
+import { apiRequest, apiDownload } from './httpClient'
 import type { PaginatedResponse } from './httpClient'
-import { readJwtSessionClaims } from './jwtSession'
 import type {
   AuthSession,
   AdminAuditLog,
@@ -50,7 +43,6 @@ interface ApiUser {
 }
 
 interface ApiAuthResponse {
-  token: string
   expiresAt: string
   user: ApiUser
 }
@@ -246,20 +238,10 @@ function buildEventQuery(filters: EventFilters, upcomingOnly: boolean) {
 
 function saveApiSession(response: ApiAuthResponse): AuthSession {
   const user = mapUser(response.user)
-  const claims = readJwtSessionClaims(response.token)
-  if (claims.userId !== user.id || claims.role !== user.role) {
-    throw new Error('The session token does not match the signed-in user.')
-  }
   if (!Number.isFinite(new Date(response.expiresAt).getTime())) {
     throw new Error('The server returned an invalid session expiry.')
   }
-  const session = { token: response.token, expiresAt: claims.expiresAt, user }
-  writeStoredSession({
-    token: response.token,
-    expiresAt: claims.expiresAt,
-    user: response.user,
-  })
-  return session
+  return { expiresAt: response.expiresAt, user }
 }
 
 export const realApi: EventManagementApi = {
@@ -300,21 +282,16 @@ export const realApi: EventManagementApi = {
   },
 
   async restoreSession() {
-    const stored = readStoredSession()
-    if (!stored) return null
     try {
-      const claims = readJwtSessionClaims(stored.token)
-      const user = mapUser(stored.user as ApiUser)
-      if (claims.userId !== user.id || claims.role !== user.role) throw new Error()
-      return { token: stored.token, expiresAt: claims.expiresAt, user }
+      const user = mapUser(await apiRequest<ApiUser>('/auth/session'))
+      return { expiresAt: '', user }
     } catch {
-      clearStoredSession()
       return null
     }
   },
 
   async logout() {
-    clearStoredSession()
+    await apiRequest('/auth/logout', { method: 'POST' })
   },
 
   async getEvents(filters = {}, page = 1, pageSize = 20, signal) {
@@ -610,8 +587,6 @@ export const realApi: EventManagementApi = {
       method: 'PUT',
       body: JSON.stringify({ imageUrl }),
     })
-    const stored = readStoredSession()
-    if (stored) writeStoredSession({ ...stored, user: apiUser })
     return mapUser(apiUser)
   },
 

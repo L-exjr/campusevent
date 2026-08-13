@@ -1,6 +1,7 @@
 using EventManagement.Api.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
+using Microsoft.AspNetCore.Antiforgery;
 
 namespace EventManagement.Api.Middleware;
 
@@ -17,6 +18,12 @@ public sealed class ExceptionHandlingMiddleware(RequestDelegate next, ILogger<Ex
             context.Response.StatusCode = exception.StatusCode;
             context.Response.ContentType = "application/json";
             await context.Response.WriteAsJsonAsync(new { error = exception.Message });
+        }
+        catch (AntiforgeryValidationException)
+        {
+            context.Response.StatusCode = StatusCodes.Status400BadRequest;
+            context.Response.ContentType = "application/json";
+            await context.Response.WriteAsJsonAsync(new { error = "The CSRF token is missing or invalid." });
         }
         catch (DbUpdateException exception)
         {
