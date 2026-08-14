@@ -52,7 +52,7 @@ function initialValues(event?: EventItem | null): EventInput {
         description: '',
         date: '',
         capacity: 50,
-        category: 'Academic',
+        category: 'Art & Exhibition',
         location: '',
         format: 'physical',
         meetingUrl: null,

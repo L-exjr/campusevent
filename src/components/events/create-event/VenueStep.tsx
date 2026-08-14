@@ -1,7 +1,9 @@
+import { useEffect, useRef, useState } from 'react'
 import Col from 'react-bootstrap/Col'
 import Form from 'react-bootstrap/Form'
 import Row from 'react-bootstrap/Row'
 import type { EventInput } from '../../../types'
+import InteractiveLocationMap from './InteractiveLocationMap'
 
 export interface VenueErrors {
   location?: string
@@ -21,6 +23,85 @@ export default function VenueStep({
   disabled = false,
   onValuesChange,
 }: VenueStepProps) {
+  const [mapBusy, setMapBusy] = useState(false)
+  const [mapMessage, setMapMessage] = useState<string | null>(null)
+  const reverseTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const reverseRequest = useRef<AbortController | null>(null)
+  const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const searchRequest = useRef<AbortController | null>(null)
+
+  useEffect(() => () => {
+    if (reverseTimer.current) clearTimeout(reverseTimer.current)
+    if (searchTimer.current) clearTimeout(searchTimer.current)
+    reverseRequest.current?.abort()
+    searchRequest.current?.abort()
+  }, [])
+
+  const scheduleAddressSearch = (address: string) => {
+    onValuesChange({ location: address, latitude: null, longitude: null })
+    setMapMessage(null)
+    if (searchTimer.current) clearTimeout(searchTimer.current)
+    searchRequest.current?.abort()
+    const query = address.trim()
+    if (query.length < 3) {
+      setMapBusy(false)
+      return
+    }
+
+    setMapBusy(true)
+    setMapMessage('Finding this address on the map…')
+    searchTimer.current = setTimeout(async () => {
+      const controller = new AbortController()
+      searchRequest.current = controller
+      try {
+        const response = await fetch(
+          `https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&q=${encodeURIComponent(query)}`,
+          { headers: { Accept: 'application/json' }, signal: controller.signal },
+        )
+        if (!response.ok) throw new Error('Location search is temporarily unavailable.')
+        const [result] = await response.json() as Array<{ lat: string; lon: string; display_name: string }>
+        if (!result) throw new Error('No matching location found. Add more address detail or choose the point manually.')
+        onValuesChange({ location: result.display_name, latitude: Number(result.lat), longitude: Number(result.lon) })
+        setMapMessage('Map pin updated from the address.')
+      } catch (caught) {
+        if (controller.signal.aborted) return
+        setMapMessage(caught instanceof Error ? caught.message : 'Location search failed.')
+      } finally {
+        if (!controller.signal.aborted) setMapBusy(false)
+      }
+    }, 650)
+  }
+
+  const pickMapLocation = ({ latitude, longitude }: { latitude: number; longitude: number }) => {
+    onValuesChange({ latitude, longitude })
+    setMapBusy(true)
+    setMapMessage('Finding the nearest address…')
+    if (reverseTimer.current) clearTimeout(reverseTimer.current)
+    reverseRequest.current?.abort()
+
+    reverseTimer.current = setTimeout(async () => {
+      const controller = new AbortController()
+      reverseRequest.current = controller
+      try {
+        const response = await fetch(
+          `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${latitude}&lon=${longitude}`,
+          { headers: { Accept: 'application/json' }, signal: controller.signal },
+        )
+        if (!response.ok) throw new Error('No address was found for this point.')
+        const result = await response.json() as { display_name?: string; error?: string }
+        if (!result.display_name) throw new Error(result.error || 'No address was found for this point.')
+        onValuesChange({ location: result.display_name, latitude, longitude })
+        setMapMessage('Address updated from the selected map point.')
+      } catch {
+        if (controller.signal.aborted) return
+        const coordinates = `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`
+        onValuesChange({ location: coordinates, latitude, longitude })
+        setMapMessage('No street address was found. Coordinates are saved; you can replace the address text with a manual venue description.')
+      } finally {
+        if (!controller.signal.aborted) setMapBusy(false)
+      }
+    }, 350)
+  }
   return (
     <section className="event-wizard-step" aria-labelledby="venue-heading">
       <div className="form-section-heading mb-4">
@@ -100,17 +181,32 @@ export default function VenueStep({
                 disabled={disabled}
                 placeholder="Building, room, or full venue address"
                 autoComplete="street-address"
-                onChange={(event) => onValuesChange({ location: event.target.value })}
+                onChange={(event) => scheduleAddressSearch(event.target.value)}
               />
               <Form.Control.Feedback type="invalid">
                 {errors.location ?? 'Enter the physical venue.'}
               </Form.Control.Feedback>
-              <Form.Text>Include enough detail for attendees to find the venue.</Form.Text>
+              <Form.Text>Type an address to place the pin automatically, then click the map or drag the pin to refine it.</Form.Text>
+              {mapMessage && <div className="small mt-2" role="status">{mapMessage}</div>}
+              {values.latitude != null && values.longitude != null && (
+                <InteractiveLocationMap latitude={values.latitude} longitude={values.longitude}
+                  disabled={disabled || mapBusy} onPick={pickMapLocation} />
+              )}
             </Form.Group>
           </Col>
         )}
         {values.format !== 'physical' && (
           <Col md={values.format === 'hybrid' ? 6 : 12}>
+            <Form.Group controlId="create-event-platform" className="mb-3">
+              <Form.Label>Streaming platform</Form.Label>
+              <Form.Select required value={values.virtualPlatform ?? ''} disabled={disabled}
+                onChange={(event) => onValuesChange({ virtualPlatform: event.target.value as EventInput['virtualPlatform'] })}>
+                <option value="">Choose a platform</option>
+                <option value="zoom">Zoom</option><option value="googleMeet">Google Meet</option>
+                <option value="microsoftTeams">Microsoft Teams</option><option value="youtubeLive">YouTube Live</option>
+                <option value="custom">Custom link</option>
+              </Form.Select>
+            </Form.Group>
             <Form.Group controlId="create-event-meeting-url">
               <Form.Label>Meeting link</Form.Label>
               <Form.Control

@@ -155,12 +155,12 @@ public static class DbInitializer
         var now = DateTimeOffset.UtcNow;
         var events = new[]
         {
-            new DemoEvent("KNUST Research & Innovation Showcase", "Students and researchers presented practical campus research, prototypes, and social-impact ideas.", now.AddDays(-21), "Great Hall, KNUST", 350, "Academic", organizers[0]),
-            new DemoEvent("Inter-Hall Football Finals", "A spirited inter-hall final celebrating teamwork, campus pride, and student sport.", now.AddDays(-5), "KNUST Sports Stadium", 1_200, "Sports", organizers[1]),
-            new DemoEvent("Campus Career & Innovation Fair", "Employers, alumni, and student founders are connecting over internships, graduate roles, and new ventures.", now.AddHours(-1), "College of Engineering Forecourt", 500, "Career", organizers[2]),
-            new DemoEvent("KNUST Tech & AI Student Summit", "Hands-on sessions on responsible AI, software careers, and student-built technology.", now.AddDays(4), "E-Learning Centre Auditorium", 400, "Technology", organizers[0]),
-            new DemoEvent("Republic Hall Cultural Night", "An evening of music, dance, food, and performances from across Ghanaian cultures.", now.AddDays(13), "Republic Hall Courtyard", 700, "Culture", organizers[1]),
-            new DemoEvent("Wellness Week: Mind and Body", "Student-led sessions on wellbeing, healthy routines, and accessing campus support.", now.AddDays(27), "University Hospital Conference Room", 180, "Wellness", organizers[2])
+            new DemoEvent("KNUST Research & Innovation Showcase", "Students and researchers presented practical campus research, prototypes, and social-impact ideas.", now.AddDays(-21), "Great Hall, KNUST", 350, "Education & Learning", organizers[0]),
+            new DemoEvent("Inter-Hall Football Finals", "A spirited inter-hall final celebrating teamwork, campus pride, and student sport.", now.AddDays(-5), "KNUST Sports Stadium", 1_200, "Festivals", organizers[1]),
+            new DemoEvent("Campus Career & Innovation Fair", "Employers, alumni, and student founders are connecting over internships, graduate roles, and new ventures.", now.AddHours(-1), "College of Engineering Forecourt", 500, "Conferences", organizers[2]),
+            new DemoEvent("KNUST Tech & AI Student Summit", "Hands-on sessions on responsible AI, software careers, and student-built technology.", now.AddDays(4), "E-Learning Centre Auditorium", 400, "Startup & Tech", organizers[0]),
+            new DemoEvent("Republic Hall Cultural Night", "An evening of music, dance, food, and performances from across Ghanaian cultures.", now.AddDays(13), "Republic Hall Courtyard", 700, "Cultural Events", organizers[1]),
+            new DemoEvent("Wellness Week: Mind and Body", "Student-led sessions on wellbeing, healthy routines, and accessing campus support.", now.AddDays(27), "University Hospital Conference Room", 180, "Health & Wellness", organizers[2])
         };
 
         foreach (var demoEvent in events)
@@ -174,12 +174,14 @@ public static class DbInitializer
                     Title = demoEvent.Title,
                     Description = demoEvent.Description,
                     Date = demoEvent.Date,
+                    EndDate = demoEvent.Date.AddHours(2),
                     Location = demoEvent.Location,
                     Capacity = demoEvent.Capacity,
                     Category = demoEvent.Category,
                     OrganizerId = demoEvent.Organizer.Id,
                     Organizer = demoEvent.Organizer,
-                    IsPublished = true
+                    IsPublished = true,
+                    RegistrationsEnabled = true
                 };
                 dbContext.Events.Add(eventEntity);
             }

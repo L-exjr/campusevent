@@ -26,20 +26,24 @@ describe('AppNavbar', () => {
     expect(navigation).not.toHaveClass('show')
   })
 
-  it('shows Student navigation without organizer or Admin tools', () => {
+  it('shows Student primary navigation and keeps secondary actions in the account menu', async () => {
+    const user = userEvent.setup()
     renderWithAuth(<AppNavbar />, { user: users.student })
 
     expect(screen.getByRole('link', { name: 'My registrations' })).toBeVisible()
+    await user.click(screen.getByRole('button', { name: /Sam Student/i }))
     expect(screen.getByRole('link', { name: 'Apply to organize' })).toBeVisible()
     expect(screen.queryByRole('link', { name: 'Manage events' })).not.toBeInTheDocument()
     expect(screen.queryByRole('link', { name: 'Users' })).not.toBeInTheDocument()
     expect(screen.queryByRole('link', { name: 'Reports' })).not.toBeInTheDocument()
   })
 
-  it('shows Organizer navigation without Student or Admin tools', () => {
+  it('shows Organizer primary navigation and secondary booking requests', async () => {
+    const user = userEvent.setup()
     renderWithAuth(<AppNavbar />, { user: users.organizer })
 
     expect(screen.getByRole('link', { name: 'Manage events' })).toBeVisible()
+    await user.click(screen.getByRole('button', { name: /Olivia Organizer/i }))
     expect(screen.getByRole('link', { name: 'Booking requests' })).toBeVisible()
     expect(screen.getByRole('link', { name: 'Explore events' })).toBeVisible()
     expect(screen.queryByRole('link', { name: 'Request an Organizer' })).not.toBeInTheDocument()
@@ -48,11 +52,13 @@ describe('AppNavbar', () => {
     expect(screen.queryByRole('link', { name: 'Reports' })).not.toBeInTheDocument()
   })
 
-  it('shows Admin navigation without Organizer tools', () => {
+  it('shows Admin primary navigation and secondary operations', async () => {
+    const user = userEvent.setup()
     renderWithAuth(<AppNavbar />, { user: users.admin })
 
     expect(screen.getByRole('link', { name: 'Reports' })).toBeVisible()
     expect(screen.getByRole('link', { name: 'Users' })).toBeVisible()
+    await user.click(screen.getByRole('button', { name: /Ada Admin/i }))
     expect(screen.getByRole('link', { name: 'Applications' })).toBeVisible()
     expect(screen.queryByRole('link', { name: 'Explore events' })).not.toBeInTheDocument()
     expect(screen.queryByRole('link', { name: 'Request an Organizer' })).not.toBeInTheDocument()

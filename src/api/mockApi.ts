@@ -154,7 +154,7 @@ function createSeedDatabase(): MockDatabase {
         'A practical afternoon exploring responsible AI, emerging research, and the skills students need for an AI-enabled workplace.',
       date: daysFromNow(5, 14),
       capacity: 120,
-      category: 'Technology',
+      category: 'Startup & Tech',
       location: 'Innovation Hall',
       organizerId: 'user-organizer-1',
       organizerName: 'Alex Morgan',
@@ -167,7 +167,7 @@ function createSeedDatabase(): MockDatabase {
         'Bring your resume and leave with a clearer personal pitch, an improved profile, and feedback from industry mentors.',
       date: daysFromNow(9, 10),
       capacity: 60,
-      category: 'Career',
+      category: 'Conferences',
       location: 'Business School, Room 204',
       organizerId: 'user-organizer-1',
       organizerName: 'Alex Morgan',
@@ -180,7 +180,7 @@ function createSeedDatabase(): MockDatabase {
         'An evening of food, music, stories, and performances celebrating the many communities that make our campus home.',
       date: daysFromNow(14, 18),
       capacity: 250,
-      category: 'Culture',
+      category: 'Cultural Events',
       location: 'Central Courtyard',
       organizerId: 'user-organizer-2',
       organizerName: 'Priya Patel',
@@ -193,7 +193,7 @@ function createSeedDatabase(): MockDatabase {
         'A focused workshop on structuring arguments, working with sources, and editing academic writing for clarity.',
       date: daysFromNow(18, 13),
       capacity: 45,
-      category: 'Academic',
+      category: 'Education & Learning',
       location: 'Main Library, Seminar 3',
       organizerId: 'user-organizer-2',
       organizerName: 'Priya Patel',
@@ -206,7 +206,7 @@ function createSeedDatabase(): MockDatabase {
         'Start the day with a relaxed guided walk, light mobility exercises, and a short conversation about sustainable habits.',
       date: daysFromNow(23, 7),
       capacity: 80,
-      category: 'Wellness',
+      category: 'Health & Wellness',
       location: 'North Gate Trailhead',
       organizerId: 'user-organizer-1',
       organizerName: 'Alex Morgan',
@@ -219,7 +219,7 @@ function createSeedDatabase(): MockDatabase {
         'Cheer on the finalists in the annual interfaculty futsal competition and stay for the awards presentation.',
       date: daysFromNow(29, 16),
       capacity: 180,
-      category: 'Sports',
+      category: 'Gaming & Esports',
       location: 'University Sports Centre',
       organizerId: 'user-organizer-2',
       organizerName: 'Priya Patel',
@@ -500,6 +500,7 @@ function normalizeEventInput(input: EventInput, requireFutureDate: boolean): Eve
   const salesStartsAt = input.salesStartsAt ? new Date(input.salesStartsAt) : null
   const salesEndsAt = input.salesEndsAt ? new Date(input.salesEndsAt) : null
   const date = new Date(input.date)
+  const endDate = input.endDate ? new Date(input.endDate) : new Date(date.getTime() + 60 * 60_000)
   const category = EVENT_CATEGORIES.find(
     (item) => item.toLowerCase() === input.category.trim().toLowerCase(),
   )
@@ -514,6 +515,8 @@ function normalizeEventInput(input: EventInput, requireFutureDate: boolean): Eve
     throw new Error('A valid online meeting link is required.')
   }
   if (!Number.isFinite(date.getTime())) throw new Error('Enter a valid event date and time.')
+  if (!Number.isFinite(endDate.getTime()) || endDate <= date) throw new Error('Event end must be after the start.')
+  if (input.ticketingEnabled && input.registrationsEnabled) throw new Error('Ticketing and registrations cannot both be enabled.')
   if (requireFutureDate && date.getTime() <= Date.now()) {
     throw new Error('New events must be scheduled in the future.')
   }
@@ -536,11 +539,22 @@ function normalizeEventInput(input: EventInput, requireFutureDate: boolean): Eve
     title,
     description,
     date: date.toISOString(),
+    endDate: endDate.toISOString(),
     capacity: input.capacity,
     category,
     location: input.format === 'virtual' ? 'Online' : location,
     format: input.format,
     meetingUrl: input.format === 'physical' ? null : meetingUrl,
+    virtualPlatform: input.format === 'physical' ? null : input.virtualPlatform,
+    latitude: input.format === 'virtual' ? null : input.latitude ?? null,
+    longitude: input.format === 'virtual' ? null : input.longitude ?? null,
+    instagramUrl: input.instagramUrl?.trim() || null,
+    twitterUrl: input.twitterUrl?.trim() || null,
+    facebookUrl: input.facebookUrl?.trim() || null,
+    websiteUrl: input.websiteUrl?.trim() || null,
+    ticketingEnabled: Boolean(input.ticketingEnabled),
+    registrationsEnabled: Boolean(input.registrationsEnabled),
+    votingEnabled: Boolean(input.votingEnabled),
     salesStartsAt: input.priceMinor > 0 ? salesStartsAt!.toISOString() : null,
     salesEndsAt: input.priceMinor > 0 ? salesEndsAt!.toISOString() : null,
     imageUrl: input.imageUrl ?? null,
@@ -1630,7 +1644,7 @@ export const mockApi: EventManagementApi = {
         date: request.proposedDate,
         location: 'To be confirmed',
         capacity: request.estimatedAttendance,
-        category: 'Culture',
+        category: 'Cultural Events',
         organizerId: organizer.id,
         organizerName: organizer.name,
         createdAt: new Date().toISOString(),

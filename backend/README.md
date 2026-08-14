@@ -218,7 +218,7 @@ Create or update an event:
   "date": "2026-09-18T14:00:00Z",
   "location": "Innovation Hall",
   "capacity": 120,
-  "category": "Technology",
+  "category": "Startup & Tech",
   "imageUrl": null,
   "isPublished": true,
   "priceMinor": 0,

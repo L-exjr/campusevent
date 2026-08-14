@@ -13,6 +13,7 @@ import { getHomeForRole } from '../../utils/permissions'
 import PasswordInput from '../../components/auth/PasswordInput'
 import GoogleSignInButton from '../../components/auth/GoogleSignInButton'
 import { usingMockApi } from '../../api'
+import PasswordStrengthMeter from '../../components/auth/PasswordStrengthMeter'
 
 export default function RegisterPage() {
   const { register, googleLogin } = useAuth()
@@ -128,6 +129,7 @@ export default function RegisterPage() {
                           isInvalid={validated && password.length < 8}
                           invalidFeedback="Use at least 8 characters."
                         />
+                        <PasswordStrengthMeter password={password} />
                       </Form.Group>
                     </Col>
                     <Col md={6}>

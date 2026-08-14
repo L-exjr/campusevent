@@ -40,6 +40,11 @@ export interface NavigationItem {
   to: string
 }
 
+export interface NavigationGroups {
+  primary: NavigationItem[]
+  secondary: NavigationItem[]
+}
+
 const ROLE_NAVIGATION: Record<Role, NavigationItem[]> = {
   student: [
     { label: 'Overview', to: '/student' },
@@ -94,6 +99,47 @@ export function getNavigationForRole(role: Role) {
     ...ROLE_NAVIGATION[role],
     { label: 'Profile', to: '/profile' },
   ]
+}
+
+export function getNavigationGroupsForRole(role: Role): NavigationGroups {
+  if (role === 'admin') return {
+    primary: [
+      { label: 'Reports', to: '/admin' },
+      { label: 'All events', to: '/admin/events' },
+      { label: 'Users', to: '/admin/users' },
+    ],
+    secondary: [
+      { label: 'Applications', to: '/admin/organizer-applications' },
+      { label: 'Booking requests', to: '/admin/booking-requests' },
+      { label: 'Failed emails', to: '/admin/email-outbox' },
+      { label: 'Failed images', to: '/admin/image-cleanup' },
+      { label: 'Audit log', to: '/admin/audit-logs' },
+      { label: 'Profile', to: '/profile' },
+    ],
+  }
+  if (role === 'organizer') return {
+    primary: [
+      { label: 'Overview', to: '/organizer' },
+      { label: 'Manage events', to: '/organizer/events' },
+      { label: 'Explore events', to: '/events' },
+    ],
+    secondary: [
+      { label: 'Booking requests', to: '/organizer/booking-requests' },
+      { label: 'Profile', to: '/profile' },
+    ],
+  }
+  return {
+    primary: [
+      { label: 'Explore events', to: '/events' },
+      { label: 'Overview', to: '/student' },
+      { label: 'My registrations', to: '/student/registrations' },
+    ],
+    secondary: [
+      { label: 'Request an Organizer', to: '/request-organizer' },
+      { label: 'Apply to organize', to: '/student/organizer-application' },
+      { label: 'Profile', to: '/profile' },
+    ],
+  }
 }
 
 export function canManageUserAccount(role: Role) {

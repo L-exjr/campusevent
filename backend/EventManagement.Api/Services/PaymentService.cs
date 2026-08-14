@@ -55,6 +55,8 @@ public sealed class PaymentService(
             var now = timeProvider.GetUtcNow();
             if (!eventEntity.IsPublished)
                 throw new ApiException(StatusCodes.Status404NotFound, "Event not found.");
+            if (!eventEntity.TicketingEnabled)
+                throw new ApiException(StatusCodes.Status409Conflict, "Ticketing is not enabled for this event.");
             if (eventEntity.Date <= now)
                 throw new ApiException(StatusCodes.Status409Conflict, "Registration has closed for this event.");
             if (eventEntity.PriceMinor <= 0)

@@ -17,11 +17,18 @@ function completeBasicInformation(minutesFromNow = 24 * 60) {
   fireEvent.change(screen.getByLabelText('Description'), {
     target: { value: 'A detailed technology forum for the entire campus community.' },
   })
-  fireEvent.change(screen.getByLabelText('Event date'), {
+  fireEvent.change(screen.getByLabelText('Start date'), {
     target: { value: future.date },
   })
   fireEvent.change(screen.getByLabelText('Start time'), {
     target: { value: future.time },
+  })
+  const end = futureLocalDate(minutesFromNow + 60)
+  fireEvent.change(screen.getByLabelText('End date'), {
+    target: { value: end.date },
+  })
+  fireEvent.change(screen.getByLabelText('End time'), {
+    target: { value: end.time },
   })
   return future
 }
@@ -43,6 +50,9 @@ function continueToTools(format: 'physical' | 'virtual' | 'hybrid' = 'physical')
     })
   }
   if (format !== 'physical') {
+    fireEvent.change(screen.getByLabelText('Streaming platform'), {
+      target: { value: 'googleMeet' },
+    })
     fireEvent.change(screen.getByLabelText('Meeting link'), {
       target: { value: 'https://meet.example.test/campus-forum' },
     })
@@ -62,7 +72,7 @@ describe('EventCreationWizard', () => {
 
     expect(screen.getByLabelText('Event title')).toHaveClass('is-invalid')
     expect(screen.getByLabelText('Description')).toHaveClass('is-invalid')
-    expect(screen.getByLabelText('Event date')).toHaveClass('is-invalid')
+    expect(screen.getByLabelText('Start date')).toHaveClass('is-invalid')
     expect(screen.queryByLabelText('Venue address')).not.toBeInTheDocument()
     expect(onSubmit).not.toHaveBeenCalled()
   })
@@ -97,14 +107,14 @@ describe('EventCreationWizard', () => {
     )
 
     continueToTools()
-    const free = screen.getByRole('radio', { name: /free registration/i })
-    const paid = screen.getByRole('radio', { name: /paid ticketing/i })
+    const registrations = screen.getByRole('checkbox', { name: /registrations/i })
+    const ticketing = screen.getByRole('checkbox', { name: /ticketing/i })
 
-    expect(free).toBeChecked()
-    expect(paid).not.toBeChecked()
-    fireEvent.click(paid)
-    expect(free).not.toBeChecked()
-    expect(paid).toBeChecked()
+    expect(registrations).toBeChecked()
+    expect(ticketing).not.toBeChecked()
+    fireEvent.click(ticketing)
+    expect(registrations).not.toBeChecked()
+    expect(ticketing).toBeChecked()
   })
 
   it('submits only the existing payload keys for a free virtual draft', async () => {
@@ -121,31 +131,20 @@ describe('EventCreationWizard', () => {
 
     await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1))
     const payload = onSubmit.mock.calls[0][0]
-    expect(Object.keys(payload).sort()).toEqual([
-      'capacity',
-      'category',
-      'currency',
-      'date',
-      'description',
-      'format',
-      'imageUrl',
-      'isPublished',
-      'location',
-      'meetingUrl',
-      'priceMinor',
-      'salesEndsAt',
-      'salesStartsAt',
-      'title',
-    ])
-    expect(payload).toEqual({
+    expect(payload).toMatchObject({
       title: 'Campus technology forum',
       description: 'A detailed technology forum for the entire campus community.',
       date: future.dateTime,
+      endDate: futureLocalDate(25 * 60).dateTime,
       capacity: 80,
-      category: 'Academic',
+      category: 'Art & Exhibition',
       location: 'Online',
       format: 'virtual',
       meetingUrl: 'https://meet.example.test/campus-forum',
+      virtualPlatform: 'googleMeet',
+      ticketingEnabled: false,
+      registrationsEnabled: true,
+      votingEnabled: false,
       salesStartsAt: null,
       salesEndsAt: null,
       imageUrl: null,

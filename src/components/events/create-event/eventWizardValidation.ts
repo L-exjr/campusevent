@@ -7,6 +7,8 @@ export interface EventWizardSnapshot {
   values: EventInput
   eventDate: string
   eventTime: string
+  eventEndDate?: string
+  eventEndTime?: string
   registrationMode: RegistrationMode
 }
 
@@ -16,7 +18,7 @@ export interface EventWizardErrors {
   tools: EventToolsErrors
 }
 
-export function combineDateTime(date: string, time: string) {
+export function combineDateTime(date?: string, time?: string) {
   return date && time ? `${date}T${time}` : ''
 }
 
@@ -34,6 +36,7 @@ export function validateBasicInformation(
   const description = snapshot.values.description.trim()
   const dateTime = combineDateTime(snapshot.eventDate, snapshot.eventTime)
   const start = new Date(dateTime).getTime()
+  const end = new Date(combineDateTime(snapshot.eventEndDate, snapshot.eventEndTime)).getTime()
   const minimum = Math.max(new Date(minimumDateTime).getTime(), Date.now())
 
   if (title.length < 3 || title.length > 200) {
@@ -47,6 +50,10 @@ export function validateBasicInformation(
   }
   if (!snapshot.eventTime) {
     errors.eventTime = 'Choose the start time.'
+  }
+  if (!snapshot.eventEndDate || !Number.isFinite(end)) errors.eventEndDate = 'Choose an event end date.'
+  if (!snapshot.eventEndTime || (Number.isFinite(start) && Number.isFinite(end) && end <= start)) {
+    errors.eventEndTime = 'Event end must be after the start.'
   }
   if (imageError) errors.image = imageError
 
@@ -64,6 +71,7 @@ export function validateVenue(snapshot: EventWizardSnapshot): VenueErrors {
   if (needsMeetingUrl && !isValidHttpUrl(snapshot.values.meetingUrl)) {
     errors.meetingUrl = 'Enter a valid meeting link beginning with http:// or https://.'
   }
+  if (needsMeetingUrl && !snapshot.values.virtualPlatform) errors.meetingUrl = 'Choose a streaming platform and enter its link.'
 
   return errors
 }
@@ -72,11 +80,15 @@ export function validateEventTools(snapshot: EventWizardSnapshot): EventToolsErr
   const errors: EventToolsErrors = {}
   const { values, registrationMode } = snapshot
 
+  if (values.ticketingEnabled && values.registrationsEnabled) {
+    errors.capacity = 'Ticketing and registrations cannot both be enabled.'
+  }
+
   if (!Number.isInteger(values.capacity) || values.capacity < 1 || values.capacity > 100000) {
     errors.capacity = 'Event capacity must be between 1 and 100000.'
   }
 
-  if (registrationMode === 'paid') {
+  if (values.ticketingEnabled && registrationMode === 'paid') {
     if (!Number.isInteger(values.priceMinor) || values.priceMinor <= 0) {
       errors.priceMinor = 'Enter a ticket price greater than zero.'
     }
@@ -139,16 +151,27 @@ export function buildCreateEventPayload(
     title: values.title.trim(),
     description: values.description.trim(),
     date: combineDateTime(snapshot.eventDate, snapshot.eventTime),
+    endDate: combineDateTime(snapshot.eventEndDate, snapshot.eventEndTime),
     capacity: values.capacity,
     category: values.category,
     location: values.format === 'virtual' ? 'Online' : values.location.trim(),
     format: values.format,
     meetingUrl: values.format === 'physical' ? null : values.meetingUrl?.trim() || null,
-    salesStartsAt: registrationMode === 'paid' ? values.salesStartsAt : null,
-    salesEndsAt: registrationMode === 'paid' ? values.salesEndsAt : null,
+    virtualPlatform: values.format === 'physical' ? null : values.virtualPlatform,
+    latitude: values.format === 'virtual' ? null : values.latitude ?? null,
+    longitude: values.format === 'virtual' ? null : values.longitude ?? null,
+    instagramUrl: values.instagramUrl?.trim() || null,
+    twitterUrl: values.twitterUrl?.trim() || null,
+    facebookUrl: values.facebookUrl?.trim() || null,
+    websiteUrl: values.websiteUrl?.trim() || null,
+    ticketingEnabled: Boolean(values.ticketingEnabled),
+    registrationsEnabled: Boolean(values.registrationsEnabled),
+    votingEnabled: Boolean(values.votingEnabled),
+    salesStartsAt: values.ticketingEnabled && registrationMode === 'paid' ? values.salesStartsAt : null,
+    salesEndsAt: values.ticketingEnabled && registrationMode === 'paid' ? values.salesEndsAt : null,
     imageUrl,
     isPublished: values.isPublished ?? true,
-    priceMinor: registrationMode === 'paid' ? values.priceMinor : 0,
+    priceMinor: values.ticketingEnabled && registrationMode === 'paid' ? values.priceMinor : 0,
     currency: values.currency,
   }
 }

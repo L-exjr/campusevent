@@ -47,51 +47,57 @@ export default function EventToolsStep({
         <span>03</span>
         <div>
           <h3 id="event-tools-heading">Event tools</h3>
-          <p>Set registration capacity and choose how attendees secure their place.</p>
+          <p>Enable only the attendee and engagement tools this event needs.</p>
         </div>
       </div>
 
       <fieldset>
-        <legend className="form-label">Registration payment mode</legend>
-        <div className="event-choice-grid mb-4">
+        <legend className="form-label">Available tools</legend>
+        <div className="event-choice-grid event-choice-grid--three mb-4">
           <label
-            className={`event-choice-card${registrationMode === 'free' ? ' is-selected' : ''}`}
+            className={`event-choice-card${values.ticketingEnabled ? ' is-selected' : ''}`}
           >
             <Form.Check.Input
-              type="radio"
-              name="create-event-registration-mode"
-              value="free"
-              checked={registrationMode === 'free'}
+              type="checkbox" checked={Boolean(values.ticketingEnabled)}
               disabled={disabled}
-              onChange={() => onRegistrationModeChange('free')}
+              onChange={(event) => onValuesChange({ ticketingEnabled: event.target.checked, registrationsEnabled: event.target.checked ? false : values.registrationsEnabled })}
             />
             <span>
-              <strong>Free registration</strong>
-              <small>Attendees register without making a payment.</small>
+              <strong>Ticketing</strong>
+              <small>Choose this if your event involves any form of ticket distribution, paid or free, public sales or invite-only. Attendees receive tickets they must present for entry, and you get full control over tiers, capacity, and validation at the door.</small>
             </span>
           </label>
 
           <label
-            className={`event-choice-card${registrationMode === 'paid' ? ' is-selected' : ''}`}
+            className={`event-choice-card${values.registrationsEnabled ? ' is-selected' : ''}`}
           >
             <Form.Check.Input
-              type="radio"
-              name="create-event-registration-mode"
-              value="paid"
-              checked={registrationMode === 'paid'}
+              type="checkbox" checked={Boolean(values.registrationsEnabled)}
               disabled={disabled}
-              onChange={() => onRegistrationModeChange('paid')}
+              onChange={(event) => onValuesChange({ registrationsEnabled: event.target.checked, ticketingEnabled: event.target.checked ? false : values.ticketingEnabled, priceMinor: event.target.checked ? 0 : values.priceMinor })}
             />
             <span>
-              <strong>Paid ticketing</strong>
-              <small>Attendees pay one general-admission ticket price.</small>
+              <strong>Registrations</strong>
+              <small>For events where you simply want to know who is coming. Attendees sign up to secure their spot and you get a centralized list to manage attendance. No ticket booking or distribution involved, just a clean register of who has signed up.</small>
             </span>
+          </label>
+
+          <label className={`event-choice-card${values.votingEnabled ? ' is-selected' : ''}`}>
+            <Form.Check.Input type="checkbox" checked={Boolean(values.votingEnabled)} disabled={disabled}
+              onChange={(event) => onValuesChange({ votingEnabled: event.target.checked })} />
+            <span><strong>Voting</strong><small>Built for competitions that require public nominations and voting. Ideal for pageants, dinner and award shows, school and university awards programs, and any event where the audience decides the winner.</small></span>
           </label>
         </div>
       </fieldset>
 
+      {values.ticketingEnabled && <fieldset className="mb-4"><legend className="form-label">Ticket price model</legend>
+        <div className="event-choice-grid">
+          <label className={`event-choice-card${registrationMode === 'free' ? ' is-selected' : ''}`}><Form.Check.Input type="radio" name="ticket-mode" checked={registrationMode === 'free'} onChange={() => onRegistrationModeChange('free')} /><span><strong>Free tickets</strong><small>Issue scannable tickets at no cost.</small></span></label>
+          <label className={`event-choice-card${registrationMode === 'paid' ? ' is-selected' : ''}`}><Form.Check.Input type="radio" name="ticket-mode" checked={registrationMode === 'paid'} onChange={() => onRegistrationModeChange('paid')} /><span><strong>Paid tickets</strong><small>Charge one general-admission price.</small></span></label>
+        </div></fieldset>}
+
       <Row className="g-3">
-        <Col md={registrationMode === 'paid' ? 6 : 12}>
+        {(values.ticketingEnabled || values.registrationsEnabled) && <Col md={registrationMode === 'paid' && values.ticketingEnabled ? 6 : 12}>
           <Form.Group controlId="create-event-capacity">
             <Form.Label>Capacity</Form.Label>
             <Form.Control
@@ -110,9 +116,9 @@ export default function EventToolsStep({
             </Form.Control.Feedback>
             <Form.Text>Registration closes when this number of attendees is reached.</Form.Text>
           </Form.Group>
-        </Col>
+        </Col>}
 
-        {registrationMode === 'paid' && (
+        {values.ticketingEnabled && registrationMode === 'paid' && (
           <>
             <Col md={6}>
               <Form.Group controlId="create-event-price">
@@ -221,13 +227,13 @@ export default function EventToolsStep({
           </>
         )}
 
-        <Col xs={12}>
+        {values.votingEnabled && <Col xs={12}>
           <Alert variant="info" className="mb-0" role="note">
             <Alert.Heading as="h4" className="h6">Voting is configured after creation</Alert.Heading>
             Once this event has been created, voting categories, nominees, pricing, and dates
             can be configured from the event dashboard.
           </Alert>
-        </Col>
+        </Col>}
       </Row>
     </section>
   )

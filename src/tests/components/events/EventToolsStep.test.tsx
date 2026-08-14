@@ -8,7 +8,7 @@ const values: EventInput = {
   description: '',
   date: '2030-08-20T18:30',
   capacity: 50,
-  category: 'Academic',
+  category: 'Art & Exhibition',
   location: '',
   format: 'physical',
   meetingUrl: null,
@@ -18,10 +18,13 @@ const values: EventInput = {
   isPublished: true,
   priceMinor: 12500,
   currency: 'GHS',
+  ticketingEnabled: true,
+  registrationsEnabled: false,
+  votingEnabled: false,
 }
 
 describe('EventToolsStep', () => {
-  it('requires one mutually exclusive registration payment mode', () => {
+  it('presents ticketing, registrations, and voting selectors', () => {
     render(
       <EventToolsStep
         values={values}
@@ -31,10 +34,11 @@ describe('EventToolsStep', () => {
       />,
     )
 
-    expect(screen.getByRole('radio', { name: /free registration/i })).toBeChecked()
-    expect(screen.getByRole('radio', { name: /paid ticketing/i })).not.toBeChecked()
+    expect(screen.getByRole('checkbox', { name: /ticketing/i })).toBeChecked()
+    expect(screen.getByRole('checkbox', { name: /registrations/i })).not.toBeChecked()
+    expect(screen.getByRole('checkbox', { name: /voting/i })).not.toBeChecked()
+    expect(screen.getByRole('radio', { name: /free tickets/i })).toBeChecked()
     expect(screen.getAllByRole('radio')).toHaveLength(2)
-    expect(screen.queryByRole('checkbox', { name: /registration|ticketing/i })).not.toBeInTheDocument()
   })
 
   it('changes registration mode without clearing preserved paid values', async () => {
@@ -50,10 +54,9 @@ describe('EventToolsStep', () => {
       />,
     )
 
-    await user.click(screen.getByRole('radio', { name: /paid ticketing/i }))
+    await user.click(screen.getByRole('radio', { name: /paid tickets/i }))
 
     expect(onRegistrationModeChange).toHaveBeenCalledWith('paid')
-    expect(onValuesChange).not.toHaveBeenCalled()
   })
 
   it('shows capacity for free registration and keeps paid-only fields hidden', () => {
@@ -92,19 +95,19 @@ describe('EventToolsStep', () => {
     expect(screen.queryByRole('link', { name: /pricing|terms/i })).not.toBeInTheDocument()
   })
 
-  it('presents voting as a static post-creation note', () => {
+  it('enables voting independently', async () => {
+    const user = userEvent.setup()
+    const onValuesChange = vi.fn()
     render(
       <EventToolsStep
         values={values}
         registrationMode="free"
         onRegistrationModeChange={vi.fn()}
-        onValuesChange={vi.fn()}
+        onValuesChange={onValuesChange}
       />,
     )
 
-    expect(screen.getByRole('heading', { name: 'Voting is configured after creation' })).toBeVisible()
-    expect(screen.queryByRole('checkbox', { name: /voting/i })).not.toBeInTheDocument()
-    expect(screen.queryByRole('textbox', { name: /voting/i })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /voting/i })).not.toBeInTheDocument()
+    await user.click(screen.getByRole('checkbox', { name: /voting/i }))
+    expect(onValuesChange).toHaveBeenCalledWith({ votingEnabled: true })
   })
 })

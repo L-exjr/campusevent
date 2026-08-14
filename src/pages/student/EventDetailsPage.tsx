@@ -179,7 +179,9 @@ export default function EventDetailsPage() {
                     ? 'This event has reached capacity.'
                     : `${spotsLeft} ${spotsLeft === 1 ? 'place remains' : 'places remain'}.`}
               </p>
-              {salesNotOpen ? (
+              {!data.event.ticketingEnabled && !data.event.registrationsEnabled ? (
+                <Button size="lg" className="w-100" disabled>Attendance signup unavailable</Button>
+              ) : salesNotOpen ? (
                 <Button size="lg" className="w-100" disabled>
                   Sales not open
                 </Button>

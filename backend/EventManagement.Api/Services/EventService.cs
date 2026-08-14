@@ -94,7 +94,13 @@ public sealed class EventService(
     IConfiguration configuration) : IEventService
 {
     private static readonly string[] SupportedCategories =
-        ["Academic", "Career", "Culture", "Sports", "Technology", "Wellness"];
+    [
+        "Art & Exhibition", "Awards Event", "Comedy Shows", "Concerts & Music",
+        "Conferences", "Cultural Events", "Education & Learning", "Fashion & Beauty",
+        "Festivals", "Food & Drink", "Gaming & Esports", "Hackathons",
+        "Health & Wellness", "Movies & Film", "Other", "Pageant",
+        "Parties & Nightlife", "Startup & Tech", "Workshops & Training"
+    ];
 
     public async Task<PaginatedResponse<EventResponse>> GetAsync(
         string? search,
@@ -213,9 +219,20 @@ public sealed class EventService(
             Title = input.Title,
             Description = input.Description,
             Date = input.Date,
+            EndDate = input.EndDate,
             Location = input.Location,
             Format = input.Format,
             MeetingUrl = input.MeetingUrl,
+            VirtualPlatform = input.VirtualPlatform,
+            Latitude = input.Latitude,
+            Longitude = input.Longitude,
+            InstagramUrl = input.InstagramUrl,
+            TwitterUrl = input.TwitterUrl,
+            FacebookUrl = input.FacebookUrl,
+            WebsiteUrl = input.WebsiteUrl,
+            TicketingEnabled = input.TicketingEnabled,
+            RegistrationsEnabled = input.RegistrationsEnabled,
+            VotingEnabled = input.VotingEnabled,
             SalesStartsAt = input.SalesStartsAt,
             SalesEndsAt = input.SalesEndsAt,
             Capacity = input.Capacity,
@@ -296,9 +313,20 @@ public sealed class EventService(
         eventEntity.Title = input.Title;
         eventEntity.Description = input.Description;
         eventEntity.Date = input.Date;
+        eventEntity.EndDate = input.EndDate;
         eventEntity.Location = input.Location;
         eventEntity.Format = input.Format;
         eventEntity.MeetingUrl = input.MeetingUrl;
+        eventEntity.VirtualPlatform = input.VirtualPlatform;
+        eventEntity.Latitude = input.Latitude;
+        eventEntity.Longitude = input.Longitude;
+        eventEntity.InstagramUrl = input.InstagramUrl;
+        eventEntity.TwitterUrl = input.TwitterUrl;
+        eventEntity.FacebookUrl = input.FacebookUrl;
+        eventEntity.WebsiteUrl = input.WebsiteUrl;
+        eventEntity.TicketingEnabled = input.TicketingEnabled;
+        eventEntity.RegistrationsEnabled = input.RegistrationsEnabled;
+        eventEntity.VotingEnabled = input.VotingEnabled;
         eventEntity.SalesStartsAt = input.SalesStartsAt;
         eventEntity.SalesEndsAt = input.SalesEndsAt;
         eventEntity.Capacity = input.Capacity;
@@ -466,6 +494,8 @@ public sealed class EventService(
             throw new ApiException(StatusCodes.Status409Conflict, "Registration has closed for this event.");
         if (!eventEntity.IsPublished)
             throw new ApiException(StatusCodes.Status404NotFound, "Event not found.");
+        if (!eventEntity.TicketingEnabled && !eventEntity.RegistrationsEnabled)
+            throw new ApiException(StatusCodes.Status409Conflict, "This event is not accepting attendees.");
         if (eventEntity.PriceMinor > 0)
             throw new ApiException(
                 StatusCodes.Status409Conflict,
@@ -751,6 +781,11 @@ public sealed class EventService(
             throw new ApiException(StatusCodes.Status400BadRequest, "A valid online meeting link is required.");
         if (category is null)
             throw new ApiException(StatusCodes.Status400BadRequest, "Choose a supported event category.");
+        var endDate = request.EndDate ?? request.Date.AddHours(1);
+        if (endDate <= request.Date)
+            throw new ApiException(StatusCodes.Status400BadRequest, "Event end must be after the start.");
+        if (request.TicketingEnabled && request.RegistrationsEnabled)
+            throw new ApiException(StatusCodes.Status400BadRequest, "Ticketing and registrations cannot both be enabled.");
 
         if (request.PriceMinor < 0)
             throw new ApiException(StatusCodes.Status400BadRequest, "Event price cannot be negative.");
@@ -777,7 +812,13 @@ public sealed class EventService(
             format,
             format == "Physical" ? null : meetingUrl,
             request.PriceMinor > 0 ? request.SalesStartsAt : null,
-            request.PriceMinor > 0 ? request.SalesEndsAt : null);
+            request.PriceMinor > 0 ? request.SalesEndsAt : null,
+            endDate,
+            format == "Physical" ? null : request.VirtualPlatform?.Trim(),
+            format == "Virtual" ? null : request.Latitude,
+            format == "Virtual" ? null : request.Longitude,
+            request.InstagramUrl?.Trim(), request.TwitterUrl?.Trim(), request.FacebookUrl?.Trim(), request.WebsiteUrl?.Trim(),
+            request.TicketingEnabled, request.RegistrationsEnabled, request.VotingEnabled);
     }
 
     private readonly record struct NormalizedEventInput(
@@ -793,5 +834,16 @@ public sealed class EventService(
         string Format,
         string? MeetingUrl,
         DateTimeOffset? SalesStartsAt,
-        DateTimeOffset? SalesEndsAt);
+        DateTimeOffset? SalesEndsAt,
+        DateTimeOffset? EndDate,
+        string? VirtualPlatform,
+        double? Latitude,
+        double? Longitude,
+        string? InstagramUrl,
+        string? TwitterUrl,
+        string? FacebookUrl,
+        string? WebsiteUrl,
+        bool TicketingEnabled,
+        bool RegistrationsEnabled,
+        bool VotingEnabled);
 }

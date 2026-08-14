@@ -283,6 +283,13 @@ namespace EventManagement.Api.Data.Migrations
                         .HasMaxLength(5000)
                         .HasColumnType("character varying(5000)");
 
+                    b.Property<DateTimeOffset?>("EndDate")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("FacebookUrl")
+                        .HasMaxLength(2048)
+                        .HasColumnType("character varying(2048)");
+
                     b.Property<string>("Format")
                         .IsRequired()
                         .ValueGeneratedOnAdd()
@@ -298,13 +305,23 @@ namespace EventManagement.Api.Data.Migrations
                         .HasMaxLength(2048)
                         .HasColumnType("character varying(2048)");
 
+                    b.Property<string>("InstagramUrl")
+                        .HasMaxLength(2048)
+                        .HasColumnType("character varying(2048)");
+
                     b.Property<bool>("IsPublished")
                         .HasColumnType("boolean");
+
+                    b.Property<double?>("Latitude")
+                        .HasColumnType("double precision");
 
                     b.Property<string>("Location")
                         .IsRequired()
                         .HasMaxLength(300)
                         .HasColumnType("character varying(300)");
+
+                    b.Property<double?>("Longitude")
+                        .HasColumnType("double precision");
 
                     b.Property<string>("MeetingUrl")
                         .HasMaxLength(2048)
@@ -316,22 +333,43 @@ namespace EventManagement.Api.Data.Migrations
                     b.Property<long>("PriceMinor")
                         .HasColumnType("bigint");
 
+                    b.Property<bool>("RegistrationsEnabled")
+                        .HasColumnType("boolean");
+
                     b.Property<DateTimeOffset?>("SalesEndsAt")
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<DateTimeOffset?>("SalesStartsAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<bool>("TicketingEnabled")
+                        .HasColumnType("boolean");
+
                     b.Property<string>("Title")
                         .IsRequired()
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
+
+                    b.Property<string>("TwitterUrl")
+                        .HasMaxLength(2048)
+                        .HasColumnType("character varying(2048)");
 
                     b.Property<int>("Version")
                         .IsConcurrencyToken()
                         .ValueGeneratedOnAdd()
                         .HasColumnType("integer")
                         .HasDefaultValue(1);
+
+                    b.Property<string>("VirtualPlatform")
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<bool>("VotingEnabled")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("WebsiteUrl")
+                        .HasMaxLength(2048)
+                        .HasColumnType("character varying(2048)");
 
                     b.HasKey("Id");
 

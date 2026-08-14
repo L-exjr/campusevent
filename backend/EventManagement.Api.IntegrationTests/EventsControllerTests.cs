@@ -21,7 +21,7 @@ public sealed class EventsControllerTests(ApiIntegrationFixture fixture)
                 date = DateTimeOffset.UtcNow.AddDays(7),
                 location = "Engineering Auditorium",
                 capacity = 200,
-                category = "Technology",
+                category = "Startup & Tech",
                 format = "Hybrid",
                 meetingUrl = "https://meet.example.test/engineering-forum",
                 priceMinor = 0,
@@ -63,7 +63,7 @@ public sealed class EventsControllerTests(ApiIntegrationFixture fixture)
                 date = DateTimeOffset.UtcNow.AddDays(7),
                 location = "Engineering Auditorium",
                 capacity = 200,
-                category = "Technology",
+                category = "Startup & Tech",
                 format = "Hybrid",
                 priceMinor = 0,
                 currency = "GHS"
@@ -132,7 +132,7 @@ public sealed class EventsControllerTests(ApiIntegrationFixture fixture)
                 date = DateTimeOffset.UtcNow.AddDays(7),
                 location = "Draft Hall",
                 capacity = 10,
-                category = "Technology",
+                category = "Startup & Tech",
                 isPublished = false,
                 version = 1
             });
@@ -224,7 +224,7 @@ public sealed class EventsControllerTests(ApiIntegrationFixture fixture)
             date = DateTimeOffset.UtcNow.AddDays(7),
             location = "Image Hall",
             capacity = 20,
-            category = "Technology",
+            category = "Startup & Tech",
             imageUrl
         };
 
@@ -475,7 +475,7 @@ public sealed class EventsControllerTests(ApiIntegrationFixture fixture)
         date,
         location = "Integration Test Hall",
         capacity = 10,
-        category = "Technology",
+        category = "Startup & Tech",
         isPublished,
         version
     };

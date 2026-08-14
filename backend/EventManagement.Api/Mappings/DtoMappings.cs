@@ -49,5 +49,16 @@ public static class DtoMappings
         eventEntity.Format,
         eventEntity.MeetingUrl,
         eventEntity.SalesStartsAt,
-        eventEntity.SalesEndsAt);
+        eventEntity.SalesEndsAt,
+        eventEntity.EndDate,
+        eventEntity.VirtualPlatform,
+        eventEntity.Latitude,
+        eventEntity.Longitude,
+        eventEntity.InstagramUrl,
+        eventEntity.TwitterUrl,
+        eventEntity.FacebookUrl,
+        eventEntity.WebsiteUrl,
+        eventEntity.TicketingEnabled,
+        eventEntity.RegistrationsEnabled,
+        eventEntity.VotingEnabled);
 }

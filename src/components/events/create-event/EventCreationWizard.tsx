@@ -40,10 +40,21 @@ const initialValues: EventInput = {
   description: '',
   date: '',
   capacity: 50,
-  category: 'Academic',
+  category: 'Art & Exhibition',
   location: '',
   format: 'physical',
   meetingUrl: null,
+  endDate: null,
+  virtualPlatform: null,
+  latitude: null,
+  longitude: null,
+  instagramUrl: null,
+  twitterUrl: null,
+  facebookUrl: null,
+  websiteUrl: null,
+  ticketingEnabled: false,
+  registrationsEnabled: true,
+  votingEnabled: false,
   salesStartsAt: null,
   salesEndsAt: null,
   imageUrl: null,
@@ -68,6 +79,8 @@ export default function EventCreationWizard({
   const [values, setValues] = useState<EventInput>(initialValues)
   const [eventDate, setEventDate] = useState('')
   const [eventTime, setEventTime] = useState('')
+  const [eventEndDate, setEventEndDate] = useState('')
+  const [eventEndTime, setEventEndTime] = useState('')
   const [registrationMode, setRegistrationMode] = useState<RegistrationMode>('free')
   const [errors, setErrors] = useState<EventWizardErrors>(emptyErrors)
   const [imageFile, setImageFile] = useState<File | null>(null)
@@ -86,6 +99,8 @@ export default function EventCreationWizard({
     values,
     eventDate,
     eventTime,
+    eventEndDate,
+    eventEndTime,
     registrationMode,
   }
 
@@ -101,6 +116,14 @@ export default function EventCreationWizard({
   const handleTimeChange = (time: string) => {
     setEventTime(time)
     updateValues({ date: combineDateTime(eventDate, time) })
+    if (eventDate && time && !eventEndDate && !eventEndTime) {
+      const end = new Date(`${eventDate}T${time}`)
+      end.setHours(end.getHours() + 1)
+      const endDate = toDateTimeLocal(end.toISOString())
+      setEventEndDate(endDate.slice(0, 10))
+      setEventEndTime(endDate.slice(11, 16))
+      updateValues({ date: combineDateTime(eventDate, time), endDate })
+    }
   }
 
   const handleImageChange = (change: ChangeEvent<HTMLInputElement>) => {
@@ -207,6 +230,8 @@ export default function EventCreationWizard({
           values={values}
           eventDate={eventDate}
           eventTime={eventTime}
+          eventEndDate={eventEndDate}
+          eventEndTime={eventEndTime}
           imagePreview={imagePreview}
           errors={errors.basic}
           disabled={disabled}
@@ -214,6 +239,8 @@ export default function EventCreationWizard({
           onValuesChange={updateValues}
           onEventDateChange={handleDateChange}
           onEventTimeChange={handleTimeChange}
+          onEventEndDateChange={(date) => { setEventEndDate(date); updateValues({ endDate: combineDateTime(date, eventEndTime) }) }}
+          onEventEndTimeChange={(time) => { setEventEndTime(time); updateValues({ endDate: combineDateTime(eventEndDate, time) }) }}
           onImageChange={handleImageChange}
         />
       )}

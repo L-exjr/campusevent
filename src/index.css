@@ -163,6 +163,40 @@ a {
   min-width: 245px;
 }
 
+.navbar-account-toggle {
+  color: var(--ems-ink) !important;
+  text-align: left;
+  text-decoration: none;
+}
+
+.navbar-account-toggle::after { margin-left: 0.25rem; }
+
+.dropdown-menu {
+  border: 1px solid var(--glass-border-strong);
+  background: var(--glass-surface-strong);
+  box-shadow: var(--glass-shadow-soft);
+}
+
+@supports ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
+  .dropdown-menu {
+    background: var(--glass-surface);
+    -webkit-backdrop-filter: blur(var(--glass-blur-soft)) saturate(135%);
+    backdrop-filter: blur(var(--glass-blur-soft)) saturate(135%);
+  }
+}
+
+.password-strength { margin-top: 0.55rem; }
+.password-strength__header { display: flex; justify-content: space-between; color: var(--ems-muted); font-size: 0.78rem; }
+.password-strength__meter { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.3rem; margin: 0.35rem 0; }
+.password-strength__meter span { height: 0.35rem; border-radius: 999px; background: #dddfea; }
+.password-strength--weak .is-active { background: #c9364f; }
+.password-strength--medium .is-active { background: #b77908; }
+.password-strength--strong .is-active { background: #16805b; }
+.password-strength--weak strong { color: #a51f38; }
+.password-strength--medium strong { color: #805100; }
+.password-strength--strong strong { color: #116447; }
+.password-strength small { color: var(--ems-muted); font-size: 0.74rem; }
+
 .avatar {
   display: grid;
   width: 2.25rem;

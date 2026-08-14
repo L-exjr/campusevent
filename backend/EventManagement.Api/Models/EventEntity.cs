@@ -6,9 +6,20 @@ public sealed class EventEntity
     public required string Title { get; set; }
     public required string Description { get; set; }
     public DateTimeOffset Date { get; set; }
+    public DateTimeOffset? EndDate { get; set; }
     public required string Location { get; set; }
     public string Format { get; set; } = "Physical";
     public string? MeetingUrl { get; set; }
+    public string? VirtualPlatform { get; set; }
+    public double? Latitude { get; set; }
+    public double? Longitude { get; set; }
+    public string? InstagramUrl { get; set; }
+    public string? TwitterUrl { get; set; }
+    public string? FacebookUrl { get; set; }
+    public string? WebsiteUrl { get; set; }
+    public bool TicketingEnabled { get; set; }
+    public bool RegistrationsEnabled { get; set; } = true;
+    public bool VotingEnabled { get; set; }
     public DateTimeOffset? SalesStartsAt { get; set; }
     public DateTimeOffset? SalesEndsAt { get; set; }
     public int Capacity { get; set; }

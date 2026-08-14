@@ -73,6 +73,11 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
                 .HasDefaultValue("Physical")
                 .IsRequired();
             entity.Property(eventEntity => eventEntity.MeetingUrl).HasMaxLength(2048);
+            entity.Property(eventEntity => eventEntity.VirtualPlatform).HasMaxLength(40);
+            entity.Property(eventEntity => eventEntity.InstagramUrl).HasMaxLength(2048);
+            entity.Property(eventEntity => eventEntity.TwitterUrl).HasMaxLength(2048);
+            entity.Property(eventEntity => eventEntity.FacebookUrl).HasMaxLength(2048);
+            entity.Property(eventEntity => eventEntity.WebsiteUrl).HasMaxLength(2048);
             entity.Property(eventEntity => eventEntity.Category).HasMaxLength(100).IsRequired();
             entity.Property(eventEntity => eventEntity.Currency)
                 .HasMaxLength(3)

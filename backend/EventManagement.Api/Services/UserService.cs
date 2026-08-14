@@ -88,9 +88,6 @@ public sealed class UserService(
         if (user.Role == UserRole.Admin)
             throw new ApiException(StatusCodes.Status400BadRequest, "Admin roles cannot be changed through this endpoint.");
 
-        if (user.Role == UserRole.Organizer && role == UserRole.Student)
-            await EnsureOrganizerHasNoActiveWorkAsync(userId, cancellationToken);
-
         var previousRole = user.Role;
         user.Role = role;
         if (role == UserRole.Organizer)

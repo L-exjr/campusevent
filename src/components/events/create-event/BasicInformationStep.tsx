@@ -11,6 +11,8 @@ export interface BasicInformationErrors {
   description?: string
   eventDate?: string
   eventTime?: string
+  eventEndDate?: string
+  eventEndTime?: string
   image?: string
 }
 
@@ -18,6 +20,8 @@ interface BasicInformationStepProps {
   values: EventInput
   eventDate: string
   eventTime: string
+  eventEndDate?: string
+  eventEndTime?: string
   imagePreview: string
   errors?: BasicInformationErrors
   disabled?: boolean
@@ -25,6 +29,8 @@ interface BasicInformationStepProps {
   onValuesChange: (changes: Partial<EventInput>) => void
   onEventDateChange: (date: string) => void
   onEventTimeChange: (time: string) => void
+  onEventEndDateChange?: (date: string) => void
+  onEventEndTimeChange?: (time: string) => void
   onImageChange: ChangeEventHandler<HTMLInputElement>
 }
 
@@ -32,6 +38,8 @@ export default function BasicInformationStep({
   values,
   eventDate,
   eventTime,
+  eventEndDate = '',
+  eventEndTime = '',
   imagePreview,
   errors = {},
   disabled = false,
@@ -39,6 +47,8 @@ export default function BasicInformationStep({
   onValuesChange,
   onEventDateChange,
   onEventTimeChange,
+  onEventEndDateChange,
+  onEventEndTimeChange,
   onImageChange,
 }: BasicInformationStepProps) {
   return (
@@ -97,7 +107,7 @@ export default function BasicInformationStep({
           </Form.Group>
         </Col>
 
-        <Col md={4}>
+        <Col md={3}>
           <Form.Group controlId="create-event-category">
             <Form.Label>Category</Form.Label>
             <Form.Select
@@ -114,9 +124,9 @@ export default function BasicInformationStep({
           </Form.Group>
         </Col>
 
-        <Col md={4}>
+        <Col md={3}>
           <Form.Group controlId="create-event-date">
-            <Form.Label>Event date</Form.Label>
+            <Form.Label>Start date</Form.Label>
             <Form.Control
               type="date"
               required
@@ -132,7 +142,7 @@ export default function BasicInformationStep({
           </Form.Group>
         </Col>
 
-        <Col md={4}>
+        <Col md={3}>
           <Form.Group controlId="create-event-time">
             <Form.Label>Start time</Form.Label>
             <Form.Control
@@ -147,6 +157,48 @@ export default function BasicInformationStep({
               {errors.eventTime ?? 'Choose the start time.'}
             </Form.Control.Feedback>
           </Form.Group>
+        </Col>
+
+        <Col md={3}>
+          <Form.Group controlId="create-event-end-date">
+            <Form.Label>End date</Form.Label>
+            <Form.Control type="date" required min={eventDate || minimumDate} value={eventEndDate}
+              isInvalid={Boolean(errors.eventEndDate)} disabled={disabled}
+              onChange={(event) => onEventEndDateChange?.(event.target.value)} />
+            <Form.Control.Feedback type="invalid">{errors.eventEndDate ?? 'Choose an end date after the start.'}</Form.Control.Feedback>
+          </Form.Group>
+        </Col>
+
+        <Col md={{ span: 3, offset: 9 }}>
+          <Form.Group controlId="create-event-end-time">
+            <Form.Label>End time</Form.Label>
+            <Form.Control type="time" required value={eventEndTime}
+              isInvalid={Boolean(errors.eventEndTime)} disabled={disabled}
+              onChange={(event) => onEventEndTimeChange?.(event.target.value)} />
+            <Form.Control.Feedback type="invalid">{errors.eventEndTime ?? 'End must be after the start.'}</Form.Control.Feedback>
+            <Form.Text>Times use your device’s local time and follow its 12/24-hour preference.</Form.Text>
+          </Form.Group>
+        </Col>
+
+        <Col xs={12}>
+          <details className="event-optional-section">
+            <summary>Event social links <span>Optional</span></summary>
+            <Row className="g-3 pt-3">
+              {([
+                ['Instagram', 'instagramUrl', 'https://instagram.com/your-event'],
+                ['Twitter / X', 'twitterUrl', 'https://x.com/your-event'],
+                ['Facebook', 'facebookUrl', 'https://facebook.com/your-event'],
+                ['Website', 'websiteUrl', 'https://your-event.com'],
+              ] as const).map(([label, field, placeholder]) => (
+                <Col md={6} key={field}><Form.Group controlId={`create-event-${field}`}>
+                  <Form.Label>{label}</Form.Label>
+                  <Form.Control type="url" maxLength={2048} placeholder={placeholder}
+                    disabled={disabled} value={values[field] ?? ''}
+                    onChange={(event) => onValuesChange({ [field]: event.target.value || null })} />
+                </Form.Group></Col>
+              ))}
+            </Row>
+          </details>
         </Col>
 
         <Col xs={12}>

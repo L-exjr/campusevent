@@ -17,7 +17,18 @@ public sealed record EventUpsertRequest(
     [param: Required, StringLength(20)] string Format = "Physical",
     [param: Url, StringLength(2048)] string? MeetingUrl = null,
     DateTimeOffset? SalesStartsAt = null,
-    DateTimeOffset? SalesEndsAt = null);
+    DateTimeOffset? SalesEndsAt = null,
+    DateTimeOffset? EndDate = null,
+    [param: StringLength(40)] string? VirtualPlatform = null,
+    double? Latitude = null,
+    double? Longitude = null,
+    [param: Url, StringLength(2048)] string? InstagramUrl = null,
+    [param: Url, StringLength(2048)] string? TwitterUrl = null,
+    [param: Url, StringLength(2048)] string? FacebookUrl = null,
+    [param: Url, StringLength(2048)] string? WebsiteUrl = null,
+    bool TicketingEnabled = false,
+    bool RegistrationsEnabled = true,
+    bool VotingEnabled = false);
 
 public sealed record TransferEventOwnershipRequest(
     Guid OrganizerId,
@@ -43,7 +54,18 @@ public sealed record EventResponse(
     string Format = "Physical",
     string? MeetingUrl = null,
     DateTimeOffset? SalesStartsAt = null,
-    DateTimeOffset? SalesEndsAt = null);
+    DateTimeOffset? SalesEndsAt = null,
+    DateTimeOffset? EndDate = null,
+    string? VirtualPlatform = null,
+    double? Latitude = null,
+    double? Longitude = null,
+    string? InstagramUrl = null,
+    string? TwitterUrl = null,
+    string? FacebookUrl = null,
+    string? WebsiteUrl = null,
+    bool TicketingEnabled = false,
+    bool RegistrationsEnabled = true,
+    bool VotingEnabled = false);
 
 public sealed record EventRegistrantResponse(
     Guid RegistrationId,

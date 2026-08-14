@@ -75,6 +75,8 @@ export default function ReviewCreateStep({
               <dd>{values.category}</dd>
               <dt>Starts</dt>
               <dd>{formatDateTime(values.date)}</dd>
+              <dt>Ends</dt><dd>{formatDateTime(values.endDate ?? '')}</dd>
+              {(values.instagramUrl || values.twitterUrl || values.facebookUrl || values.websiteUrl) && <><dt>Social links</dt><dd>{[values.instagramUrl, values.twitterUrl, values.facebookUrl, values.websiteUrl].filter(Boolean).join(' · ')}</dd></>}
             </dl>
           </div>
         </section>
@@ -96,12 +98,14 @@ export default function ReviewCreateStep({
               <>
                 <dt>Address</dt>
                 <dd>{values.location}</dd>
+                {values.latitude != null && values.longitude != null && <><dt>Map pin</dt><dd>{values.latitude.toFixed(5)}, {values.longitude.toFixed(5)}</dd></>}
               </>
             )}
             {values.format !== 'physical' && (
               <>
                 <dt>Meeting link</dt>
                 <dd className="text-break">{values.meetingUrl}</dd>
+                <dt>Platform</dt><dd>{values.virtualPlatform}</dd>
               </>
             )}
           </dl>
@@ -118,11 +122,11 @@ export default function ReviewCreateStep({
             </Button>
           </header>
           <dl className="review-list mb-0">
-            <dt>Registration</dt>
-            <dd>{registrationMode === 'free' ? 'Free registration' : 'Paid ticketing'}</dd>
+            <dt>Ticketing</dt><dd>{values.ticketingEnabled ? (registrationMode === 'paid' ? 'Paid tickets' : 'Free tickets') : 'Disabled'}</dd>
+            <dt>Registrations</dt><dd>{values.registrationsEnabled ? 'Enabled' : 'Disabled'}</dd>
             <dt>Capacity</dt>
             <dd>{values.capacity.toLocaleString()}</dd>
-            {registrationMode === 'paid' && (
+            {values.ticketingEnabled && registrationMode === 'paid' && (
               <>
                 <dt>Ticket price</dt>
                 <dd>{formatMoney(values.priceMinor, values.currency)}</dd>
@@ -133,7 +137,7 @@ export default function ReviewCreateStep({
               </>
             )}
             <dt>Voting</dt>
-            <dd>Available to configure from the event dashboard after creation.</dd>
+            <dd>{values.votingEnabled ? 'Enabled; configure the campaign after creation.' : 'Disabled'}</dd>
           </dl>
         </section>
 

@@ -110,11 +110,13 @@ public abstract class IntegrationTestBase(ApiIntegrationFixture fixture)
         date = eventDate,
         location = "Integration Test Hall",
         capacity,
-        category = "Technology",
+        category = "Startup & Tech",
         priceMinor,
         currency = "GHS",
         salesStartsAt = priceMinor > 0 ? DateTimeOffset.UtcNow : (DateTimeOffset?)null,
-        salesEndsAt = priceMinor > 0 ? eventDate.AddHours(-1) : (DateTimeOffset?)null
+        salesEndsAt = priceMinor > 0 ? eventDate.AddHours(-1) : (DateTimeOffset?)null,
+        ticketingEnabled = priceMinor > 0,
+        registrationsEnabled = priceMinor <= 0
         };
     }
 

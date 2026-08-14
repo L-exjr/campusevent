@@ -33,11 +33,19 @@ public sealed class PaymentsControllerTests(ApiIntegrationFixture fixture)
         using var initialize = await client.PostAsync(
             $"/api/payments/events/{eventId}/initialize",
             null);
-        initialize.EnsureSuccessStatusCode();
+        Assert.True(initialize.IsSuccessStatusCode, await initialize.Content.ReadAsStringAsync());
         var reference = (await ReadJsonAsync(initialize)).GetProperty("reference").GetString()!;
 
         Assert.Equal(0, await Fixture.CountRegistrationsAsync(eventId));
         Assert.Equal(1, await Fixture.CountPaymentOrdersAsync(eventId));
+
+        using var unverifiedWebhook = Fixture.CreateClient();
+        using var unverified = await unverifiedWebhook.PostAsJsonAsync(
+            "/api/payments/webhooks/paystack",
+            new { @event = "charge.success", data = new { reference } });
+
+        Assert.Equal(HttpStatusCode.Unauthorized, unverified.StatusCode);
+        Assert.Equal(0, await Fixture.CountRegistrationsAsync(eventId));
 
         using var webhook = Fixture.CreateClient();
         webhook.DefaultRequestHeaders.Add("x-paystack-signature", "valid-test-signature");
@@ -71,11 +79,17 @@ public sealed class PaymentsControllerTests(ApiIntegrationFixture fixture)
         using var initialized = await payingClient.PostAsync(
             $"/api/payments/events/{eventId}/initialize",
             null);
-        using var competing = await otherClient.PostAsync($"/api/events/{eventId}/register", null);
+        using var competing = await otherClient.PostAsync(
+            $"/api/payments/events/{eventId}/initialize",
+            null);
 
-        initialized.EnsureSuccessStatusCode();
+        Assert.True(initialized.IsSuccessStatusCode, await initialized.Content.ReadAsStringAsync());
         Assert.Equal(HttpStatusCode.Conflict, competing.StatusCode);
+        Assert.Equal(
+            "This event is at capacity.",
+            (await ReadJsonAsync(competing)).GetProperty("error").GetString());
         Assert.Equal(0, await Fixture.CountRegistrationsAsync(eventId));
+        Assert.Equal(1, await Fixture.CountPaymentOrdersAsync(eventId));
     }
 
     [Fact]

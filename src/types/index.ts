@@ -5,14 +5,28 @@ export type BookingRequestStatus =
   | 'declined' | 'converted' | 'closed'
 
 export type EventCategory =
-  | 'Academic'
-  | 'Career'
-  | 'Culture'
-  | 'Sports'
-  | 'Technology'
-  | 'Wellness'
+  | 'Art & Exhibition'
+  | 'Awards Event'
+  | 'Comedy Shows'
+  | 'Concerts & Music'
+  | 'Conferences'
+  | 'Cultural Events'
+  | 'Education & Learning'
+  | 'Fashion & Beauty'
+  | 'Festivals'
+  | 'Food & Drink'
+  | 'Gaming & Esports'
+  | 'Hackathons'
+  | 'Health & Wellness'
+  | 'Movies & Film'
+  | 'Other'
+  | 'Pageant'
+  | 'Parties & Nightlife'
+  | 'Startup & Tech'
+  | 'Workshops & Training'
 
 export type EventFormat = 'physical' | 'virtual' | 'hybrid'
+export type VirtualPlatform = 'zoom' | 'googleMeet' | 'microsoftTeams' | 'youtubeLive' | 'custom'
 
 export interface User {
   id: string
@@ -37,11 +51,22 @@ export interface EventItem {
   title: string
   description: string
   date: string
+  endDate?: string | null
   capacity: number
   category: EventCategory
   location: string
   format: EventFormat
   meetingUrl: string | null
+  virtualPlatform?: VirtualPlatform | null
+  latitude?: number | null
+  longitude?: number | null
+  instagramUrl?: string | null
+  twitterUrl?: string | null
+  facebookUrl?: string | null
+  websiteUrl?: string | null
+  ticketingEnabled?: boolean
+  registrationsEnabled?: boolean
+  votingEnabled?: boolean
   salesStartsAt: string | null
   salesEndsAt: string | null
   organizerId: string
@@ -59,11 +84,22 @@ export interface EventInput {
   title: string
   description: string
   date: string
+  endDate?: string | null
   capacity: number
   category: EventCategory
   location: string
   format: EventFormat
   meetingUrl: string | null
+  virtualPlatform?: VirtualPlatform | null
+  latitude?: number | null
+  longitude?: number | null
+  instagramUrl?: string | null
+  twitterUrl?: string | null
+  facebookUrl?: string | null
+  websiteUrl?: string | null
+  ticketingEnabled?: boolean
+  registrationsEnabled?: boolean
+  votingEnabled?: boolean
   salesStartsAt: string | null
   salesEndsAt: string | null
   imageUrl: string | null
@@ -332,10 +368,23 @@ export interface AdminAuditLog {
 }
 
 export const EVENT_CATEGORIES: EventCategory[] = [
-  'Academic',
-  'Career',
-  'Culture',
-  'Sports',
-  'Technology',
-  'Wellness',
+  'Art & Exhibition',
+  'Awards Event',
+  'Comedy Shows',
+  'Concerts & Music',
+  'Conferences',
+  'Cultural Events',
+  'Education & Learning',
+  'Fashion & Beauty',
+  'Festivals',
+  'Food & Drink',
+  'Gaming & Esports',
+  'Hackathons',
+  'Health & Wellness',
+  'Movies & Film',
+  'Other',
+  'Pageant',
+  'Parties & Nightlife',
+  'Startup & Tech',
+  'Workshops & Training',
 ]

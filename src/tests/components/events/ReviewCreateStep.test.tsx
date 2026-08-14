@@ -8,11 +8,16 @@ const values: EventInput = {
   title: 'Hybrid engineering forum',
   description: 'A forum that attendees can join on campus or online.',
   date: '2030-08-20T18:30',
+  endDate: '2030-08-20T20:30',
   capacity: 200,
-  category: 'Technology',
+  category: 'Startup & Tech',
   location: 'Engineering Auditorium',
   format: 'hybrid',
   meetingUrl: 'https://meet.example.test/engineering-forum',
+  virtualPlatform: 'googleMeet',
+  ticketingEnabled: true,
+  registrationsEnabled: false,
+  votingEnabled: false,
   salesStartsAt: '2030-08-01T09:00',
   salesEndsAt: '2030-08-19T18:30',
   imageUrl: null,
@@ -40,7 +45,7 @@ describe('ReviewCreateStep', () => {
     expect(screen.getByText('Engineering Auditorium')).toBeVisible()
     expect(screen.getByText('https://meet.example.test/engineering-forum')).toBeVisible()
     expect(screen.getByRole('heading', { name: 'Event tools' })).toBeVisible()
-    expect(screen.getByText('Paid ticketing')).toBeVisible()
+    expect(screen.getByText('Paid tickets')).toBeVisible()
     expect(screen.getByText('GHS 125.00')).toBeVisible()
     expect(screen.getByRole('heading', { name: 'Publishing' })).toBeVisible()
   })

@@ -7,16 +7,22 @@ import {
 const hybridPaid: EventWizardSnapshot = {
   eventDate: '2030-08-20',
   eventTime: '18:30',
+  eventEndDate: '2030-08-20',
+  eventEndTime: '20:30',
   registrationMode: 'paid',
   values: {
     title: ' Hybrid forum ',
     description: ' A complete hybrid event description. ',
     date: '2030-08-20T18:30',
     capacity: 100,
-    category: 'Technology',
+    category: 'Startup & Tech',
     location: ' Great Hall ',
     format: 'hybrid',
     meetingUrl: ' https://meet.example.test/hybrid ',
+    virtualPlatform: 'googleMeet',
+    ticketingEnabled: true,
+    registrationsEnabled: false,
+    votingEnabled: true,
     salesStartsAt: '2030-08-01T09:00',
     salesEndsAt: '2030-08-19T18:30',
     imageUrl: null,
@@ -54,16 +60,27 @@ describe('eventWizardValidation', () => {
     expect(errors.tools.salesEndsAt).toBe('Ticket sales must end after they start.')
   })
 
-  it('normalizes without changing the payload shape', () => {
+  it('normalizes the expanded event payload', () => {
     expect(buildCreateEventPayload(hybridPaid, 'https://images.example.test/event.jpg')).toEqual({
       title: 'Hybrid forum',
       description: 'A complete hybrid event description.',
       date: '2030-08-20T18:30',
+      endDate: '2030-08-20T20:30',
       capacity: 100,
-      category: 'Technology',
+      category: 'Startup & Tech',
       location: 'Great Hall',
       format: 'hybrid',
       meetingUrl: 'https://meet.example.test/hybrid',
+      virtualPlatform: 'googleMeet',
+      latitude: null,
+      longitude: null,
+      instagramUrl: null,
+      twitterUrl: null,
+      facebookUrl: null,
+      websiteUrl: null,
+      ticketingEnabled: true,
+      registrationsEnabled: false,
+      votingEnabled: true,
       salesStartsAt: '2030-08-01T09:00',
       salesEndsAt: '2030-08-19T18:30',
       imageUrl: 'https://images.example.test/event.jpg',

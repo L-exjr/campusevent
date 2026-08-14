@@ -52,9 +52,20 @@ interface ApiEvent {
   title: string
   description: string
   date: string
+  endDate: string | null
   location: string
   format: 'Physical' | 'Virtual' | 'Hybrid'
   meetingUrl: string | null
+  virtualPlatform: EventInput['virtualPlatform']
+  latitude: number | null
+  longitude: number | null
+  instagramUrl: string | null
+  twitterUrl: string | null
+  facebookUrl: string | null
+  websiteUrl: string | null
+  ticketingEnabled: boolean
+  registrationsEnabled: boolean
+  votingEnabled: boolean
   salesStartsAt: string | null
   salesEndsAt: string | null
   capacity: number
@@ -169,11 +180,22 @@ function mapEvent(event: ApiEvent): EventItem {
     title: event.title,
     description: event.description,
     date: event.date,
+    endDate: event.endDate,
     capacity: event.capacity,
     category: event.category as EventItem['category'],
     location: event.location,
     format: event.format.toLowerCase() as EventItem['format'],
     meetingUrl: event.meetingUrl,
+    virtualPlatform: event.virtualPlatform,
+    latitude: event.latitude,
+    longitude: event.longitude,
+    instagramUrl: event.instagramUrl,
+    twitterUrl: event.twitterUrl,
+    facebookUrl: event.facebookUrl,
+    websiteUrl: event.websiteUrl,
+    ticketingEnabled: event.ticketingEnabled,
+    registrationsEnabled: event.registrationsEnabled,
+    votingEnabled: event.votingEnabled,
     salesStartsAt: event.salesStartsAt,
     salesEndsAt: event.salesEndsAt,
     organizerId: event.organizerId,
@@ -213,6 +235,7 @@ function eventPayload(input: EventInput) {
   return {
     ...input,
     date: new Date(input.date).toISOString(),
+    endDate: input.endDate ? new Date(input.endDate).toISOString() : null,
   }
 }
 

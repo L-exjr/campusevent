@@ -9,7 +9,7 @@ const values: EventInput = {
   description: '',
   date: '',
   capacity: 50,
-  category: 'Academic',
+  category: 'Art & Exhibition',
   location: '',
   format: 'physical',
   meetingUrl: null,
@@ -22,7 +22,7 @@ const values: EventInput = {
 }
 
 describe('BasicInformationStep', () => {
-  it('renders only the existing basic-information fields', () => {
+  it('renders the improved schedule and optional social fields', () => {
     render(
       <BasicInformationStep
         values={values}
@@ -40,11 +40,12 @@ describe('BasicInformationStep', () => {
     expect(screen.getByLabelText('Event title')).toBeVisible()
     expect(screen.getByLabelText('Description')).toBeVisible()
     expect(screen.getByLabelText('Category')).toBeVisible()
-    expect(screen.getByLabelText('Event date')).toBeVisible()
+    expect(screen.getByLabelText('Start date')).toBeVisible()
     expect(screen.getByLabelText('Start time')).toBeVisible()
     expect(screen.getByLabelText('Cover image')).toBeVisible()
-    expect(screen.queryByLabelText(/end date/i)).not.toBeInTheDocument()
-    expect(screen.queryByLabelText(/social/i)).not.toBeInTheDocument()
+    expect(screen.getByLabelText('End date')).toBeVisible()
+    expect(screen.getByLabelText('End time')).toBeVisible()
+    expect(screen.getByText(/Event social links/i)).toBeVisible()
   })
 
   it('reports field changes to the wizard controller', async () => {
@@ -67,12 +68,12 @@ describe('BasicInformationStep', () => {
     )
 
     await user.type(screen.getByLabelText('Event title'), 'A')
-    await user.selectOptions(screen.getByLabelText('Category'), 'Technology')
-    await user.type(screen.getByLabelText('Event date'), '2030-08-20')
+    await user.selectOptions(screen.getByLabelText('Category'), 'Startup & Tech')
+    await user.type(screen.getByLabelText('Start date'), '2030-08-20')
     fireEvent.change(screen.getByLabelText('Start time'), { target: { value: '18:30' } })
 
     expect(onValuesChange).toHaveBeenCalledWith({ title: 'A' })
-    expect(onValuesChange).toHaveBeenCalledWith({ category: 'Technology' })
+    expect(onValuesChange).toHaveBeenCalledWith({ category: 'Startup & Tech' })
     expect(onEventDateChange).toHaveBeenLastCalledWith('2030-08-20')
     expect(onEventTimeChange).toHaveBeenLastCalledWith('18:30')
   })

@@ -111,7 +111,7 @@ export default function LoginPage() {
                   {usingMockApi ? 'Use a demo account or your registered student account.' : 'Use your Campus Events account.'}
                 </p>
                 {error && <Alert variant="danger">{error}</Alert>}
-                <Form noValidate validated={validated} onSubmit={(event) => void handleSubmit(event)}>
+                <Form noValidate onSubmit={(event) => void handleSubmit(event)}>
                   <Form.Group className="mb-3" controlId="login-email">
                     <Form.Label>Email address</Form.Label>
                     <Form.Control
@@ -119,6 +119,7 @@ export default function LoginPage() {
                       required
                       autoComplete="email"
                       value={email}
+                      isInvalid={validated && !/^\S+@\S+\.\S+$/.test(email)}
                       onChange={(event) => setEmail(event.target.value)}
                     />
                     <Form.Control.Feedback type="invalid">Enter a valid email address.</Form.Control.Feedback>

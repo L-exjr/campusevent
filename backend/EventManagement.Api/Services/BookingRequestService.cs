@@ -174,7 +174,9 @@ public sealed class BookingRequestService(
                 Date = request.ProposedDate,
                 Location = "To be confirmed",
                 Capacity = request.EstimatedAttendance,
-                Category = "Culture",
+                Category = "Cultural Events",
+                EndDate = request.ProposedDate.AddHours(2),
+                RegistrationsEnabled = true,
                 OrganizerId = organizerId,
                 Organizer = request.AssignedOrganizer!,
                 IsPublished = false
