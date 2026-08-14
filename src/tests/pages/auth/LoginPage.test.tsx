@@ -19,6 +19,7 @@ describe('LoginPage', () => {
 
     await user.click(screen.getByRole('button', { name: 'Sign in' }))
 
+    expect(screen.getAllByLabelText('Password')).toHaveLength(1)
     expect(screen.getByText('Enter a valid email address.')).toBeVisible()
     expect(screen.getByText('Enter your password.')).toBeVisible()
   })

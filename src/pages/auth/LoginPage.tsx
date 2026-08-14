@@ -125,8 +125,6 @@ export default function LoginPage() {
                   </Form.Group>
                   <Form.Group className="mb-4">
                     <div className="d-flex justify-content-between"><Form.Label htmlFor="login-password">Password</Form.Label></div>
-                    <PasswordInput id="login-password" autoComplete="current-password" value={password} onChange={setPassword} />
-                    <Link className="auth-recovery-link" to="/forgot-password">Forgot password?</Link>
                     <PasswordInput
                       id="login-password"
                       autoComplete="current-password"
@@ -135,7 +133,7 @@ export default function LoginPage() {
                       isInvalid={validated && password.length === 0}
                       invalidFeedback="Enter your password."
                     />
-                    <Link to="/forgot-password">Forgot password?</Link>
+                    <Link className="auth-recovery-link" to="/forgot-password">Forgot password?</Link>
                   </Form.Group>
                   <Button type="submit" size="lg" className="w-100" disabled={busy}>
                     {busy ? 'Signing in…' : 'Sign in'}
@@ -160,9 +158,7 @@ export default function LoginPage() {
                     </div>
                   </>
                 )}
-                <p className="text-center text-secondary mt-4 mb-0">
-                  New to Campus Events? <Link to="/register" state={location.state}>Create an account</Link>
-                </p>
+
               </Card.Body>
             </Card>
           </Col>
