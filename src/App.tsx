@@ -1,45 +1,47 @@
+import { lazy, Suspense } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import AppLayout from './components/layout/AppLayout'
 import GuestRoute from './components/routing/GuestRoute'
 import ProtectedRoute from './components/routing/ProtectedRoute'
-import AdminDashboardPage from './pages/admin/AdminDashboardPage'
-import AdminEventsPage from './pages/admin/AdminEventsPage'
-import AdminOrganizerApplicationsPage from './pages/admin/AdminOrganizerApplicationsPage'
-import AdminUsersPage from './pages/admin/AdminUsersPage'
-import AdminEmailOutboxPage from './pages/admin/AdminEmailOutboxPage'
-import AdminAuditLogsPage from './pages/admin/AdminAuditLogsPage'
-import AdminImageCleanupPage from './pages/admin/AdminImageCleanupPage'
-import LoginPage from './pages/auth/LoginPage'
-import RegisterPage from './pages/auth/RegisterPage'
-import ForgotPassword from './pages/auth/ForgotPassword'
-import ResetPassword from './pages/auth/ResetPassword'
-import BookingRequestForm from './pages/BookingRequestForm'
-import AdminBookingQueue from './pages/admin/AdminBookingQueue'
-import NotFoundPage from './pages/errors/NotFoundPage'
-import UnauthorizedPage from './pages/errors/UnauthorizedPage'
-import AttendancePage from './pages/organizer/AttendancePage'
-import ManageEventsPage from './pages/organizer/ManageEventsPage'
-import OrganizerDashboardPage from './pages/organizer/OrganizerDashboardPage'
-import RegistrantsPage from './pages/organizer/RegistrantsPage'
-import OrganizerBookingRequestsPage from './pages/organizer/OrganizerBookingRequestsPage'
-import EventDetailsPage from './pages/student/EventDetailsPage'
-import EventsPage from './pages/student/EventsPage'
-import MyRegistrationsPage from './pages/student/MyRegistrationsPage'
-import OrganizerApplicationPage from './pages/student/OrganizerApplicationPage'
-import StudentDashboardPage from './pages/student/StudentDashboardPage'
-import PaymentCallbackPage from './pages/student/PaymentCallbackPage'
-import VotingPaymentCallbackPage from './pages/student/VotingPaymentCallbackPage'
-import VotingPage from './pages/student/VotingPage'
-import ManageVotingPage from './pages/organizer/ManageVotingPage'
-import ProfilePage from './pages/profile/ProfilePage'
-import LandingPage from './pages/LandingPage'
 import { ROUTE_ROLES } from './utils/permissions'
-import AboutPage from './pages/AboutPage'
-import BookingRequestThankYouPage from './pages/BookingRequestThankYouPage'
-import PrivacyPage from './pages/PrivacyPage'
 import SeoManager from './components/seo/SeoManager'
 import Analytics from './components/seo/Analytics'
 import StructuredBusinessData from './components/seo/StructuredBusinessData'
+
+const AdminDashboardPage = lazy(() => import('./pages/admin/AdminDashboardPage'))
+const AdminEventsPage = lazy(() => import('./pages/admin/AdminEventsPage'))
+const AdminOrganizerApplicationsPage = lazy(() => import('./pages/admin/AdminOrganizerApplicationsPage'))
+const AdminUsersPage = lazy(() => import('./pages/admin/AdminUsersPage'))
+const AdminEmailOutboxPage = lazy(() => import('./pages/admin/AdminEmailOutboxPage'))
+const AdminAuditLogsPage = lazy(() => import('./pages/admin/AdminAuditLogsPage'))
+const AdminImageCleanupPage = lazy(() => import('./pages/admin/AdminImageCleanupPage'))
+const AdminBookingQueue = lazy(() => import('./pages/admin/AdminBookingQueue'))
+const LoginPage = lazy(() => import('./pages/auth/LoginPage'))
+const RegisterPage = lazy(() => import('./pages/auth/RegisterPage'))
+const ForgotPassword = lazy(() => import('./pages/auth/ForgotPassword'))
+const ResetPassword = lazy(() => import('./pages/auth/ResetPassword'))
+const BookingRequestForm = lazy(() => import('./pages/BookingRequestForm'))
+const BookingRequestThankYouPage = lazy(() => import('./pages/BookingRequestThankYouPage'))
+const NotFoundPage = lazy(() => import('./pages/errors/NotFoundPage'))
+const UnauthorizedPage = lazy(() => import('./pages/errors/UnauthorizedPage'))
+const AttendancePage = lazy(() => import('./pages/organizer/AttendancePage'))
+const ManageEventsPage = lazy(() => import('./pages/organizer/ManageEventsPage'))
+const OrganizerDashboardPage = lazy(() => import('./pages/organizer/OrganizerDashboardPage'))
+const RegistrantsPage = lazy(() => import('./pages/organizer/RegistrantsPage'))
+const OrganizerBookingRequestsPage = lazy(() => import('./pages/organizer/OrganizerBookingRequestsPage'))
+const ManageVotingPage = lazy(() => import('./pages/organizer/ManageVotingPage'))
+const EventDetailsPage = lazy(() => import('./pages/student/EventDetailsPage'))
+const EventsPage = lazy(() => import('./pages/student/EventsPage'))
+const MyRegistrationsPage = lazy(() => import('./pages/student/MyRegistrationsPage'))
+const OrganizerApplicationPage = lazy(() => import('./pages/student/OrganizerApplicationPage'))
+const StudentDashboardPage = lazy(() => import('./pages/student/StudentDashboardPage'))
+const PaymentCallbackPage = lazy(() => import('./pages/student/PaymentCallbackPage'))
+const VotingPaymentCallbackPage = lazy(() => import('./pages/student/VotingPaymentCallbackPage'))
+const VotingPage = lazy(() => import('./pages/student/VotingPage'))
+const ProfilePage = lazy(() => import('./pages/profile/ProfilePage'))
+const LandingPage = lazy(() => import('./pages/LandingPage'))
+const AboutPage = lazy(() => import('./pages/AboutPage'))
+const PrivacyPage = lazy(() => import('./pages/PrivacyPage'))
 
 export default function App() {
   return (
@@ -47,6 +49,7 @@ export default function App() {
       <SeoManager />
       <Analytics />
       <StructuredBusinessData />
+      <Suspense fallback={<div className="container py-5" role="status">Loading…</div>}>
       <Routes>
       <Route element={<AppLayout />}>
         <Route path="/" element={<LandingPage />} />
@@ -106,6 +109,7 @@ export default function App() {
       <Route path="/unauthorized" element={<UnauthorizedPage />} />
       <Route path="*" element={<NotFoundPage />} />
       </Routes>
+      </Suspense>
     </>
   )
 }

@@ -1,5 +1,7 @@
 import Breadcrumb from 'react-bootstrap/Breadcrumb'
 import { Link, useLocation } from 'react-router-dom'
+import { useAuth } from '../../hooks/useAuth'
+import { getHomeForRole } from '../../utils/permissions'
 
 const labels: Record<string, string> = {
   events: 'Events',
@@ -22,6 +24,8 @@ const labels: Record<string, string> = {
 
 export default function Breadcrumbs() {
   const { pathname } = useLocation()
+  const { user } = useAuth()
+  const homePath = user ? getHomeForRole(user.role) : '/'
   if (pathname === '/') return null
   const segments = pathname.split('/').filter(Boolean)
   const crumbs = segments.map((segment, index) => {
@@ -32,7 +36,7 @@ export default function Breadcrumbs() {
 
   return (
     <Breadcrumb className="app-breadcrumbs" aria-label="Breadcrumb">
-      <Breadcrumb.Item linkAs={Link} linkProps={{ to: '/' }}>Home</Breadcrumb.Item>
+      <Breadcrumb.Item linkAs={Link} linkProps={{ to: homePath }}>Home</Breadcrumb.Item>
       {crumbs.map((crumb, index) => (
         <Breadcrumb.Item
           key={crumb.to}

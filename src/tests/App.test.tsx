@@ -5,10 +5,10 @@ import { users } from './mocks/fixtures'
 import { renderWithAuth } from './testUtils'
 
 describe('App role dashboards', () => {
-  it('renders the public landing page at the root route', () => {
+  it('renders the public landing page at the root route', async () => {
     renderWithAuth(<App />)
 
-    expect(screen.getByRole('heading', { name: /Every campus moment, within reach/i })).toBeVisible()
+    expect(await screen.findByRole('heading', { name: /Every campus moment, within reach/i })).toBeVisible()
     expect(screen.getAllByRole('button', { name: /Explore events/i }).length).toBeGreaterThan(0)
   })
 

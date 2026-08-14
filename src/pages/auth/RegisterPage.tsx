@@ -149,9 +149,6 @@ export default function RegisterPage() {
                   </Button>
                 </Form>
                 {!usingMockApi && <><div className="auth-divider"><span>or continue with</span></div><GoogleSignInButton onCredential={(credential) => void handleGoogleCredential(credential)} onUnavailable={setError} /></>}
-                <p className="text-center text-secondary mt-4 mb-0">
-                  Already have an account? <Link to="/login" state={location.state}>Sign in</Link>
-                </p>
               </Card.Body>
             </Card>
           </Col>
