@@ -24,14 +24,14 @@ public interface IVotingService
         CancellationToken cancellationToken);
     Task<VotingPaymentStatusResponse> GetPaymentStatusAsync(
         string reference, Guid voterId, CancellationToken cancellationToken);
-    Task ProcessPaystackWebhookAsync(
-        string payload, string? signature, CancellationToken cancellationToken);
+    Task ProcessWebhookAsync(
+        string providerName, string payload, string? signature, CancellationToken cancellationToken);
 }
 
 public sealed class VotingService(
     AppDbContext dbContext,
     IEventAuthorizationService authorizationService,
-    IPaystackPaymentProvider provider,
+    IPaymentProviderResolver providers,
     IConfiguration configuration,
     TimeProvider timeProvider,
     ILogger<VotingService> logger) : IVotingService
@@ -84,6 +84,7 @@ public sealed class VotingService(
                         "Categories, prices, and nominees cannot change after voting or checkout has started.");
                 existing.ClosesAt = request.ClosesAt;
                 existing.IsPublished = request.IsPublished;
+                existing.ShowLiveResults = request.ShowLiveResults;
                 existing.UpdatedAt = timeProvider.GetUtcNow();
                 await dbContext.SaveChangesAsync(cancellationToken);
                 await transaction.CommitAsync(cancellationToken);
@@ -103,6 +104,7 @@ public sealed class VotingService(
             OpensAt = request.OpensAt,
             ClosesAt = request.ClosesAt,
             IsPublished = request.IsPublished,
+            ShowLiveResults = request.ShowLiveResults,
             CreatedAt = now,
             UpdatedAt = now,
             Categories = request.Categories.Select((category, categoryPosition) =>
@@ -187,6 +189,7 @@ public sealed class VotingService(
         Guid voterId,
         CancellationToken cancellationToken)
     {
+        var provider = providers.Active;
         if (quantity is < 1 or > 100)
             throw new ApiException(StatusCodes.Status400BadRequest,
                 "Choose between 1 and 100 votes per checkout.");
@@ -251,6 +254,7 @@ public sealed class VotingService(
                 UnitPriceMinor = category.PricePerVoteMinor,
                 AmountMinor = amount,
                 Currency = category.Currency,
+                Provider = provider.Name,
                 ProviderReference = $"vote_{Guid.NewGuid():N}",
                 ExpiresAt = now.AddMinutes(pendingMinutes),
                 CreatedAt = now,
@@ -274,7 +278,7 @@ public sealed class VotingService(
                 voterEmail, order.AmountMinor, order.Currency, order.ProviderReference,
                 callbackUrl, order.Id, eventId, order.VoterId, cancellationToken);
             if (!string.Equals(initialized.Reference, order.ProviderReference, StringComparison.Ordinal))
-                throw new PaymentProviderException("Paystack returned an unexpected payment reference.");
+                throw new PaymentProviderException($"{provider.Name} returned an unexpected payment reference.");
             order.AuthorizationUrl = initialized.AuthorizationUrl;
             order.UpdatedAt = timeProvider.GetUtcNow();
             await dbContext.SaveChangesAsync(cancellationToken);
@@ -305,26 +309,19 @@ public sealed class VotingService(
         return ToStatus(order);
     }
 
-    public async Task ProcessPaystackWebhookAsync(
-        string payload,
-        string? signature,
+    public async Task ProcessWebhookAsync(
+        string providerName, string payload, string? signature,
         CancellationToken cancellationToken)
     {
+        var provider = providers.Get(providerName);
         if (!provider.HasValidSignature(payload, signature))
             throw new ApiException(StatusCodes.Status401Unauthorized, "The webhook signature is invalid.");
-        using var document = JsonDocument.Parse(payload);
-        var root = document.RootElement;
-        var eventType = root.TryGetProperty("event", out var eventValue)
-            ? eventValue.GetString()
-            : null;
-        if (!string.Equals(eventType, "charge.success", StringComparison.Ordinal)) return;
-        if (!root.TryGetProperty("data", out var data) ||
-            !data.TryGetProperty("reference", out var referenceValue) ||
-            string.IsNullOrWhiteSpace(referenceValue.GetString())) return;
-        var reference = referenceValue.GetString()!;
+        if (!provider.TryGetSuccessfulWebhook(payload, out var notification) || notification is null) return;
+        var eventType = notification.EventType;
+        var reference = notification.Reference;
         var verification = await provider.VerifyAsync(reference, cancellationToken);
         var receiptId = Convert.ToHexString(
-            SHA256.HashData(Encoding.UTF8.GetBytes(payload))).ToLowerInvariant();
+            SHA256.HashData(Encoding.UTF8.GetBytes($"{provider.Name}\n{payload}"))).ToLowerInvariant();
 
         await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
         if (await dbContext.VotingWebhookReceipts.AnyAsync(
@@ -335,7 +332,7 @@ public sealed class VotingService(
         }
         var order = await dbContext.VotingPaymentOrders
             .FromSqlInterpolated(
-                $"SELECT * FROM \"VotingPaymentOrders\" WHERE \"ProviderReference\" = {reference} FOR UPDATE")
+                $"SELECT * FROM \"VotingPaymentOrders\" WHERE \"ProviderReference\" = {reference} AND \"Provider\" = {provider.Name} FOR UPDATE")
             .Include(item => item.Vote)
             .SingleOrDefaultAsync(cancellationToken);
         var outcome = "IgnoredUnknownReference";
@@ -345,6 +342,21 @@ public sealed class VotingService(
             if (order.Vote is not null || order.Status == PaymentOrderStatus.Verified)
             {
                 outcome = "DuplicateVerified";
+            }
+            else if (order.ExpiresAt <= now)
+            {
+                order.Status = PaymentOrderStatus.Expired;
+                order.UpdatedAt = now;
+                outcome = "ExpiredOrderRejected";
+            }
+            else if (order.CreatedAt >= await dbContext.VotingCategories
+                .Where(item => item.Id == order.CategoryId)
+                .Select(item => item.Campaign.ClosesAt)
+                .SingleAsync(cancellationToken))
+            {
+                order.Status = PaymentOrderStatus.Failed;
+                order.UpdatedAt = now;
+                outcome = "OrderCreatedAfterDeadline";
             }
             else if (!verification.IsSuccessful ||
                 verification.Reference != order.ProviderReference ||
@@ -376,6 +388,7 @@ public sealed class VotingService(
         dbContext.VotingWebhookReceipts.Add(new VotingWebhookReceipt
         {
             Id = receiptId,
+            Provider = provider.Name,
             EventType = eventType!,
             ProviderReference = reference,
             Outcome = outcome,
@@ -398,13 +411,13 @@ public sealed class VotingService(
         bool canManage,
         DateTimeOffset now)
     {
-        var resultsVisible = canManage || now >= campaign.ClosesAt;
+        var resultsVisible = canManage || campaign.ShowLiveResults || now >= campaign.ClosesAt;
         var status = !campaign.IsPublished ? "Draft" :
             now < campaign.OpensAt ? "Scheduled" :
             now >= campaign.ClosesAt ? "Closed" : "Open";
         return new VotingCampaignResponse(
             campaign.Id, campaign.EventId, campaign.Event.Title,
-            campaign.OpensAt, campaign.ClosesAt, campaign.IsPublished,
+            campaign.OpensAt, campaign.ClosesAt, campaign.IsPublished, campaign.ShowLiveResults,
             status, canManage, resultsVisible,
             campaign.Categories.OrderBy(item => item.Position).Select(category =>
                 new VotingCategoryResponse(
@@ -436,7 +449,7 @@ public sealed class VotingService(
 
     private static bool CanManage(Guid ownerId, Guid? actorId, UserRole? actorRole) =>
         actorRole == UserRole.Admin ||
-        (actorRole == UserRole.Organizer && actorId == ownerId);
+        actorId == ownerId;
 
     private static void ValidateCampaign(VotingCampaignUpsertRequest request)
     {

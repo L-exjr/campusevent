@@ -6,6 +6,7 @@ import Card from 'react-bootstrap/Card'
 import Col from 'react-bootstrap/Col'
 import ProgressBar from 'react-bootstrap/ProgressBar'
 import Row from 'react-bootstrap/Row'
+import Form from 'react-bootstrap/Form'
 import { useLocation, useParams } from 'react-router-dom'
 import { api } from '../../api'
 import ErrorState from '../../components/shared/ErrorState'
@@ -24,10 +25,12 @@ export default function EventDetailsPage() {
   const [actionError, setActionError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
   const [currentTime, setCurrentTime] = useState(() => Date.now())
+  const [ticketTierId, setTicketTierId] = useState('')
+  const [couponCode, setCouponCode] = useState('')
   const loadDetails = useCallback(
     async () => ({
       event: await api.getEvent(id),
-      isRegistered: user?.role === 'student'
+      isRegistered: user?.role !== 'admin'
         ? await api.isRegisteredForEvent(id)
         : false,
     }),
@@ -74,13 +77,16 @@ export default function EventDetailsPage() {
   const registrationClosed = eventStarted || salesEnded
   const spotsLeft = Math.max(data.event.capacity - data.event.registeredCount, 0)
   const fill = Math.min((data.event.registeredCount / data.event.capacity) * 100, 100)
+  const ticketTiers = data.event.ticketTiers ?? []
+  const selectedTier = ticketTiers.find((tier) => tier.id === ticketTierId) ?? ticketTiers[0]
 
   const handleRegister = async () => {
     setBusy(true)
     setActionError(null)
     try {
       if (data.event.priceMinor > 0) {
-        const payment = await api.initializeEventPayment(data.event.id)
+        const payment = await api.initializeEventPayment(
+          data.event.id, ticketTierId || ticketTiers[0]?.id, couponCode)
         window.location.assign(payment.authorizationUrl)
       } else {
         await api.registerForEvent(data.event.id, user!.id)
@@ -170,6 +176,25 @@ export default function EventDetailsPage() {
                 <strong>{data.event.registeredCount} / {data.event.capacity}</strong>
               </div>
               <ProgressBar now={fill} className="capacity-progress mb-3" />
+              {data.event.ticketingEnabled && ticketTiers.length > 0 && (
+                <div className="mb-3">
+                  <Form.Group className="mb-2">
+                    <Form.Label>Ticket tier</Form.Label>
+                    <Form.Select value={ticketTierId || ticketTiers[0].id}
+                      onChange={(event) => setTicketTierId(event.target.value)}>
+                      {ticketTiers.filter((tier) => tier.isActive).map((tier) => (
+                        <option key={tier.id} value={tier.id}>{tier.name} — GHS {(tier.priceMinor / 100).toFixed(2)} ({tier.capacity - tier.sold} left)</option>
+                      ))}
+                    </Form.Select>
+                  </Form.Group>
+                  <Form.Group>
+                    <Form.Label>Coupon code</Form.Label>
+                    <Form.Control value={couponCode}
+                      onChange={(event) => setCouponCode(event.target.value.toUpperCase())}
+                      placeholder="Optional" />
+                  </Form.Group>
+                </div>
+              )}
               <p className="small text-secondary">
                 {salesNotOpen
                   ? `Ticket sales open ${formatDateTime(data.event.salesStartsAt!)}.`
@@ -197,7 +222,7 @@ export default function EventDetailsPage() {
                 <Button size="lg" className="w-100" disabled>
                   Event full
                 </Button>
-              ) : user?.role === 'student' ? (
+              ) : user?.role !== 'admin' ? (
                 <Button
                   size="lg"
                   className="w-100"
@@ -206,8 +231,8 @@ export default function EventDetailsPage() {
                 >
                   {busy
                     ? data.event.priceMinor > 0 ? 'Opening checkout…' : 'Registering…'
-                    : data.event.priceMinor > 0
-                      ? `Pay GHS ${(data.event.priceMinor / 100).toFixed(2)}`
+                    : (selectedTier?.priceMinor ?? data.event.priceMinor) > 0
+                      ? `Pay GHS ${((selectedTier?.priceMinor ?? data.event.priceMinor) / 100).toFixed(2)}`
                       : 'Register now'}
                 </Button>
               ) : user ? (

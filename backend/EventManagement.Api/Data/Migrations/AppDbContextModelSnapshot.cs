@@ -153,6 +153,9 @@ namespace EventManagement.Api.Data.Migrations
                     b.Property<DateTimeOffset>("ProposedDate")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<Guid?>("RequestedOrganizerId")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasMaxLength(30)
@@ -171,6 +174,8 @@ namespace EventManagement.Api.Data.Migrations
                     b.HasIndex("DraftEventId")
                         .IsUnique();
 
+                    b.HasIndex("RequestedOrganizerId");
+
                     b.HasIndex("Status");
 
                     b.HasIndex("SubmittedAt");
@@ -178,6 +183,50 @@ namespace EventManagement.Api.Data.Migrations
                     b.HasIndex("Status", "UpdatedAt");
 
                     b.ToTable("BookingRequests");
+                });
+
+            modelBuilder.Entity("EventManagement.Api.Models.Coupon", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("EventId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset?>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<Guid>("OrganizerId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("PercentageDiscount")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("UsageLimit")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Code")
+                        .IsUnique();
+
+                    b.HasIndex("EventId");
+
+                    b.HasIndex("OrganizerId", "IsActive");
+
+                    b.ToTable("Coupons");
                 });
 
             modelBuilder.Entity("EventManagement.Api.Models.EmailOutboxMessage", b =>
@@ -416,12 +465,20 @@ namespace EventManagement.Api.Data.Migrations
                     b.Property<Guid>("StudentId")
                         .HasColumnType("uuid");
 
+                    b.Property<string>("TicketCode")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
                     b.HasKey("Id");
 
                     b.HasIndex("PaymentOrderId")
                         .IsUnique();
 
                     b.HasIndex("StudentId");
+
+                    b.HasIndex("TicketCode")
+                        .IsUnique();
 
                     b.HasIndex("EventId", "StudentId")
                         .IsUnique();
@@ -557,6 +614,22 @@ namespace EventManagement.Api.Data.Migrations
                     b.ToTable("OrganizerApplications");
                 });
 
+            modelBuilder.Entity("EventManagement.Api.Models.OrganizerSpecialty", b =>
+                {
+                    b.Property<Guid>("OrganizerId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Category")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.HasKey("OrganizerId", "Category");
+
+                    b.HasIndex("Category");
+
+                    b.ToTable("OrganizerSpecialties");
+                });
+
             modelBuilder.Entity("EventManagement.Api.Models.PasswordResetToken", b =>
                 {
                     b.Property<Guid>("Id")
@@ -603,6 +676,9 @@ namespace EventManagement.Api.Data.Migrations
                         .HasMaxLength(2048)
                         .HasColumnType("character varying(2048)");
 
+                    b.Property<Guid?>("CouponId")
+                        .HasColumnType("uuid");
+
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -611,11 +687,17 @@ namespace EventManagement.Api.Data.Migrations
                         .HasMaxLength(3)
                         .HasColumnType("character varying(3)");
 
+                    b.Property<long>("DiscountAmountMinor")
+                        .HasColumnType("bigint");
+
                     b.Property<Guid>("EventId")
                         .HasColumnType("uuid");
 
                     b.Property<DateTimeOffset>("ExpiresAt")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<long>("OriginalAmountMinor")
+                        .HasColumnType("bigint");
 
                     b.Property<string>("Provider")
                         .IsRequired()
@@ -635,6 +717,9 @@ namespace EventManagement.Api.Data.Migrations
                     b.Property<Guid>("StudentId")
                         .HasColumnType("uuid");
 
+                    b.Property<Guid?>("TicketTierId")
+                        .HasColumnType("uuid");
+
                     b.Property<DateTimeOffset>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -643,10 +728,14 @@ namespace EventManagement.Api.Data.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("CouponId");
+
                     b.HasIndex("ProviderReference")
                         .IsUnique();
 
                     b.HasIndex("StudentId");
+
+                    b.HasIndex("TicketTierId");
 
                     b.HasIndex("Status", "ExpiresAt");
 
@@ -690,6 +779,43 @@ namespace EventManagement.Api.Data.Migrations
                     b.ToTable("PaymentWebhookReceipts");
                 });
 
+            modelBuilder.Entity("EventManagement.Api.Models.TicketTier", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Capacity")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("EventId")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)");
+
+                    b.Property<int>("Position")
+                        .HasColumnType("integer");
+
+                    b.Property<long>("PriceMinor")
+                        .HasColumnType("bigint");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EventId", "Name")
+                        .IsUnique();
+
+                    b.HasIndex("EventId", "Position")
+                        .IsUnique();
+
+                    b.ToTable("TicketTiers");
+                });
+
             modelBuilder.Entity("EventManagement.Api.Models.User", b =>
                 {
                     b.Property<Guid>("Id")
@@ -724,10 +850,43 @@ namespace EventManagement.Api.Data.Migrations
                     b.Property<bool>("IsActive")
                         .HasColumnType("boolean");
 
+                    b.Property<bool>("IsOrganizerDirectoryVisible")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(150)
                         .HasColumnType("character varying(150)");
+
+                    b.Property<string>("OrganizerBannerObjectKey")
+                        .HasMaxLength(1024)
+                        .HasColumnType("character varying(1024)");
+
+                    b.Property<string>("OrganizerBannerUrl")
+                        .HasMaxLength(2048)
+                        .HasColumnType("character varying(2048)");
+
+                    b.Property<string>("OrganizerBio")
+                        .HasMaxLength(3000)
+                        .HasColumnType("character varying(3000)");
+
+                    b.Property<string>("OrganizerFacebookUrl")
+                        .HasMaxLength(2048)
+                        .HasColumnType("character varying(2048)");
+
+                    b.Property<string>("OrganizerInstagramUrl")
+                        .HasMaxLength(2048)
+                        .HasColumnType("character varying(2048)");
+
+                    b.Property<string>("OrganizerTwitterUrl")
+                        .HasMaxLength(2048)
+                        .HasColumnType("character varying(2048)");
+
+                    b.Property<string>("OrganizerWebsiteUrl")
+                        .HasMaxLength(2048)
+                        .HasColumnType("character varying(2048)");
 
                     b.Property<string>("PasswordHash")
                         .HasMaxLength(500)
@@ -816,6 +975,11 @@ namespace EventManagement.Api.Data.Migrations
 
                     b.Property<DateTimeOffset>("OpensAt")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("ShowLiveResults")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
 
                     b.Property<DateTimeOffset>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
@@ -1035,9 +1199,34 @@ namespace EventManagement.Api.Data.Migrations
                         .HasForeignKey("EventManagement.Api.Models.BookingRequest", "DraftEventId")
                         .OnDelete(DeleteBehavior.SetNull);
 
+                    b.HasOne("EventManagement.Api.Models.User", "RequestedOrganizer")
+                        .WithMany("RequestedBookingRequests")
+                        .HasForeignKey("RequestedOrganizerId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.Navigation("AssignedOrganizer");
 
                     b.Navigation("DraftEvent");
+
+                    b.Navigation("RequestedOrganizer");
+                });
+
+            modelBuilder.Entity("EventManagement.Api.Models.Coupon", b =>
+                {
+                    b.HasOne("EventManagement.Api.Models.EventEntity", "Event")
+                        .WithMany("Coupons")
+                        .HasForeignKey("EventId")
+                        .OnDelete(DeleteBehavior.Cascade);
+
+                    b.HasOne("EventManagement.Api.Models.User", "Organizer")
+                        .WithMany("Coupons")
+                        .HasForeignKey("OrganizerId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Event");
+
+                    b.Navigation("Organizer");
                 });
 
             modelBuilder.Entity("EventManagement.Api.Models.EventEntity", b =>
@@ -1106,6 +1295,17 @@ namespace EventManagement.Api.Data.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("EventManagement.Api.Models.OrganizerSpecialty", b =>
+                {
+                    b.HasOne("EventManagement.Api.Models.User", "Organizer")
+                        .WithMany("OrganizerSpecialties")
+                        .HasForeignKey("OrganizerId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Organizer");
+                });
+
             modelBuilder.Entity("EventManagement.Api.Models.PasswordResetToken", b =>
                 {
                     b.HasOne("EventManagement.Api.Models.User", "User")
@@ -1119,6 +1319,11 @@ namespace EventManagement.Api.Data.Migrations
 
             modelBuilder.Entity("EventManagement.Api.Models.PaymentOrder", b =>
                 {
+                    b.HasOne("EventManagement.Api.Models.Coupon", "Coupon")
+                        .WithMany("PaymentOrders")
+                        .HasForeignKey("CouponId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("EventManagement.Api.Models.EventEntity", "Event")
                         .WithMany("PaymentOrders")
                         .HasForeignKey("EventId")
@@ -1131,9 +1336,29 @@ namespace EventManagement.Api.Data.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
+                    b.HasOne("EventManagement.Api.Models.TicketTier", "TicketTier")
+                        .WithMany("PaymentOrders")
+                        .HasForeignKey("TicketTierId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("Coupon");
+
                     b.Navigation("Event");
 
                     b.Navigation("Student");
+
+                    b.Navigation("TicketTier");
+                });
+
+            modelBuilder.Entity("EventManagement.Api.Models.TicketTier", b =>
+                {
+                    b.HasOne("EventManagement.Api.Models.EventEntity", "Event")
+                        .WithMany("TicketTiers")
+                        .HasForeignKey("EventId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Event");
                 });
 
             modelBuilder.Entity("EventManagement.Api.Models.VoteRecord", b =>
@@ -1230,13 +1455,22 @@ namespace EventManagement.Api.Data.Migrations
                     b.Navigation("Voter");
                 });
 
+            modelBuilder.Entity("EventManagement.Api.Models.Coupon", b =>
+                {
+                    b.Navigation("PaymentOrders");
+                });
+
             modelBuilder.Entity("EventManagement.Api.Models.EventEntity", b =>
                 {
+                    b.Navigation("Coupons");
+
                     b.Navigation("PaymentOrders");
 
                     b.Navigation("Registrations");
 
                     b.Navigation("SourceBookingRequest");
+
+                    b.Navigation("TicketTiers");
 
                     b.Navigation("VotingCampaign");
                 });
@@ -1246,9 +1480,16 @@ namespace EventManagement.Api.Data.Migrations
                     b.Navigation("Registration");
                 });
 
+            modelBuilder.Entity("EventManagement.Api.Models.TicketTier", b =>
+                {
+                    b.Navigation("PaymentOrders");
+                });
+
             modelBuilder.Entity("EventManagement.Api.Models.User", b =>
                 {
                     b.Navigation("AssignedBookingRequests");
+
+                    b.Navigation("Coupons");
 
                     b.Navigation("ImageUploads");
 
@@ -1256,9 +1497,13 @@ namespace EventManagement.Api.Data.Migrations
 
                     b.Navigation("OrganizerApplications");
 
+                    b.Navigation("OrganizerSpecialties");
+
                     b.Navigation("PasswordResetTokens");
 
                     b.Navigation("Registrations");
+
+                    b.Navigation("RequestedBookingRequests");
 
                     b.Navigation("Votes");
 

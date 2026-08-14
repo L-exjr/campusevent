@@ -14,6 +14,9 @@ import type {
   EventRegistrant,
   EventPaymentStatus,
   OrganizerApplication,
+  OrganizerDetail,
+  OrganizerDirectorySettings,
+  OrganizerSummary,
   Page,
   PaymentInitialization,
   Registration,
@@ -26,6 +29,9 @@ import type {
   VotingCampaignInput,
   VotingPaymentInitialization,
   VotingPaymentStatus,
+  Coupon,
+  CouponInput,
+  OrganizerAnalytics,
 } from '../types'
 import { EVENT_CATEGORIES } from '../types'
 import type { EventManagementApi } from './EventManagementApi'
@@ -43,9 +49,10 @@ type StoredEvent = Omit<EventItem, 'registeredCount' | 'imageUrl' | 'isPublished
   salesEndsAt?: string | null
 }
 type StoredUser = Omit<User, 'imageUrl'> & { imageUrl?: string | null; password: string }
+type DirectoryStoredUser = StoredUser & { directory?: OrganizerDirectorySettings }
 
 interface MockDatabase {
-  users: StoredUser[]
+  users: DirectoryStoredUser[]
   events: StoredEvent[]
   registrations: Registration[]
   votingCampaigns: VotingCampaign[]
@@ -88,7 +95,7 @@ function daysFromNow(days: number, hour: number) {
 
 function createSeedDatabase(): MockDatabase {
   const joinedAt = daysFromNow(-120, 9)
-  const users: StoredUser[] = [
+  const users: DirectoryStoredUser[] = [
     {
       id: 'user-student-1',
       name: 'Maya Johnson',
@@ -97,6 +104,7 @@ function createSeedDatabase(): MockDatabase {
       role: 'student',
       active: true,
       joinedAt,
+      directory: { isVisible: true, bio: 'Campus event producer focused on technology, conferences, and hands-on learning.', bannerUrl: null, instagramUrl: null, twitterUrl: null, facebookUrl: null, websiteUrl: null, specialties: ['Startup & Tech', 'Conferences', 'Workshops & Training'] },
     },
     {
       id: 'user-student-2',
@@ -298,6 +306,8 @@ function createSeedDatabase(): MockDatabase {
       description: 'A practical engineering careers workshop with alumni and industry mentors.',
       status: 'submitted',
       assignedOrganizerId: null,
+      requestedOrganizerId: null,
+      requestedOrganizerName: null,
       assignedOrganizerName: null,
       organizerResponseNote: null,
       draftEventId: null,
@@ -319,6 +329,8 @@ function createSeedDatabase(): MockDatabase {
       description: 'A student wellness seminar focused on sustainable healthy routines.',
       status: 'sentToOrganizer',
       assignedOrganizerId: 'user-organizer-1',
+      requestedOrganizerId: 'user-organizer-1',
+      requestedOrganizerName: 'Alex Morgan',
       assignedOrganizerName: 'Alex Morgan',
       organizerResponseNote: null,
       draftEventId: null,
@@ -804,6 +816,14 @@ export const mockApi: EventManagementApi = {
     }
   },
 
+  async checkInTicketByCode(eventId: string, ticketCode: string): Promise<CheckInResult> {
+    const database = getDatabase()
+    const registration = database.registrations.find((item) =>
+      item.eventId === eventId && item.id.slice(-8).toUpperCase() === ticketCode.replace(/^EMS-/, '').toUpperCase())
+    if (!registration) throw new Error('Ticket code was not found.')
+    return this.checkInTicket(eventId, `mock-ticket:${registration.id}:${eventId}:${registration.studentId}`)
+  },
+
   async getCertificate(registrationId: string): Promise<CertificateDownload> {
     await pause()
     const database = getDatabase()
@@ -1102,6 +1122,10 @@ export const mockApi: EventManagementApi = {
       organizerName: organizer.name,
       createdAt: new Date().toISOString(),
       version: 1,
+      ticketTiers: normalized.ticketTiers?.map((tier) => ({
+        id: tier.id ?? makeId('tier'), name: tier.name, priceMinor: tier.priceMinor,
+        capacity: tier.capacity, sold: 0, isActive: true,
+      })),
     }
     database.events.push(event)
     if (organizer.role === 'admin') {
@@ -1159,7 +1183,7 @@ export const mockApi: EventManagementApi = {
       throw new Error('This event changed after you opened it. Refresh and try again.')
     }
     const organizer = database.users.find(
-      (user) => user.id === organizerId && user.role === 'organizer' && user.active,
+      (user) => user.id === organizerId && user.role !== 'admin' && user.active,
     )
     if (!organizer) {
       throw new Error('Event ownership can only be transferred to an active Organizer.')
@@ -1269,6 +1293,30 @@ export const mockApi: EventManagementApi = {
     saveDatabase(database)
   },
 
+  async exportEventRegistrants(eventId: string): Promise<Blob> {
+    const rows = getDatabase().registrations.filter((item) => item.eventId === eventId)
+    return new Blob([`Name,Email,Registration date,Checked in\n${rows.length ? 'Mock attendee,mock@example.test,,No' : ''}`], { type: 'text/csv' })
+  },
+
+  async getOrganizerAnalytics(): Promise<OrganizerAnalytics> {
+    const database = getDatabase()
+    const user = getCurrentUser(database)
+    const eventIds = new Set(database.events.filter((item) => item.organizerId === user.id).map((item) => item.id))
+    const registrations = database.registrations.filter((item) => eventIds.has(item.eventId))
+    return { registrationCount: registrations.length, ticketRevenueMinor: 0, currency: 'GHS',
+      attendedCount: registrations.filter((item) => item.attended).length,
+      attendanceRate: registrations.length ? registrations.filter((item) => item.attended).length * 100 / registrations.length : 0,
+      registrationsOverTime: [] }
+  },
+
+  async getCoupons(): Promise<Coupon[]> { return [] },
+  async createCoupon(input: CouponInput): Promise<Coupon> {
+    return { id: makeId('coupon'), ...input, used: 0, eventTitle: null }
+  },
+  async updateCoupon(id: string, input: CouponInput): Promise<Coupon> {
+    return { id, ...input, used: 0, eventTitle: null }
+  },
+
   // TODO: replace with GET /api/admin/users.
   async getUsers(page = 1, pageSize = 20, search = '', role?: Role): Promise<Page<User>> {
     await pause()
@@ -1282,7 +1330,7 @@ export const mockApi: EventManagementApi = {
     await pause()
     const query = search.trim().toLowerCase()
     return paginate(getDatabase().users.map(publicUser).filter((user) =>
-      user.role === 'organizer' &&
+      user.role !== 'admin' &&
       user.active &&
       (!query || user.name.toLowerCase().includes(query) || user.email.toLowerCase().includes(query))),
     1, pageSize)
@@ -1386,7 +1434,7 @@ export const mockApi: EventManagementApi = {
       }
     })
     const organizers = database.users
-      .filter((user) => user.role === 'organizer')
+      .filter((user) => user.role !== 'admin' && database.events.some(event => event.organizerId === user.id))
       .map((organizer) => {
         const organizerEvents = database.events.filter(
           (event) => event.organizerId === organizer.id,
@@ -1529,6 +1577,8 @@ export const mockApi: EventManagementApi = {
       flexibilityNote: input.flexibilityNote?.trim() || undefined,
       estimatedAttendance: input.estimatedAttendance,
       preferredOrganizer: input.preferredOrganizer?.trim() || undefined,
+      requestedOrganizerId: input.requestedOrganizerId || null,
+      requestedOrganizerName: database.users.find(user => user.id === input.requestedOrganizerId)?.name ?? null,
       description: input.description.trim(),
       status: 'submitted',
       assignedOrganizerId: null,
@@ -1540,6 +1590,35 @@ export const mockApi: EventManagementApi = {
     })
     saveDatabase(database)
     return 'Your organizer request has been received.'
+  },
+
+  async getOrganizers(search = '', category = '', page = 1, pageSize = 12): Promise<Page<OrganizerSummary>> {
+    await pause()
+    const query = search.trim().toLowerCase()
+    const database = getDatabase()
+    const items = database.users.filter(user => user.role !== 'admin' && user.active && user.directory?.isVisible && database.events.some(event => event.organizerId === user.id))
+      .filter(user => (!query || user.name.toLowerCase().includes(query)) && (!category || user.directory?.specialties.includes(category as never)))
+      .map(user => ({ id: user.id, name: user.name, imageUrl: user.imageUrl ?? null, bannerUrl: user.directory?.bannerUrl ?? null, bio: user.directory?.bio ?? null, specialties: user.directory?.specialties ?? [] }))
+    return paginate(items, page, pageSize)
+  },
+
+  async getOrganizer(id: string): Promise<OrganizerDetail> {
+    const page = await this.getOrganizers('', '', 1, 100)
+    const organizer = page.items.find(item => item.id === id)
+    if (!organizer) throw new Error('Organizer not found.')
+    const user = getDatabase().users.find(item => item.id === id)!
+    const database = getDatabase()
+    return { ...organizer, instagramUrl: user.directory?.instagramUrl ?? null, twitterUrl: user.directory?.twitterUrl ?? null, facebookUrl: user.directory?.facebookUrl ?? null, websiteUrl: user.directory?.websiteUrl ?? null, events: database.events.filter(event => event.organizerId === id && (event.isPublished ?? true)).map(event => eventWithCount(database, event)) }
+  },
+
+  async getOrganizerDirectorySettings(): Promise<OrganizerDirectorySettings> {
+    const user = getCurrentUser(getDatabase()) as DirectoryStoredUser
+    return user.directory ?? { isVisible: false, bio: null, bannerUrl: null, instagramUrl: null, twitterUrl: null, facebookUrl: null, websiteUrl: null, specialties: [] }
+  },
+
+  async updateOrganizerDirectorySettings(settings: OrganizerDirectorySettings): Promise<OrganizerDirectorySettings> {
+    const database = getDatabase(); const user = getCurrentUser(database) as DirectoryStoredUser
+    user.directory = settings; saveDatabase(database); return settings
   },
 
   async getBookingRequests(page = 1, pageSize = 20): Promise<Page<BookingRequest>> {
@@ -1569,7 +1648,7 @@ export const mockApi: EventManagementApi = {
     const request = database.bookingRequests.find((item) => item.id === id)
     if (!request) throw new Error('Booking request not found.')
     const organizer = database.users.find((user) =>
-      user.id === organizerId && user.role === 'organizer' && user.active)
+      user.id === organizerId && user.role !== 'admin' && user.active && database.events.some(event => event.organizerId === user.id))
     if (!organizer) throw new Error('Choose an active Organizer.')
     if (request.status !== 'sentToOrganizer') {
       ensureBookingTransition(request.status, 'sentToOrganizer')

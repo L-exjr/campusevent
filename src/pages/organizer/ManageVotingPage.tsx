@@ -52,6 +52,7 @@ export default function ManageVotingPage() {
           opensAt: toDateTimeLocal(campaign.opensAt),
           closesAt: toDateTimeLocal(campaign.closesAt),
           isPublished: campaign.isPublished,
+          showLiveResults: campaign.showLiveResults ?? false,
           categories: campaign.categories.map((category) => ({
             name: category.name,
             description: category.description ?? '',
@@ -70,6 +71,7 @@ export default function ManageVotingPage() {
           opensAt: toDateTimeLocal(opens.toISOString()),
           closesAt: toDateTimeLocal(closes.toISOString()),
           isPublished: false,
+          showLiveResults: false,
           categories: [blankCategory()],
         })
       }
@@ -127,7 +129,7 @@ export default function ManageVotingPage() {
       <PageHeader
         eyebrow="Voting management"
         title={eventTitle}
-        description="Create categories and nominees. Public totals stay hidden until the campaign closes."
+        description="Create categories and nominees, and choose when public totals become visible."
         action={<LinkButton to={back}>Back to events</LinkButton>}
       />
       {error && <Alert variant="danger">{error}</Alert>}
@@ -156,6 +158,11 @@ export default function ManageVotingPage() {
               <Col md={2} className="d-flex align-items-end">
                 <Form.Check type="switch" label="Published" checked={form.isPublished}
                   onChange={(event) => setForm({ ...form, isPublished: event.target.checked })} />
+              </Col>
+              <Col md={12}>
+                <Form.Check type="switch" label="Show live results publicly before voting closes"
+                  checked={Boolean(form.showLiveResults)}
+                  onChange={(event) => setForm({ ...form, showLiveResults: event.target.checked })} />
               </Col>
             </Row>
           </Card.Body>

@@ -152,6 +152,7 @@ export default function MyRegistrationsPage() {
             <>
               <h3 className="h5">{ticket.eventTitle}</h3>
               <p className="text-secondary">{ticket.studentName}</p>
+              {ticket.ticketCode && <p className="fw-semibold">Ticket code: {ticket.ticketCode}</p>}
               <div className="bg-white d-inline-flex p-3 border rounded" aria-label="Signed QR event ticket">
                 <QRCodeSVG value={ticket.token} size={256} level="M" />
               </div>

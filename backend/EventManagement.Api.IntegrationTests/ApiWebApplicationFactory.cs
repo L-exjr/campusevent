@@ -36,8 +36,9 @@ internal sealed class ApiWebApplicationFactory : WebApplicationFactory<Program>
             services.AddSingleton<IGoogleTokenValidator, TestGoogleTokenValidator>();
             services.RemoveAll<IImageStorageService>();
             services.AddSingleton<IImageStorageService, TestImageStorageService>();
-            services.RemoveAll<IPaystackPaymentProvider>();
-            services.AddSingleton<IPaystackPaymentProvider, TestPaystackPaymentProvider>();
+            services.RemoveAll<IPaymentProvider>();
+            services.AddSingleton<IPaymentProvider, TestPaystackPaymentProvider>();
+            services.AddSingleton<IPaymentProvider, TestFlutterwavePaymentProvider>();
             services.RemoveAll<ICertificateStorageService>();
             services.AddSingleton<ICertificateStorageService, TestCertificateStorageService>();
             services.RemoveAll<ICertificatePdfGenerator>();
@@ -103,14 +104,28 @@ internal sealed class TestCertificatePdfGenerator : ICertificatePdfGenerator
         System.Text.Encoding.UTF8.GetBytes($"test-pdf:{model.RegistrationId:N}");
 }
 
-internal sealed class TestPaystackPaymentProvider : IPaystackPaymentProvider
+internal sealed class TestPaystackPaymentProvider : IPaymentProvider
 {
-    private readonly Dictionary<string, PaystackVerification> _payments = [];
+    private readonly Dictionary<string, PaymentProviderVerification> _payments = [];
+    public string Name => "Paystack";
 
     public bool HasValidSignature(string payload, string? signature) =>
         signature == "valid-test-signature";
 
-    public Task<PaystackInitialization> InitializeAsync(
+    public bool TryGetSuccessfulWebhook(string payload, out PaymentWebhookNotification? notification)
+    {
+        using var document = System.Text.Json.JsonDocument.Parse(payload);
+        var root = document.RootElement;
+        var valid = root.TryGetProperty("event", out var eventValue) && eventValue.GetString() == "charge.success" &&
+            root.TryGetProperty("data", out var data) && data.TryGetProperty("reference", out var reference) &&
+            !string.IsNullOrWhiteSpace(reference.GetString());
+        notification = valid
+            ? new PaymentWebhookNotification("charge.success", root.GetProperty("data").GetProperty("reference").GetString()!)
+            : null;
+        return valid;
+    }
+
+    public Task<PaymentProviderInitialization> InitializeAsync(
         string email,
         long amountMinor,
         string currency,
@@ -122,17 +137,17 @@ internal sealed class TestPaystackPaymentProvider : IPaystackPaymentProvider
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        _payments[reference] = new PaystackVerification(
+        _payments[reference] = new PaymentProviderVerification(
             true,
             reference,
             amountMinor,
             currency);
-        return Task.FromResult(new PaystackInitialization(
+        return Task.FromResult(new PaymentProviderInitialization(
             $"https://checkout.example.test/{reference}",
             reference));
     }
 
-    public Task<PaystackVerification> VerifyAsync(
+    public Task<PaymentProviderVerification> VerifyAsync(
         string reference,
         CancellationToken cancellationToken)
     {
@@ -148,6 +163,41 @@ internal sealed class TestPaystackPaymentProvider : IPaystackPaymentProvider
         cancellationToken.ThrowIfCancellationRequested();
         return Task.FromResult(true);
     }
+}
+
+internal sealed class TestFlutterwavePaymentProvider : IPaymentProvider
+{
+    private readonly Dictionary<string, PaymentProviderVerification> _payments = [];
+    public bool VerificationSucceeds { get; set; } = true;
+    public string Name => "Flutterwave";
+    public bool HasValidSignature(string payload, string? signature) => signature == "valid-flutterwave-signature";
+    public bool TryGetSuccessfulWebhook(string payload, out PaymentWebhookNotification? notification)
+    {
+        using var document = System.Text.Json.JsonDocument.Parse(payload);
+        var root = document.RootElement;
+        var valid = root.TryGetProperty("event", out var eventValue) && eventValue.GetString() == "charge.completed" &&
+            root.TryGetProperty("data", out var data) && data.TryGetProperty("status", out var status) &&
+            status.GetString() == "successful" && data.TryGetProperty("tx_ref", out var reference) &&
+            !string.IsNullOrWhiteSpace(reference.GetString());
+        notification = valid
+            ? new PaymentWebhookNotification("charge.completed", root.GetProperty("data").GetProperty("tx_ref").GetString()!)
+            : null;
+        return valid;
+    }
+    public Task<PaymentProviderInitialization> InitializeAsync(string email, long amountMinor, string currency, string reference, string callbackUrl, Guid orderId, Guid eventId, Guid studentId, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        _payments[reference] = new PaymentProviderVerification(
+            VerificationSucceeds, reference, amountMinor, currency);
+        return Task.FromResult(new PaymentProviderInitialization(
+            $"https://flutterwave.example.test/{reference}", reference));
+    }
+    public Task<PaymentProviderVerification> VerifyAsync(string reference, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromResult(_payments[reference] with { IsSuccessful = VerificationSucceeds });
+    }
+    public Task<bool> RequestRefundAsync(string reference, long amountMinor, CancellationToken cancellationToken) => Task.FromResult(true);
 }
 
 internal sealed class TestImageStorageService : IImageStorageService

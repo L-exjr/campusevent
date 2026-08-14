@@ -2431,3 +2431,5 @@ a {
     flex: 1 1 auto;
   }
 }
+.organizer-card__banner { height: 150px; }
+.organizer-detail__banner { width: 100%; height: clamp(220px, 35vw, 420px); }

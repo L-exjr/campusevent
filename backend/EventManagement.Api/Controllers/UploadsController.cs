@@ -11,6 +11,7 @@ namespace EventManagement.Api.Controllers;
 [Authorize]
 public sealed class UploadsController(
     IImageLifecycleService imageLifecycleService,
+    IEventImageAuthorizationService eventImageAuthorizationService,
     IAuthRateLimitService rateLimitService,
     ILogger<UploadsController> logger) : ControllerBase
 {
@@ -34,13 +35,25 @@ public sealed class UploadsController(
         UploadAsync(file, "profile-images", ImageUploadKind.Profile, cancellationToken);
 
     [HttpPost("event-image")]
-    [Authorize(Roles = "Organizer,Admin")]
+    [Authorize(Roles = "Student,Organizer,Admin")]
     [RequestSizeLimit(MaxMultipartRequestBytes)]
     [RequestFormLimits(MultipartBodyLengthLimit = MaxMultipartRequestBytes)]
-    public Task<ActionResult<ImageUploadResponse>> UploadEventImage(
+    public async Task<ActionResult<ImageUploadResponse>> UploadEventImage(
         IFormFile? file,
-        CancellationToken cancellationToken) =>
-        UploadAsync(file, "event-images", ImageUploadKind.Event, cancellationToken);
+        [FromQuery] Guid? eventId,
+        CancellationToken cancellationToken)
+    {
+        await eventImageAuthorizationService.EnsureCanUploadAsync(
+            eventId, User.GetRequiredUserId(), User.GetRequiredRole(), cancellationToken);
+        return await UploadAsync(file, "event-images", ImageUploadKind.Event, cancellationToken);
+    }
+
+    [HttpPost("organizer-banner")]
+    [Authorize(Roles = "Student,Organizer")]
+    [RequestSizeLimit(MaxMultipartRequestBytes)]
+    [RequestFormLimits(MultipartBodyLengthLimit = MaxMultipartRequestBytes)]
+    public Task<ActionResult<ImageUploadResponse>> UploadOrganizerBanner(IFormFile? file, CancellationToken cancellationToken) =>
+        UploadAsync(file, "organizer-banners", ImageUploadKind.OrganizerBanner, cancellationToken);
 
     private async Task<ActionResult<ImageUploadResponse>> UploadAsync(
         IFormFile? file,

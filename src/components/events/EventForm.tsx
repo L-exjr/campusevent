@@ -1,6 +1,7 @@
 import { useEffect, useState, type ChangeEvent, type FormEvent } from 'react'
 import Alert from 'react-bootstrap/Alert'
 import Button from 'react-bootstrap/Button'
+import Card from 'react-bootstrap/Card'
 import Col from 'react-bootstrap/Col'
 import Form from 'react-bootstrap/Form'
 import Row from 'react-bootstrap/Row'
@@ -46,6 +47,9 @@ function initialValues(event?: EventItem | null): EventInput {
         version: event.version,
         priceMinor: event.priceMinor,
         currency: event.currency,
+        ticketTiers: event.ticketTiers?.map((tier) => ({
+          id: tier.id, name: tier.name, priceMinor: tier.priceMinor, capacity: tier.capacity,
+        })),
       }
     : {
         title: '',
@@ -62,6 +66,7 @@ function initialValues(event?: EventItem | null): EventInput {
         isPublished: true,
         priceMinor: 0,
         currency: 'GHS',
+        ticketTiers: [{ name: 'General', priceMinor: 0, capacity: 50 }],
       }
 }
 
@@ -173,7 +178,7 @@ export default function EventForm({
     setImageError(null)
     try {
       const imageUrl = imageFile
-        ? await uploadImage(imageFile, 'event-images')
+        ? await uploadImage(imageFile, 'event-images', event?.id ?? null)
         : normalizedValues.imageUrl
       await onSubmit({ ...normalizedValues, imageUrl })
     } catch (caught) {
@@ -436,6 +441,37 @@ export default function EventForm({
             <Form.Text>Use 0.00 for a free event. Price cannot change after payment or registration activity begins.</Form.Text>
           </Form.Group>
         </Col>
+        {values.ticketingEnabled && <Col xs={12}>
+          <Card className="border p-3">
+            <div className="d-flex justify-content-between align-items-center mb-2">
+              <strong>Ticket tiers</strong>
+              <Button type="button" size="sm" variant="outline-primary" onClick={() => {
+                const tiers = [...(values.ticketTiers ?? []), { name: `Tier ${(values.ticketTiers?.length ?? 0) + 1}`, priceMinor: values.priceMinor, capacity: 1 }]
+                setValues({ ...values, ticketTiers: tiers, capacity: tiers.reduce((sum, tier) => sum + tier.capacity, 0), priceMinor: Math.min(...tiers.map((tier) => tier.priceMinor)) })
+              }}>Add tier</Button>
+            </div>
+            {(values.ticketTiers ?? []).map((tier, index) => (
+              <Row className="g-2 mb-2" key={tier.id ?? index}>
+                <Col md={4}><Form.Control aria-label={`Tier ${index + 1} name`} value={tier.name} onChange={(change) => {
+                  const tiers = (values.ticketTiers ?? []).map((item, itemIndex) => itemIndex === index ? { ...item, name: change.target.value } : item)
+                  setValues({ ...values, ticketTiers: tiers })
+                }} /></Col>
+                <Col md={3}><Form.Control aria-label={`Tier ${index + 1} price`} type="number" min={0} step="0.01" value={(tier.priceMinor / 100).toFixed(2)} onChange={(change) => {
+                  const tiers = (values.ticketTiers ?? []).map((item, itemIndex) => itemIndex === index ? { ...item, priceMinor: Math.round(Number(change.target.value) * 100) } : item)
+                  setValues({ ...values, ticketTiers: tiers, priceMinor: Math.min(...tiers.map((item) => item.priceMinor)) })
+                }} /></Col>
+                <Col md={3}><Form.Control aria-label={`Tier ${index + 1} capacity`} type="number" min={1} value={tier.capacity} onChange={(change) => {
+                  const tiers = (values.ticketTiers ?? []).map((item, itemIndex) => itemIndex === index ? { ...item, capacity: Number(change.target.value) } : item)
+                  setValues({ ...values, ticketTiers: tiers, capacity: tiers.reduce((sum, item) => sum + item.capacity, 0) })
+                }} /></Col>
+                <Col md={2}><Button type="button" variant="outline-danger" disabled={(values.ticketTiers?.length ?? 0) <= 1} onClick={() => {
+                  const tiers = (values.ticketTiers ?? []).filter((_, itemIndex) => itemIndex !== index)
+                  setValues({ ...values, ticketTiers: tiers, capacity: tiers.reduce((sum, item) => sum + item.capacity, 0), priceMinor: Math.min(...tiers.map((item) => item.priceMinor)) })
+                }}>Remove</Button></Col>
+              </Row>
+            ))}
+          </Card>
+        </Col>}
         {values.priceMinor > 0 && <>
           <Col md={6}>
             <Form.Group controlId="event-sales-start">

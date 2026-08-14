@@ -7,6 +7,30 @@ public sealed class EventsControllerTests(ApiIntegrationFixture fixture)
     : IntegrationTestBase(fixture), IClassFixture<ApiIntegrationFixture>
 {
     [Fact]
+    public async Task Registrant_csv_and_analytics_use_owned_existing_data()
+    {
+        await ResetAsync();
+        var owner = await CreateActorAsync("csv-owner@example.test", "Organizer");
+        var other = await CreateActorAsync("csv-other@example.test", "Organizer");
+        var student = await RegisterStudentAsync("csv-student@example.test");
+        var eventId = await CreateEventAsync(owner.Token, "CSV export event", 10);
+        await RegisterForEventAsync(student.Token, eventId);
+        using var otherClient = CreateAuthenticatedClient(other.Token);
+        using var forbidden = await otherClient.GetAsync($"/api/events/{eventId}/registrants/export");
+        Assert.Equal(HttpStatusCode.Forbidden, forbidden.StatusCode);
+        using var ownerClient = CreateAuthenticatedClient(owner.Token);
+        using var export = await ownerClient.GetAsync($"/api/events/{eventId}/registrants/export");
+        export.EnsureSuccessStatusCode();
+        Assert.Equal("text/csv", export.Content.Headers.ContentType?.MediaType);
+        var csv = await export.Content.ReadAsStringAsync();
+        Assert.Contains("Name,Email,Registration date,Checked in", csv);
+        Assert.Contains("csv-student@example.test", csv);
+        using var analytics = await ownerClient.GetAsync("/api/events/analytics/mine");
+        analytics.EnsureSuccessStatusCode();
+        Assert.Equal(1, (await ReadJsonAsync(analytics)).GetProperty("registrationCount").GetInt32());
+    }
+
+    [Fact]
     public async Task Organizer_can_create_and_read_a_hybrid_event()
     {
         await ResetAsync();
@@ -214,9 +238,6 @@ public sealed class EventsControllerTests(ApiIntegrationFixture fixture)
         await ResetAsync();
         var organizer = await CreateActorAsync("image-organizer@example.test", "Organizer");
         using var client = CreateAuthenticatedClient(organizer.Token);
-        using var upload = await client.PostAsync("/api/uploads/event-image", CreatePngUpload());
-        upload.EnsureSuccessStatusCode();
-        var imageUrl = (await ReadJsonAsync(upload)).GetProperty("url").GetString()!;
         var payload = new
         {
             title = "Event with cover",
@@ -224,13 +245,31 @@ public sealed class EventsControllerTests(ApiIntegrationFixture fixture)
             date = DateTimeOffset.UtcNow.AddDays(7),
             location = "Image Hall",
             capacity = 20,
-            category = "Startup & Tech",
-            imageUrl
+            category = "Startup & Tech"
         };
 
         using var created = await client.PostAsJsonAsync("/api/events", payload);
         Assert.Equal(HttpStatusCode.Created, created.StatusCode);
         var eventId = (await ReadJsonAsync(created)).GetProperty("id").GetGuid();
+        using var upload = await client.PostAsync(
+            $"/api/uploads/event-image?eventId={eventId}",
+            CreatePngUpload());
+        upload.EnsureSuccessStatusCode();
+        var imageUrl = (await ReadJsonAsync(upload)).GetProperty("url").GetString()!;
+        using var updated = await client.PutAsJsonAsync(
+            $"/api/events/{eventId}",
+            new
+            {
+                payload.title,
+                payload.description,
+                payload.date,
+                payload.location,
+                payload.capacity,
+                payload.category,
+                imageUrl,
+                version = 1
+            });
+        updated.EnsureSuccessStatusCode();
         using var publicClient = Fixture.CreateClient();
         using var fetched = await publicClient.GetAsync($"/api/events/{eventId}");
 

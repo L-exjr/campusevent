@@ -15,7 +15,7 @@ namespace EventManagement.Api.UnitTests.Controllers;
 public sealed class UploadsControllerTests
 {
     [Fact]
-    public void Controller_requires_authentication_and_event_upload_requires_privileged_role()
+    public void Controller_requires_authentication_and_event_upload_allows_merged_roles_for_ownership_check()
     {
         var controllerAuthorization = typeof(UploadsController)
             .GetCustomAttribute<AuthorizeAttribute>();
@@ -24,7 +24,7 @@ public sealed class UploadsControllerTests
             .GetCustomAttribute<AuthorizeAttribute>();
 
         Assert.NotNull(controllerAuthorization);
-        Assert.Equal("Organizer,Admin", eventAuthorization?.Roles);
+        Assert.Equal("Student,Organizer,Admin", eventAuthorization?.Roles);
     }
 
     [Fact]
@@ -33,6 +33,7 @@ public sealed class UploadsControllerTests
         var lifecycle = new Mock<IImageLifecycleService>();
         var controller = new UploadsController(
             lifecycle.Object,
+            Mock.Of<IEventImageAuthorizationService>(),
             Mock.Of<IAuthRateLimitService>(),
             Mock.Of<ILogger<UploadsController>>());
         controller.ControllerContext = new ControllerContext
@@ -105,6 +106,7 @@ public sealed class UploadsControllerTests
     {
         var controller = new UploadsController(
             lifecycle,
+            Mock.Of<IEventImageAuthorizationService>(),
             Mock.Of<IAuthRateLimitService>(),
             Mock.Of<ILogger<UploadsController>>());
         controller.ControllerContext = new ControllerContext

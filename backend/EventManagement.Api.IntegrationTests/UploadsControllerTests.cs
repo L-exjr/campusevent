@@ -39,6 +39,53 @@ public sealed class UploadsControllerTests(ApiIntegrationFixture fixture)
     }
 
     [Fact]
+    public async Task Event_owner_can_upload_cover_for_owned_event()
+    {
+        await ResetAsync();
+        var owner = await RegisterStudentAsync("upload-owner@example.test");
+        var eventId = await CreateEventAsync(owner.Token, "Owned upload event", 10);
+        using var client = CreateAuthenticatedClient(owner.Token);
+
+        using var response = await client.PostAsync(
+            $"/api/uploads/event-image?eventId={eventId}",
+            CreatePngUpload());
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Authenticated_non_owner_cannot_upload_cover_for_another_event()
+    {
+        await ResetAsync();
+        var owner = await RegisterStudentAsync("upload-event-owner@example.test");
+        var attacker = await RegisterStudentAsync("upload-non-owner@example.test");
+        var eventId = await CreateEventAsync(owner.Token, "Protected upload event", 10);
+        using var client = CreateAuthenticatedClient(attacker.Token);
+
+        using var response = await client.PostAsync(
+            $"/api/uploads/event-image?eventId={eventId}",
+            CreatePngUpload());
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Admin_can_upload_event_cover_without_ownership()
+    {
+        await ResetAsync();
+        var owner = await RegisterStudentAsync("upload-admin-target@example.test");
+        var admin = await LoginAdminAsync();
+        var eventId = await CreateEventAsync(owner.Token, "Admin upload event", 10);
+        using var client = CreateAuthenticatedClient(admin.Token);
+
+        using var response = await client.PostAsync(
+            $"/api/uploads/event-image?eventId={eventId}",
+            CreatePngUpload());
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    }
+
+    [Fact]
     public async Task Profile_upload_is_owner_scoped_claimed_and_superseded_atomically()
     {
         await ResetAsync();

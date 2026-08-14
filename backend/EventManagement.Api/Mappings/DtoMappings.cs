@@ -60,5 +60,10 @@ public static class DtoMappings
         eventEntity.WebsiteUrl,
         eventEntity.TicketingEnabled,
         eventEntity.RegistrationsEnabled,
-        eventEntity.VotingEnabled);
+        eventEntity.VotingEnabled,
+        eventEntity.TicketTiers.OrderBy(tier => tier.Position)
+            .Select(tier => new TicketTierResponse(
+                tier.Id, tier.Name, tier.PriceMinor, tier.Capacity,
+                tier.PaymentOrders.Count(order => order.Status == PaymentOrderStatus.Verified), tier.IsActive))
+            .ToList());
 }

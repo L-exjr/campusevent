@@ -7,7 +7,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace EventManagement.Api.Controllers;
 
 [ApiController]
-[Authorize(Roles = "Student")]
+[Authorize(Roles = "Student,Organizer")]
 [Route("api/certificates")]
 public sealed class CertificatesController(ICertificateService certificateService) : ControllerBase
 {

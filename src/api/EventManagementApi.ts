@@ -13,8 +13,14 @@ import type {
   EventRegistrant,
   EventPaymentStatus,
   OrganizerApplication,
+  OrganizerDetail,
+  OrganizerDirectorySettings,
+  OrganizerSummary,
   Page,
   PaymentInitialization,
+  OrganizerAnalytics,
+  Coupon,
+  CouponInput,
   ReportsData,
   Role,
   StudentRegistration,
@@ -38,10 +44,11 @@ export interface EventManagementApi {
   getEvent(id: string): Promise<EventItem>
   getManagementEvent(id: string): Promise<EventItem>
   registerForEvent(eventId: string, studentId: string): Promise<void>
-  initializeEventPayment(eventId: string): Promise<PaymentInitialization>
+  initializeEventPayment(eventId: string, ticketTierId?: string, couponCode?: string): Promise<PaymentInitialization>
   getPaymentStatus(reference: string): Promise<EventPaymentStatus>
   getTicket(registrationId: string): Promise<Ticket>
   checkInTicket(eventId: string, token: string): Promise<CheckInResult>
+  checkInTicketByCode(eventId: string, ticketCode: string): Promise<CheckInResult>
   getCertificate(registrationId: string): Promise<CertificateDownload>
   getVotingCampaign(eventId: string): Promise<VotingCampaign>
   saveVotingCampaign(eventId: string, input: VotingCampaignInput): Promise<VotingCampaign>
@@ -73,6 +80,11 @@ export interface EventManagementApi {
     signal?: AbortSignal,
   ): Promise<Page<EventRegistrant>>
   updateAttendance(eventId: string, attendance: Record<string, boolean>): Promise<void>
+  exportEventRegistrants(eventId: string): Promise<Blob>
+  getOrganizerAnalytics(): Promise<OrganizerAnalytics>
+  getCoupons(): Promise<Coupon[]>
+  createCoupon(input: CouponInput): Promise<Coupon>
+  updateCoupon(id: string, input: CouponInput): Promise<Coupon>
   getUsers(page?: number, pageSize?: number, search?: string, role?: Role, signal?: AbortSignal): Promise<Page<User>>
   searchOrganizers(search?: string, pageSize?: number, signal?: AbortSignal): Promise<Page<User>>
   updateUserRole(id: string, role: Exclude<Role, 'admin'>): Promise<void>
@@ -92,6 +104,10 @@ export interface EventManagementApi {
   ): Promise<Page<AdminAuditLog>>
   exportAdminAuditLogs(from?: string, to?: string): Promise<Blob>
   submitBookingRequest(input: BookingRequestInput): Promise<string>
+  getOrganizers(search?: string, category?: string, page?: number, pageSize?: number, signal?: AbortSignal): Promise<Page<OrganizerSummary>>
+  getOrganizer(id: string): Promise<OrganizerDetail>
+  getOrganizerDirectorySettings(): Promise<OrganizerDirectorySettings>
+  updateOrganizerDirectorySettings(settings: OrganizerDirectorySettings): Promise<OrganizerDirectorySettings>
   getBookingRequests(page?: number, pageSize?: number): Promise<Page<BookingRequest>>
   getAssignedBookingRequests(page?: number, pageSize?: number): Promise<Page<BookingRequest>>
   assignBookingRequest(id: string, organizerId: string): Promise<BookingRequest>

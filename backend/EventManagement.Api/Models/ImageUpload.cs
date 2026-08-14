@@ -3,7 +3,8 @@ namespace EventManagement.Api.Models;
 public enum ImageUploadKind
 {
     Profile,
-    Event
+    Event,
+    OrganizerBanner
 }
 
 public enum ImageUploadStatus

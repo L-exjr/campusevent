@@ -30,7 +30,7 @@ public sealed class EventsController(IEventService eventService) : ControllerBas
             pageSize,
             cancellationToken));
 
-    [Authorize(Roles = "Organizer,Admin")]
+    [Authorize(Roles = "Student,Organizer,Admin")]
     [HttpGet("mine")]
     public async Task<ActionResult<PaginatedResponse<EventResponse>>> GetMine(
         [FromQuery] bool upcoming = false,
@@ -61,7 +61,7 @@ public sealed class EventsController(IEventService eventService) : ControllerBas
         CancellationToken cancellationToken) =>
         Ok(await eventService.GetByIdAsync(id, cancellationToken));
 
-    [Authorize(Roles = "Organizer,Admin")]
+    [Authorize(Roles = "Student,Organizer,Admin")]
     [HttpGet("{id:guid}/management")]
     public async Task<ActionResult<EventResponse>> GetManagementById(
         Guid id,
@@ -72,7 +72,7 @@ public sealed class EventsController(IEventService eventService) : ControllerBas
             User.GetRequiredRole(),
             cancellationToken));
 
-    [Authorize(Roles = "Organizer,Admin")]
+    [Authorize(Roles = "Student,Organizer,Admin")]
     [HttpPost]
     public async Task<ActionResult<EventResponse>> Create(
         EventUpsertRequest request,
@@ -85,7 +85,7 @@ public sealed class EventsController(IEventService eventService) : ControllerBas
         return CreatedAtAction(nameof(GetById), new { id = eventResponse.Id }, eventResponse);
     }
 
-    [Authorize(Roles = "Organizer,Admin")]
+    [Authorize(Roles = "Student,Organizer,Admin")]
     [HttpPut("{id:guid}")]
     public async Task<ActionResult<EventResponse>> Update(
         Guid id,
@@ -110,7 +110,7 @@ public sealed class EventsController(IEventService eventService) : ControllerBas
             request,
             cancellationToken));
 
-    [Authorize(Roles = "Organizer,Admin")]
+    [Authorize(Roles = "Student,Organizer,Admin")]
     [HttpDelete("{id:guid}")]
     public async Task<IActionResult> Delete(Guid id, CancellationToken cancellationToken)
     {
@@ -122,7 +122,7 @@ public sealed class EventsController(IEventService eventService) : ControllerBas
         return NoContent();
     }
 
-    [Authorize(Roles = "Student")]
+    [Authorize(Roles = "Student,Organizer")]
     [HttpPost("{id:guid}/register")]
     public async Task<ActionResult<StudentRegistrationResponse>> Register(
         Guid id,
@@ -135,7 +135,7 @@ public sealed class EventsController(IEventService eventService) : ControllerBas
         return StatusCode(StatusCodes.Status201Created, registration);
     }
 
-    [Authorize(Roles = "Student")]
+    [Authorize(Roles = "Student,Organizer")]
     [HttpGet("{id:guid}/registration-status")]
     public async Task<ActionResult<RegistrationStatusResponse>> GetRegistrationStatus(
         Guid id,
@@ -145,7 +145,7 @@ public sealed class EventsController(IEventService eventService) : ControllerBas
             User.GetRequiredUserId(),
             cancellationToken)));
 
-    [Authorize(Roles = "Organizer,Admin")]
+    [Authorize(Roles = "Student,Organizer,Admin")]
     [HttpGet("{id:guid}/registrants")]
     public async Task<ActionResult<PaginatedResponse<EventRegistrantResponse>>> GetRegistrants(
         Guid id,
@@ -164,7 +164,22 @@ public sealed class EventsController(IEventService eventService) : ControllerBas
             pageSize,
             cancellationToken));
 
-    [Authorize(Roles = "Organizer,Admin")]
+    [Authorize(Roles = "Student,Organizer,Admin")]
+    [HttpGet("{id:guid}/registrants/export")]
+    public async Task<IActionResult> ExportRegistrants(Guid id, CancellationToken cancellationToken)
+    {
+        var csv = await eventService.ExportRegistrantsCsvAsync(
+            id, User.GetRequiredUserId(), User.GetRequiredRole(), cancellationToken);
+        return File(csv, "text/csv; charset=utf-8", $"event-{id:N}-registrants.csv");
+    }
+
+    [Authorize(Roles = "Student,Organizer")]
+    [HttpGet("analytics/mine")]
+    public async Task<ActionResult<OrganizerAnalyticsResponse>> GetAnalytics(
+        CancellationToken cancellationToken) =>
+        Ok(await eventService.GetOrganizerAnalyticsAsync(User.GetRequiredUserId(), cancellationToken));
+
+    [Authorize(Roles = "Student,Organizer,Admin")]
     [HttpPut("{id:guid}/attendance")]
     public async Task<IActionResult> UpdateAttendance(
         Guid id,

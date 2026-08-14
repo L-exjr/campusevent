@@ -146,12 +146,17 @@ builder.Services.AddScoped<IAuthRateLimitService, AuthRateLimitService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IGoogleTokenValidator, GoogleTokenValidator>();
 builder.Services.AddScoped<IBookingRequestService, BookingRequestService>();
+builder.Services.AddScoped<IOrganizerDirectoryService, OrganizerDirectoryService>();
 builder.Services.AddScoped<IOrganizerApplicationService, OrganizerApplicationService>();
 builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<IEventAuthorizationService, EventAuthorizationService>();
+builder.Services.AddScoped<IEventImageAuthorizationService, EventImageAuthorizationService>();
 builder.Services.AddScoped<IEventService, EventService>();
+builder.Services.AddScoped<ICouponService, CouponService>();
 builder.Services.AddScoped<IReportService, ReportService>();
-builder.Services.AddScoped<IPaystackPaymentProvider, PaystackPaymentProvider>();
+builder.Services.AddScoped<IPaymentProvider, PaystackPaymentProvider>();
+builder.Services.AddScoped<IPaymentProvider, FlutterwavePaymentProvider>();
+builder.Services.AddScoped<IPaymentProviderResolver, PaymentProviderResolver>();
 builder.Services.AddScoped<IPaymentService, PaymentService>();
 builder.Services.AddScoped<IVotingService, VotingService>();
 builder.Services.AddScoped<ITicketTokenService, TicketTokenService>();
@@ -220,7 +225,8 @@ app.UseHttpsRedirection();
 app.UseCors("Frontend");
 app.Use(async (context, next) =>
 {
-    var isProviderWebhook = context.Request.Path.Equals("/api/payments/webhooks/paystack");
+    var isProviderWebhook = context.Request.Path.Equals("/api/payments/webhooks/paystack") ||
+        context.Request.Path.Equals("/api/payments/webhooks/flutterwave");
     var usesExplicitBearerToken = context.Request.Headers.Authorization.ToString()
         .StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase);
     if (!isProviderWebhook && !usesExplicitBearerToken && (HttpMethods.IsPost(context.Request.Method) || HttpMethods.IsPut(context.Request.Method) ||

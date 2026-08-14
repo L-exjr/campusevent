@@ -11,26 +11,26 @@ export type Permission =
   | 'reports:view'
 
 const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
-  student: ['events:browse', 'registrations:own'],
-  organizer: ['events:own:manage', 'attendance:manage'],
+  student: ['events:browse', 'registrations:own', 'events:own:manage', 'attendance:manage'],
+  organizer: ['events:browse', 'registrations:own', 'events:own:manage', 'attendance:manage'],
   admin: ['users:manage', 'organizer-applications:view', 'events:all:manage', 'reports:view'],
 }
 
 export const ROLE_HOME: Record<Role, string> = {
   student: '/student',
-  organizer: '/organizer',
+  organizer: '/student',
   admin: '/admin',
 }
 
 export const ROLE_LABELS: Record<Role, string> = {
-  student: 'Student',
-  organizer: 'Organizer',
+  student: 'Member',
+  organizer: 'Member',
   admin: 'Admin',
 }
 
 export const ROUTE_ROLES: Record<Role | 'authenticated', Role[]> = {
-  student: ['student'],
-  organizer: ['organizer'],
+  student: ['student', 'organizer'],
+  organizer: ['student', 'organizer'],
   admin: ['admin'],
   authenticated: ['student', 'organizer', 'admin'],
 }
@@ -85,17 +85,9 @@ export function getNavigationForRole(role: Role) {
   // booking links are intentionally kept out of that focused navigation.
   if (role === 'admin') return [...ROLE_NAVIGATION.admin, { label: 'Profile', to: '/profile' }]
 
-  if (role === 'organizer') {
-    return [
-      { label: 'Explore events', to: '/events' },
-      ...ROLE_NAVIGATION.organizer,
-      { label: 'Profile', to: '/profile' },
-    ]
-  }
-
   return [
     { label: 'Explore events', to: '/events' },
-    { label: 'Request an Organizer', to: '/request-organizer' },
+    { label: 'Request an Organizer', to: '/organizers' },
     ...ROLE_NAVIGATION[role],
     { label: 'Profile', to: '/profile' },
   ]
@@ -117,26 +109,15 @@ export function getNavigationGroupsForRole(role: Role): NavigationGroups {
       { label: 'Profile', to: '/profile' },
     ],
   }
-  if (role === 'organizer') return {
-    primary: [
-      { label: 'Overview', to: '/organizer' },
-      { label: 'Manage events', to: '/organizer/events' },
-      { label: 'Explore events', to: '/events' },
-    ],
-    secondary: [
-      { label: 'Booking requests', to: '/organizer/booking-requests' },
-      { label: 'Profile', to: '/profile' },
-    ],
-  }
   return {
     primary: [
       { label: 'Explore events', to: '/events' },
-      { label: 'Overview', to: '/student' },
+      { label: 'Manage events', to: '/organizer/events' },
       { label: 'My registrations', to: '/student/registrations' },
     ],
     secondary: [
-      { label: 'Request an Organizer', to: '/request-organizer' },
-      { label: 'Apply to organize', to: '/student/organizer-application' },
+      { label: 'Request an Organizer', to: '/organizers' },
+      { label: 'Booking requests', to: '/organizer/booking-requests' },
       { label: 'Profile', to: '/profile' },
     ],
   }
@@ -147,5 +128,5 @@ export function canManageUserAccount(role: Role) {
 }
 
 export function canManageEvent(user: User, event: EventItem) {
-  return user.role === 'admin' || (user.role === 'organizer' && event.organizerId === user.id)
+  return user.role === 'admin' || event.organizerId === user.id
 }

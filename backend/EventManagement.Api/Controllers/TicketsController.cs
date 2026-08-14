@@ -10,7 +10,7 @@ namespace EventManagement.Api.Controllers;
 [Route("api/tickets")]
 public sealed class TicketsController(ITicketService ticketService) : ControllerBase
 {
-    [Authorize(Roles = "Student")]
+    [Authorize(Roles = "Student,Organizer")]
     [HttpGet("{registrationId:guid}")]
     public async Task<ActionResult<TicketResponse>> Get(
         Guid registrationId,
@@ -25,7 +25,7 @@ public sealed class TicketsController(ITicketService ticketService) : Controller
 [Route("api/events/{eventId:guid}/check-in")]
 public sealed class CheckInController(ITicketService ticketService) : ControllerBase
 {
-    [Authorize(Roles = "Organizer,Admin")]
+    [Authorize(Roles = "Student,Organizer,Admin")]
     [HttpPost]
     public async Task<ActionResult<CheckInResponse>> CheckIn(
         Guid eventId,
@@ -37,4 +37,12 @@ public sealed class CheckInController(ITicketService ticketService) : Controller
             User.GetRequiredRole(),
             request.Token,
             cancellationToken));
+
+    [Authorize(Roles = "Student,Organizer,Admin")]
+    [HttpPost("manual")]
+    public async Task<ActionResult<CheckInResponse>> CheckInManually(
+        Guid eventId, ManualCheckInRequest request, CancellationToken cancellationToken) =>
+        Ok(await ticketService.CheckInByCodeAsync(
+            eventId, User.GetRequiredUserId(), User.GetRequiredRole(),
+            request.TicketCode, cancellationToken));
 }

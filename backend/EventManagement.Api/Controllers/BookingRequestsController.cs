@@ -30,7 +30,7 @@ public sealed class BookingRequestsController(IBookingRequestService service) : 
         CancellationToken cancellationToken = default) =>
         Ok(await service.GetAllAsync(status, page, pageSize, cancellationToken));
 
-    [Authorize(Roles = "Organizer")]
+    [Authorize(Roles = "Student,Organizer")]
     [HttpGet("assigned")]
     public async Task<ActionResult<PaginatedResponse<BookingRequestResponse>>> GetAssigned(
         [FromQuery] BookingRequestStatus? status,
@@ -50,7 +50,7 @@ public sealed class BookingRequestsController(IBookingRequestService service) : 
             User.GetRequiredUserId(),
             cancellationToken));
 
-    [Authorize(Roles = "Organizer")]
+    [Authorize(Roles = "Student,Organizer")]
     [HttpPut("{id:guid}/respond")]
     public async Task<ActionResult<BookingRequestResponse>> Respond(
         Guid id, RespondToBookingRequest request, CancellationToken cancellationToken) =>

@@ -54,6 +54,27 @@ public sealed class TicketsControllerTests(ApiIntegrationFixture fixture)
     }
 
     [Fact]
+    public async Task Event_owner_can_check_in_with_short_ticket_code_and_non_owner_cannot()
+    {
+        await ResetAsync();
+        var owner = await CreateActorAsync("code-owner@example.test", "Organizer");
+        var other = await CreateActorAsync("code-other@example.test", "Organizer");
+        var student = await RegisterStudentAsync("code-student@example.test");
+        var eventId = await CreateEventAsync(owner.Token, "Manual code event", 10);
+        await RegisterForEventAsync(student.Token, eventId);
+        var code = await Fixture.GetTicketCodeAsync(eventId, student.UserId);
+        Assert.StartsWith("EMS-", code);
+        using var otherClient = CreateAuthenticatedClient(other.Token);
+        using var forbidden = await otherClient.PostAsJsonAsync(
+            $"/api/events/{eventId}/check-in/manual", new { ticketCode = code });
+        Assert.Equal(HttpStatusCode.Forbidden, forbidden.StatusCode);
+        using var ownerClient = CreateAuthenticatedClient(owner.Token);
+        using var checkedIn = await ownerClient.PostAsJsonAsync(
+            $"/api/events/{eventId}/check-in/manual", new { ticketCode = code.ToLowerInvariant() });
+        Assert.Equal(HttpStatusCode.OK, checkedIn.StatusCode);
+    }
+
+    [Fact]
     public async Task Tampered_ticket_is_rejected()
     {
         await ResetAsync();

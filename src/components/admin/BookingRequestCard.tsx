@@ -51,6 +51,12 @@ export default function BookingRequestCard({
         {request.assignedOrganizerName && (
           <p className="fw-semibold">Assigned to {request.assignedOrganizerName}</p>
         )}
+        {request.requestedOrganizerName && (
+          <p className="mb-1"><strong>Requester selected:</strong> {request.requestedOrganizerName}</p>
+        )}
+        {request.preferredOrganizer && (
+          <p className="small text-secondary"><strong>Preference notes:</strong> {request.preferredOrganizer}</p>
+        )}
         {canAssign && (
           <div className="d-flex flex-column flex-md-row gap-2">
             <Form.Select

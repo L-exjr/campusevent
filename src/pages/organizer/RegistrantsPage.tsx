@@ -54,6 +54,16 @@ export default function RegistrantsPage() {
     setPage(1)
   }
 
+  const exportCsv = async () => {
+    const blob = await api.exportEventRegistrants(id)
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `${data?.event.title ?? 'event'}-registrants.csv`
+    link.click()
+    URL.revokeObjectURL(url)
+  }
+
   if (loading) return <LoadingState label="Loading registrants" />
   if (error || !data) return <ErrorState message={error ?? 'No data returned.'} onRetry={() => void reload()} />
   if (!user || !canManageEvent(user, data.event) || !data.registrants) {
@@ -74,6 +84,7 @@ export default function RegistrantsPage() {
           <div className="d-flex flex-wrap gap-2">
             <Badge bg="primary" className="summary-badge">{data.event.registeredCount} registered</Badge>
             <Badge bg="success" className="summary-badge">{attendedCount} attended on this page</Badge>
+            <Button variant="outline-primary" onClick={() => void exportCsv()}>Download CSV</Button>
           </div>
         )}
       />

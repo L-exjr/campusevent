@@ -152,7 +152,7 @@ public sealed class UserService(
         var user = await FindForUpdateAsync(userId, cancellationToken)
             ?? throw new ApiException(StatusCodes.Status404NotFound, "User account not found.");
         if (!user.IsActive) return;
-        if (user.Role == UserRole.Organizer)
+        if (user.Role != UserRole.Admin)
             await EnsureOrganizerHasNoActiveWorkAsync(userId, cancellationToken);
         user.IsActive = false;
         auditService.Append(

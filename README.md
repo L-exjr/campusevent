@@ -4,8 +4,17 @@
 
 Campus Events is a production-oriented event management system for students,
 organizers, and administrators. It combines a React single-page application with
-an ASP.NET Core API, PostgreSQL persistence, Paystack payments, and Supabase
+an ASP.NET Core API, PostgreSQL persistence, provider-neutral Paystack/Flutterwave payments, and Supabase
 object storage.
+
+## Current documentation
+
+- [Architecture](docs/architecture.md)
+- [Features and end-to-end flows](docs/features.md)
+- [Authorization model](docs/auth-model.md)
+- [Payments](docs/payments.md)
+- [API reference](docs/api-reference.md)
+- [Development and deployment](docs/development.md)
 
 ## Stack
 
@@ -15,7 +24,7 @@ object storage.
 | Backend | ASP.NET Core 10 Web API, Entity Framework Core 10, Npgsql |
 | Database | PostgreSQL 16 in CI; any PostgreSQL version supported by the tracked Npgsql provider locally |
 | Storage | Supabase Storage for public event/profile images and private certificates |
-| Payments | Paystack hosted checkout with server-side verification and webhooks |
+| Payments | Configurable Paystack or Flutterwave hosted checkout with provider-specific verification and webhooks |
 | Authentication | Short-lived JWT bearer sessions plus Google Identity Services |
 | Testing | Vitest, React Testing Library, MSW, xUnit, Moq, and ASP.NET Core integration tests |
 | Hosting | Vercel frontend, Railway API and PostgreSQL, GitHub Actions deployment gates |

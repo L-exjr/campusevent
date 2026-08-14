@@ -3,6 +3,7 @@ using EventManagement.Api.Models;
 using EventManagement.Api.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
 using System.Security.Cryptography;
 using System.Text;
@@ -20,6 +21,20 @@ public sealed class ApiIntegrationFixture : IAsyncLifetime
     public HttpClient CreateClient() => _factory.CreateClient();
     public HttpClient CreateClient(Microsoft.AspNetCore.Mvc.Testing.WebApplicationFactoryClientOptions options) =>
         _factory.CreateClient(options);
+
+    public void UsePaymentProvider(string name)
+    {
+        var configuration = _factory.Services.GetRequiredService<IConfiguration>();
+        configuration["PAYMENTS_PROVIDER"] = name;
+    }
+
+    public void SetFlutterwaveVerificationResult(bool succeeds)
+    {
+        var provider = _factory.Services.GetServices<IPaymentProvider>()
+            .OfType<TestFlutterwavePaymentProvider>()
+            .Single();
+        provider.VerificationSucceeds = succeeds;
+    }
 
     public async Task InitializeAsync()
     {
@@ -43,6 +58,8 @@ public sealed class ApiIntegrationFixture : IAsyncLifetime
 
     public async Task ResetAsync()
     {
+        UsePaymentProvider("Paystack");
+        SetFlutterwaveVerificationResult(true);
         await using var dbContext = CreateDbContext();
         await dbContext.Database.ExecuteSqlRawAsync(
             """
@@ -403,6 +420,29 @@ public sealed class ApiIntegrationFixture : IAsyncLifetime
         return await dbContext.VoteRecords
             .Where(item => item.NomineeId == nomineeId)
             .SumAsync(item => (long)item.Quantity);
+    }
+
+    public async Task SetVotingOrderExpiryAsync(string reference, DateTimeOffset expiresAt)
+    {
+        await using var dbContext = CreateDbContext();
+        var order = await dbContext.VotingPaymentOrders.SingleAsync(item => item.ProviderReference == reference);
+        order.ExpiresAt = expiresAt;
+        await dbContext.SaveChangesAsync();
+    }
+
+    public async Task SetVotingOrderCreatedAtAsync(string reference, DateTimeOffset createdAt)
+    {
+        await using var dbContext = CreateDbContext();
+        var order = await dbContext.VotingPaymentOrders.SingleAsync(item => item.ProviderReference == reference);
+        order.CreatedAt = createdAt;
+        await dbContext.SaveChangesAsync();
+    }
+
+    public async Task<string> GetTicketCodeAsync(Guid eventId, Guid studentId)
+    {
+        await using var dbContext = CreateDbContext();
+        return await dbContext.EventRegistrations.Where(item => item.EventId == eventId && item.StudentId == studentId)
+            .Select(item => item.TicketCode).SingleAsync();
     }
 
     private AppDbContext CreateDbContext()

@@ -44,7 +44,7 @@ export default function LoginPage() {
     try {
       const session = await login(email, password)
       navigate(
-        session.user.role === 'student' &&
+        session.user.role !== 'admin' &&
           typeof returnPath === 'string' &&
           returnPath.startsWith('/events/')
           ? returnPath

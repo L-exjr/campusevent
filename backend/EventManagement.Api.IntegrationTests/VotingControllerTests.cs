@@ -82,6 +82,57 @@ public sealed class VotingControllerTests(ApiIntegrationFixture fixture)
     }
 
     [Fact]
+    public async Task Paid_vote_created_before_deadline_is_honored_after_deadline_while_unexpired()
+    {
+        await ResetAsync();
+        var organizer = await CreateActorAsync("deadline-owner@example.test", "Organizer");
+        var student = await RegisterStudentAsync("deadline-voter@example.test");
+        var eventId = await CreateEventAsync(organizer.Token, "Deadline vote event", 10);
+        var campaign = await CreateCampaignAsync(organizer.Token, eventId, paid: true);
+        using var client = CreateAuthenticatedClient(student.Token);
+        using var initialize = await client.PostAsJsonAsync(
+            $"/api/voting/categories/{campaign.CategoryId}/payments/initialize",
+            new { nomineeId = campaign.FirstNomineeId, quantity = 2 });
+        var reference = (await ReadJsonAsync(initialize)).GetProperty("reference").GetString()!;
+        await Fixture.SetVotingOrderCreatedAtAsync(reference, DateTimeOffset.UtcNow.AddMinutes(-2));
+        await Fixture.SetVotingCampaignDatesAsync(eventId, DateTimeOffset.UtcNow.AddDays(-2), DateTimeOffset.UtcNow.AddSeconds(-1));
+
+        using var webhook = Fixture.CreateClient();
+        webhook.DefaultRequestHeaders.Add("x-paystack-signature", "valid-test-signature");
+        using var response = await webhook.PostAsJsonAsync("/api/payments/webhooks/paystack",
+            new { @event = "charge.success", data = new { reference } });
+
+        response.EnsureSuccessStatusCode();
+        Assert.Equal(2, await Fixture.GetNomineeVoteCountAsync(campaign.FirstNomineeId));
+    }
+
+    [Fact]
+    public async Task Expired_paid_vote_order_is_rejected_even_when_provider_verifies_it()
+    {
+        await ResetAsync();
+        var organizer = await CreateActorAsync("expired-owner@example.test", "Organizer");
+        var student = await RegisterStudentAsync("expired-voter@example.test");
+        var eventId = await CreateEventAsync(organizer.Token, "Expired vote event", 10);
+        var campaign = await CreateCampaignAsync(organizer.Token, eventId, paid: true);
+        using var client = CreateAuthenticatedClient(student.Token);
+        using var initialize = await client.PostAsJsonAsync(
+            $"/api/voting/categories/{campaign.CategoryId}/payments/initialize",
+            new { nomineeId = campaign.FirstNomineeId, quantity = 2 });
+        var reference = (await ReadJsonAsync(initialize)).GetProperty("reference").GetString()!;
+        await Fixture.SetVotingOrderExpiryAsync(reference, DateTimeOffset.UtcNow.AddSeconds(-1));
+        using var webhook = Fixture.CreateClient();
+        webhook.DefaultRequestHeaders.Add("x-paystack-signature", "valid-test-signature");
+
+        using var response = await webhook.PostAsJsonAsync("/api/payments/webhooks/paystack",
+            new { @event = "charge.success", data = new { reference } });
+
+        response.EnsureSuccessStatusCode();
+        Assert.Equal(0, await Fixture.GetNomineeVoteCountAsync(campaign.FirstNomineeId));
+        using var status = await client.GetAsync($"/api/voting/payments/{reference}");
+        Assert.Equal("Expired", (await ReadJsonAsync(status)).GetProperty("status").GetString());
+    }
+
+    [Fact]
     public async Task Organizer_cannot_manage_another_organizers_campaign()
     {
         await ResetAsync();

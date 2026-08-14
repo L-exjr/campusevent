@@ -12,17 +12,21 @@ public sealed class PaymentsController(
     IPaymentService paymentService,
     IVotingService votingService) : ControllerBase
 {
-    [Authorize(Roles = "Student")]
+    [Authorize(Roles = "Student,Organizer")]
     [HttpPost("events/{eventId:guid}/initialize")]
     public async Task<ActionResult<PaymentInitializationResponse>> Initialize(
         Guid eventId,
+        [FromQuery] Guid? ticketTierId,
+        [FromQuery] string? couponCode,
         CancellationToken cancellationToken) =>
         Ok(await paymentService.InitializeAsync(
             eventId,
             User.GetRequiredUserId(),
+            ticketTierId,
+            couponCode,
             cancellationToken));
 
-    [Authorize(Roles = "Student")]
+    [Authorize(Roles = "Student,Organizer")]
     [HttpGet("{reference}")]
     public async Task<ActionResult<PaymentStatusResponse>> GetStatus(
         string reference,
@@ -42,9 +46,9 @@ public sealed class PaymentsController(
         {
             var signature = Request.Headers["x-paystack-signature"].FirstOrDefault();
             if (IsVotingReference(payload))
-                await votingService.ProcessPaystackWebhookAsync(payload, signature, cancellationToken);
+                await votingService.ProcessWebhookAsync("Paystack", payload, signature, cancellationToken);
             else
-                await paymentService.ProcessPaystackWebhookAsync(payload, signature, cancellationToken);
+                await paymentService.ProcessWebhookAsync("Paystack", payload, signature, cancellationToken);
         }
         catch (PaymentProviderException)
         {
@@ -55,13 +59,35 @@ public sealed class PaymentsController(
         return Ok();
     }
 
-    private static bool IsVotingReference(string payload)
+    [AllowAnonymous]
+    [HttpPost("webhooks/flutterwave")]
+    public async Task<IActionResult> FlutterwaveWebhook(CancellationToken cancellationToken)
+    {
+        using var reader = new StreamReader(Request.Body);
+        var payload = await reader.ReadToEndAsync(cancellationToken);
+        try
+        {
+            var signature = Request.Headers["verif-hash"].FirstOrDefault();
+            if (IsVotingReference(payload, "tx_ref"))
+                await votingService.ProcessWebhookAsync("Flutterwave", payload, signature, cancellationToken);
+            else
+                await paymentService.ProcessWebhookAsync("Flutterwave", payload, signature, cancellationToken);
+        }
+        catch (PaymentProviderException)
+        {
+            throw new ApiException(StatusCodes.Status503ServiceUnavailable,
+                "Payment verification is temporarily unavailable.");
+        }
+        return Ok();
+    }
+
+    private static bool IsVotingReference(string payload, string referenceProperty = "reference")
     {
         try
         {
             using var document = System.Text.Json.JsonDocument.Parse(payload);
             return document.RootElement.TryGetProperty("data", out var data) &&
-                data.TryGetProperty("reference", out var value) &&
+                data.TryGetProperty(referenceProperty, out var value) &&
                 value.GetString()?.StartsWith("vote_", StringComparison.Ordinal) == true;
         }
         catch (System.Text.Json.JsonException)

@@ -77,6 +77,8 @@ export default function OrganizerBookingRequestsPage() {
                     </Badge>
                   </div>
                   <p>{request.description}</p>
+                  {request.requestedOrganizerName && <p className="mb-1"><strong>Requester selected:</strong> {request.requestedOrganizerName}</p>}
+                  {request.preferredOrganizer && <p className="small text-secondary"><strong>Preference notes:</strong> {request.preferredOrganizer}</p>}
                   <p className="small">
                     Contact: <a href={`mailto:${request.email}`}>{request.contactName}</a> · {request.phone}
                   </p>

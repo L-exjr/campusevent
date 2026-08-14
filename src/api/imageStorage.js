@@ -10,6 +10,7 @@ export const DEFAULT_PROFILE_IMAGE =
 const UPLOAD_ENDPOINTS = {
   'event-images': '/uploads/event-image',
   'profile-images': '/uploads/profile-image',
+  'organizer-banners': '/uploads/organizer-banner',
 }
 
 const ALLOWED_TYPES = {
@@ -28,7 +29,12 @@ export function validateImageFile(file) {
   }
 }
 
-export async function uploadImage(file, bucket) {
+/**
+ * @param {File} file
+ * @param {keyof typeof UPLOAD_ENDPOINTS} bucket
+ * @param {string | null} [eventId]
+ */
+export async function uploadImage(file, bucket, eventId = null) {
   // This is UX-only validation. The authenticated backend repeats validation
   // and performs the Supabase write with its server-only service-role key.
   validateImageFile(file)
@@ -37,7 +43,10 @@ export async function uploadImage(file, bucket) {
 
   const body = new FormData()
   body.append('file', file)
-  const response = await apiRequest(endpoint, {
+  const requestEndpoint = bucket === 'event-images' && eventId
+    ? `${endpoint}?eventId=${encodeURIComponent(eventId)}`
+    : endpoint
+  const response = await apiRequest(requestEndpoint, {
     method: 'POST',
     body,
   })

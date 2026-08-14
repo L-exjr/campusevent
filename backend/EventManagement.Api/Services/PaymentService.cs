@@ -14,20 +14,21 @@ public interface IPaymentService
     Task<PaymentInitializationResponse> InitializeAsync(
         Guid eventId,
         Guid studentId,
+        Guid? ticketTierId,
+        string? couponCode,
         CancellationToken cancellationToken);
     Task<PaymentStatusResponse> GetStatusAsync(
         string reference,
         Guid studentId,
         CancellationToken cancellationToken);
-    Task ProcessPaystackWebhookAsync(
-        string payload,
-        string? signature,
+    Task ProcessWebhookAsync(
+        string providerName, string payload, string? signature,
         CancellationToken cancellationToken);
 }
 
 public sealed class PaymentService(
     AppDbContext dbContext,
-    IPaystackPaymentProvider provider,
+    IPaymentProviderResolver providers,
     IConfiguration configuration,
     TimeProvider timeProvider,
     ILogger<PaymentService> logger) : IPaymentService
@@ -35,8 +36,11 @@ public sealed class PaymentService(
     public async Task<PaymentInitializationResponse> InitializeAsync(
         Guid eventId,
         Guid studentId,
+        Guid? ticketTierId,
+        string? couponCode,
         CancellationToken cancellationToken)
     {
+        var provider = providers.Active;
         PaymentOrder order;
         string studentEmail;
         await using (var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken))
@@ -45,8 +49,8 @@ public sealed class PaymentService(
                 user => user.Id == studentId,
                 cancellationToken)
                 ?? throw new ApiException(StatusCodes.Status404NotFound, "Student account not found.");
-            if (student.Role != UserRole.Student)
-                throw new ApiException(StatusCodes.Status403Forbidden, "Only Students can pay for events.");
+            if (!student.IsActive)
+                throw new ApiException(StatusCodes.Status403Forbidden, "An active account is required to pay for events.");
 
             var eventEntity = await dbContext.Events
                 .FromSqlInterpolated($"SELECT * FROM \"Events\" WHERE \"Id\" = {eventId} FOR UPDATE")
@@ -59,7 +63,14 @@ public sealed class PaymentService(
                 throw new ApiException(StatusCodes.Status409Conflict, "Ticketing is not enabled for this event.");
             if (eventEntity.Date <= now)
                 throw new ApiException(StatusCodes.Status409Conflict, "Registration has closed for this event.");
-            if (eventEntity.PriceMinor <= 0)
+            var tier = await dbContext.TicketTiers
+                .Where(item => item.EventId == eventId && item.IsActive &&
+                    (ticketTierId == null || item.Id == ticketTierId))
+                .OrderBy(item => item.Position)
+                .FirstOrDefaultAsync(cancellationToken);
+            if (tier is null)
+                throw new ApiException(StatusCodes.Status400BadRequest, "Choose an available ticket tier.");
+            if (tier.PriceMinor <= 0)
                 throw new ApiException(StatusCodes.Status409Conflict, "This event does not require payment.");
             if (eventEntity.SalesStartsAt is null || eventEntity.SalesEndsAt is null ||
                 now < eventEntity.SalesStartsAt || now >= eventEntity.SalesEndsAt)
@@ -85,6 +96,7 @@ public sealed class PaymentService(
             var existing = await dbContext.PaymentOrders.SingleOrDefaultAsync(
                 item => item.EventId == eventId &&
                     item.StudentId == studentId &&
+                    item.TicketTierId == tier.Id &&
                     item.Status == PaymentOrderStatus.Pending &&
                     item.ExpiresAt > now,
                 cancellationToken);
@@ -99,15 +111,37 @@ public sealed class PaymentService(
             }
 
             var confirmedCount = await dbContext.EventRegistrations.CountAsync(
-                registration => registration.EventId == eventId,
-                cancellationToken);
+                registration => registration.PaymentOrder != null &&
+                    registration.PaymentOrder.TicketTierId == tier.Id, cancellationToken);
             var reservedCount = await dbContext.PaymentOrders.CountAsync(
-                item => item.EventId == eventId &&
+                item => item.TicketTierId == tier.Id &&
                     item.Status == PaymentOrderStatus.Pending &&
                     item.ExpiresAt > now,
                 cancellationToken);
-            if (confirmedCount + reservedCount >= eventEntity.Capacity)
+            if (confirmedCount + reservedCount >= tier.Capacity)
                 throw new ApiException(StatusCodes.Status409Conflict, "This event is at capacity.");
+
+            Coupon? coupon = null;
+            var normalizedCoupon = couponCode?.Trim().ToUpperInvariant();
+            if (!string.IsNullOrWhiteSpace(normalizedCoupon))
+            {
+                coupon = await dbContext.Coupons
+                    .FromSqlInterpolated($"SELECT * FROM \"Coupons\" WHERE \"Code\" = {normalizedCoupon} FOR UPDATE")
+                    .SingleOrDefaultAsync(cancellationToken);
+                if (coupon is null || !coupon.IsActive || coupon.OrganizerId != eventEntity.OrganizerId ||
+                    (coupon.EventId.HasValue && coupon.EventId != eventId))
+                    throw new ApiException(StatusCodes.Status400BadRequest, "Coupon code is invalid.");
+                if (coupon.ExpiresAt <= now)
+                    throw new ApiException(StatusCodes.Status400BadRequest, "Coupon code has expired.");
+                if (coupon.UsageLimit.HasValue && await dbContext.PaymentOrders.CountAsync(item =>
+                    item.CouponId == coupon.Id &&
+                    (item.Status == PaymentOrderStatus.Verified ||
+                     item.Status == PaymentOrderStatus.Pending && item.ExpiresAt > now),
+                    cancellationToken) >= coupon.UsageLimit.Value)
+                    throw new ApiException(StatusCodes.Status409Conflict, "Coupon usage limit has been reached.");
+            }
+            var discountAmount = coupon is null ? 0L : tier.PriceMinor * coupon.PercentageDiscount / 100;
+            var payableAmount = tier.PriceMinor - discountAmount;
 
             var configuredPendingMinutes =
                 int.TryParse(configuration["PAYMENTS_PENDING_MINUTES"], out var environmentMinutes)
@@ -118,8 +152,15 @@ public sealed class PaymentService(
             {
                 EventId = eventId,
                 StudentId = studentId,
-                AmountMinor = eventEntity.PriceMinor,
+                TicketTierId = tier.Id,
+                TicketTier = tier,
+                CouponId = coupon?.Id,
+                Coupon = coupon,
+                OriginalAmountMinor = tier.PriceMinor,
+                DiscountAmountMinor = discountAmount,
+                AmountMinor = payableAmount,
                 Currency = eventEntity.Currency,
+                Provider = provider.Name,
                 ProviderReference = $"ems_{Guid.NewGuid():N}",
                 ExpiresAt = now.AddMinutes(pendingMinutes),
                 CreatedAt = now,
@@ -148,7 +189,7 @@ public sealed class PaymentService(
                 order.StudentId,
                 cancellationToken);
             if (!string.Equals(initialized.Reference, order.ProviderReference, StringComparison.Ordinal))
-                throw new PaymentProviderException("Paystack returned an unexpected payment reference.");
+                throw new PaymentProviderException($"{provider.Name} returned an unexpected payment reference.");
             order.AuthorizationUrl = initialized.AuthorizationUrl;
             order.UpdatedAt = timeProvider.GetUtcNow();
             await dbContext.SaveChangesAsync(cancellationToken);
@@ -186,30 +227,19 @@ public sealed class PaymentService(
             order.ExpiresAt);
     }
 
-    public async Task ProcessPaystackWebhookAsync(
-        string payload,
-        string? signature,
+    public async Task ProcessWebhookAsync(
+        string providerName, string payload, string? signature,
         CancellationToken cancellationToken)
     {
+        var provider = providers.Get(providerName);
         if (!provider.HasValidSignature(payload, signature))
             throw new ApiException(StatusCodes.Status401Unauthorized, "The webhook signature is invalid.");
-
-        using var document = JsonDocument.Parse(payload);
-        var root = document.RootElement;
-        var eventType = root.TryGetProperty("event", out var eventValue)
-            ? eventValue.GetString()
-            : null;
-        if (!string.Equals(eventType, "charge.success", StringComparison.Ordinal)) return;
-        if (!root.TryGetProperty("data", out var data) ||
-            !data.TryGetProperty("reference", out var referenceValue) ||
-            string.IsNullOrWhiteSpace(referenceValue.GetString()))
-        {
-            return;
-        }
-        var reference = referenceValue.GetString()!;
+        if (!provider.TryGetSuccessfulWebhook(payload, out var notification) || notification is null) return;
+        var eventType = notification.EventType;
+        var reference = notification.Reference;
         var verification = await provider.VerifyAsync(reference, cancellationToken);
         var receiptId = Convert.ToHexString(
-            SHA256.HashData(Encoding.UTF8.GetBytes(payload))).ToLowerInvariant();
+            SHA256.HashData(Encoding.UTF8.GetBytes($"{provider.Name}\n{payload}"))).ToLowerInvariant();
         var refundRequired = false;
         PaymentOrder? refundOrder = null;
 
@@ -225,7 +255,7 @@ public sealed class PaymentService(
 
             var order = await dbContext.PaymentOrders
                 .FromSqlInterpolated(
-                    $"SELECT * FROM \"PaymentOrders\" WHERE \"ProviderReference\" = {reference} FOR UPDATE")
+                    $"SELECT * FROM \"PaymentOrders\" WHERE \"ProviderReference\" = {reference} AND \"Provider\" = {provider.Name} FOR UPDATE")
                 .SingleOrDefaultAsync(cancellationToken);
             var outcome = "IgnoredUnknownReference";
             if (order is not null)
@@ -255,11 +285,16 @@ public sealed class PaymentService(
                         registration => registration.EventId == order.EventId &&
                             registration.StudentId == order.StudentId,
                         cancellationToken);
+                    var tierCapacity = order.TicketTierId.HasValue
+                        ? await dbContext.TicketTiers.Where(item => item.Id == order.TicketTierId)
+                            .Select(item => item.Capacity).SingleAsync(cancellationToken)
+                        : eventEntity.Capacity;
                     var confirmedCount = await dbContext.EventRegistrations.CountAsync(
-                        registration => registration.EventId == order.EventId,
+                        registration => registration.PaymentOrder != null &&
+                            registration.PaymentOrder.TicketTierId == order.TicketTierId,
                         cancellationToken);
                     var otherReservations = await dbContext.PaymentOrders.CountAsync(
-                        item => item.EventId == order.EventId &&
+                        item => item.TicketTierId == order.TicketTierId &&
                             item.Id != order.Id &&
                             item.Status == PaymentOrderStatus.Pending &&
                             item.ExpiresAt > now,
@@ -273,7 +308,7 @@ public sealed class PaymentService(
                         outcome = "AlreadyRegistered";
                     }
                     else if (order.ExpiresAt <= now &&
-                        confirmedCount + otherReservations >= eventEntity.Capacity)
+                        confirmedCount + otherReservations >= tierCapacity)
                     {
                         order.Status = PaymentOrderStatus.RefundPending;
                         order.VerifiedAt = now;
@@ -307,6 +342,7 @@ public sealed class PaymentService(
             dbContext.PaymentWebhookReceipts.Add(new PaymentWebhookReceipt
             {
                 Id = receiptId,
+                Provider = provider.Name,
                 EventType = eventType!,
                 ProviderReference = reference,
                 Outcome = outcome,
@@ -338,6 +374,11 @@ public sealed class PaymentService(
         order.ProviderReference,
         order.AuthorizationUrl!,
         order.AmountMinor,
+        order.OriginalAmountMinor,
+        order.DiscountAmountMinor,
+        order.TicketTierId,
+        order.TicketTier?.Name,
+        order.Coupon?.Code,
         order.Currency,
         order.ExpiresAt);
 }

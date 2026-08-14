@@ -24,7 +24,7 @@ public sealed class EventVotingController(IVotingService votingService) : Contro
             eventId, actorId, actorRole, cancellationToken));
     }
 
-    [Authorize(Roles = "Organizer,Admin")]
+    [Authorize(Roles = "Student,Organizer,Admin")]
     [HttpPut]
     public async Task<ActionResult<VotingCampaignResponse>> Upsert(
         Guid eventId,
@@ -35,7 +35,7 @@ public sealed class EventVotingController(IVotingService votingService) : Contro
 }
 
 [ApiController]
-[Authorize(Roles = "Student")]
+[Authorize(Roles = "Student,Organizer")]
 [EnableRateLimiting("Voting")]
 [Route("api/voting")]
 public sealed class VotingController(IVotingService votingService) : ControllerBase

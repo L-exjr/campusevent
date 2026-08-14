@@ -148,7 +148,7 @@ Every list response contains `items`, `page`, `pageSize`, `totalCount`, and `tot
 | GET | `/api/reports/events/{id}` | Admin | One event's registration and attendance aggregate |
 | GET | `/api/reports/organizers?page=1&pageSize=20` | Admin | Paginated activity grouped by Organizer |
 | POST | `/api/uploads/profile-image` | Authenticated | Validate and stage a profile image in Supabase |
-| POST | `/api/uploads/event-image` | Organizer, Admin | Validate and stage an event image in Supabase |
+| POST | `/api/uploads/event-image?eventId={id}` | Event owner, Admin | Validate ownership and stage an event image in Supabase |
 | GET | `/api/admin-audit-logs` | Admin | Paginated audit-log search |
 | GET | `/api/admin-audit-logs/export` | Admin | Export filtered audit logs |
 | GET | `/api/email-outbox/failed` | Admin | List terminally failed email messages |

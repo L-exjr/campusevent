@@ -150,6 +150,9 @@ The API needs test secrets to exercise paid checkout and QR tickets:
 ```bash
 cd backend/EventManagement.Api
 dotnet user-secrets set "Payments:Paystack:SecretKey" "sk_test_replace-me"
+dotnet user-secrets set "Payments:Flutterwave:SecretKey" "FLWSECK_TEST_replace-me"
+dotnet user-secrets set "Payments:Flutterwave:WebhookSecret" "replace-with-sandbox-webhook-secret"
+dotnet user-secrets set "Payments:Provider" "Paystack"
 dotnet user-secrets set "Tickets:SigningKey" "replace-with-at-least-32-random-characters"
 ```
 

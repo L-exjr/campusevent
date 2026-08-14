@@ -6,6 +6,7 @@ namespace EventManagement.Api.Data;
 public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(options)
 {
     public DbSet<User> Users => Set<User>();
+    public DbSet<OrganizerSpecialty> OrganizerSpecialties => Set<OrganizerSpecialty>();
     public DbSet<OrganizerApplication> OrganizerApplications => Set<OrganizerApplication>();
     public DbSet<EventEntity> Events => Set<EventEntity>();
     public DbSet<EventRegistration> EventRegistrations => Set<EventRegistration>();
@@ -16,6 +17,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
     public DbSet<AuthRateLimitBucket> AuthRateLimitBuckets => Set<AuthRateLimitBucket>();
     public DbSet<AdminAuditLog> AdminAuditLogs => Set<AdminAuditLog>();
     public DbSet<PaymentOrder> PaymentOrders => Set<PaymentOrder>();
+    public DbSet<TicketTier> TicketTiers => Set<TicketTier>();
+    public DbSet<Coupon> Coupons => Set<Coupon>();
     public DbSet<PaymentWebhookReceipt> PaymentWebhookReceipts => Set<PaymentWebhookReceipt>();
     public DbSet<VotingCampaign> VotingCampaigns => Set<VotingCampaign>();
     public DbSet<VotingCategory> VotingCategories => Set<VotingCategory>();
@@ -36,10 +39,29 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
             entity.Property(user => user.GoogleSubject).HasMaxLength(255);
             entity.Property(user => user.ImageUrl).HasMaxLength(2048);
             entity.Property(user => user.ImageObjectKey).HasMaxLength(1024);
+            entity.Property(user => user.OrganizerBio).HasMaxLength(3000);
+            entity.Property(user => user.OrganizerBannerUrl).HasMaxLength(2048);
+            entity.Property(user => user.OrganizerBannerObjectKey).HasMaxLength(1024);
+            entity.Property(user => user.OrganizerInstagramUrl).HasMaxLength(2048);
+            entity.Property(user => user.OrganizerTwitterUrl).HasMaxLength(2048);
+            entity.Property(user => user.OrganizerFacebookUrl).HasMaxLength(2048);
+            entity.Property(user => user.OrganizerWebsiteUrl).HasMaxLength(2048);
+            entity.Property(user => user.IsOrganizerDirectoryVisible).HasDefaultValue(false);
             entity.Property(user => user.Role).HasConversion<string>().HasMaxLength(30);
             entity.Property(user => user.SessionVersion).HasDefaultValue(1);
             entity.HasIndex(user => user.Email).IsUnique();
             entity.HasIndex(user => user.GoogleSubject).IsUnique();
+        });
+
+        modelBuilder.Entity<OrganizerSpecialty>(entity =>
+        {
+            entity.HasKey(item => new { item.OrganizerId, item.Category });
+            entity.Property(item => item.Category).HasMaxLength(100).IsRequired();
+            entity.HasIndex(item => item.Category);
+            entity.HasOne(item => item.Organizer)
+                .WithMany(user => user.OrganizerSpecialties)
+                .HasForeignKey(item => item.OrganizerId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<OrganizerApplication>(entity =>
@@ -97,6 +119,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
         modelBuilder.Entity<EventRegistration>(entity =>
         {
             entity.HasKey(registration => registration.Id);
+            entity.Property(registration => registration.TicketCode).HasMaxLength(20).IsRequired();
+            entity.HasIndex(registration => registration.TicketCode).IsUnique();
             entity.Property(registration => registration.CertificateObjectKey).HasMaxLength(1024);
             entity.HasIndex(registration => new { registration.EventId, registration.StudentId }).IsUnique();
             entity.HasOne(registration => registration.Event)
@@ -133,6 +157,42 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
                 .WithMany()
                 .HasForeignKey(order => order.StudentId)
                 .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(order => order.TicketTier)
+                .WithMany(tier => tier.PaymentOrders)
+                .HasForeignKey(order => order.TicketTierId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(order => order.Coupon)
+                .WithMany(coupon => coupon.PaymentOrders)
+                .HasForeignKey(order => order.CouponId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<TicketTier>(entity =>
+        {
+            entity.HasKey(tier => tier.Id);
+            entity.Property(tier => tier.Name).HasMaxLength(80).IsRequired();
+            entity.HasIndex(tier => new { tier.EventId, tier.Position }).IsUnique();
+            entity.HasIndex(tier => new { tier.EventId, tier.Name }).IsUnique();
+            entity.HasOne(tier => tier.Event)
+                .WithMany(eventEntity => eventEntity.TicketTiers)
+                .HasForeignKey(tier => tier.EventId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<Coupon>(entity =>
+        {
+            entity.HasKey(coupon => coupon.Id);
+            entity.Property(coupon => coupon.Code).HasMaxLength(40).IsRequired();
+            entity.HasIndex(coupon => coupon.Code).IsUnique();
+            entity.HasIndex(coupon => new { coupon.OrganizerId, coupon.IsActive });
+            entity.HasOne(coupon => coupon.Organizer)
+                .WithMany(user => user.Coupons)
+                .HasForeignKey(coupon => coupon.OrganizerId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(coupon => coupon.Event)
+                .WithMany(eventEntity => eventEntity.Coupons)
+                .HasForeignKey(coupon => coupon.EventId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<PaymentWebhookReceipt>(entity =>
@@ -149,6 +209,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
         modelBuilder.Entity<VotingCampaign>(entity =>
         {
             entity.HasKey(campaign => campaign.Id);
+            entity.Property(campaign => campaign.ShowLiveResults).HasDefaultValue(false);
             entity.HasIndex(campaign => campaign.EventId).IsUnique();
             entity.HasIndex(campaign => new { campaign.IsPublished, campaign.OpensAt, campaign.ClosesAt });
             entity.HasOne(campaign => campaign.Event)
@@ -274,6 +335,11 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
             entity.HasIndex(request => request.Status);
             entity.HasIndex(request => new { request.Status, request.UpdatedAt });
             entity.HasIndex(request => request.SubmittedAt);
+            entity.HasIndex(request => request.RequestedOrganizerId);
+            entity.HasOne(request => request.RequestedOrganizer)
+                .WithMany(user => user.RequestedBookingRequests)
+                .HasForeignKey(request => request.RequestedOrganizerId)
+                .OnDelete(DeleteBehavior.SetNull);
             entity.HasOne(request => request.AssignedOrganizer)
                 .WithMany(user => user.AssignedBookingRequests)
                 .HasForeignKey(request => request.AssignedOrganizerId)

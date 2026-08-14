@@ -7,6 +7,7 @@ import Form from 'react-bootstrap/Form'
 import Modal from 'react-bootstrap/Modal'
 import Row from 'react-bootstrap/Row'
 import { api } from '../../api'
+import { uploadImage } from '../../api/imageStorage'
 import AdminEventTable from '../../components/admin/AdminEventTable'
 import TransferEventOwnershipModal from '../../components/admin/TransferEventOwnershipModal'
 import EventForm from '../../components/events/EventForm'
@@ -53,7 +54,7 @@ export default function AdminEventsPage() {
     setEditorOpen(true)
   }
 
-  const saveEvent = async (input: EventInput) => {
+  const saveEvent = async (input: EventInput, pendingImage: File | null = null) => {
     setBusy(true)
     setActionError(null)
     try {
@@ -61,7 +62,11 @@ export default function AdminEventsPage() {
         await api.updateEvent(editing.id, input)
         setNotice('Event updated successfully.')
       } else {
-        await api.createEvent(input)
+        const created = await api.createEvent(input)
+        if (pendingImage) {
+          const imageUrl = await uploadImage(pendingImage, 'event-images', created.id)
+          await api.updateEvent(created.id, { ...input, imageUrl, version: created.version })
+        }
         setNotice('Event created successfully.')
       }
       setEditorOpen(false)

@@ -17,8 +17,8 @@ export default function AppNavbar() {
   const navigate = useNavigate()
   const [expanded, setExpanded] = useState(false)
   const navigation = user ? getNavigationGroupsForRole(user.role) : {
-    primary: [{ label: 'Explore events', to: '/events' }],
-    secondary: [{ label: 'Request an Organizer', to: '/request-organizer' }, { label: 'About', to: '/about' }],
+    primary: [{ label: 'Explore events', to: '/events' }, { label: 'Request an Organizer', to: '/organizers' }],
+    secondary: [],
   }
 
   const handleLogout = async () => {
@@ -99,12 +99,6 @@ export default function AppNavbar() {
           )}
           {!user && (
             <div className="d-flex align-items-center gap-2 mt-3 mt-lg-0">
-              <Dropdown align="end">
-                <Dropdown.Toggle variant="light">More</Dropdown.Toggle>
-                <Dropdown.Menu>
-                  {navigation.secondary.map((item) => <Dropdown.Item key={item.to} as={NavLink} to={item.to}>{item.label}</Dropdown.Item>)}
-                </Dropdown.Menu>
-              </Dropdown>
               <LinkButton to="/login" variant="light" onNavigate={() => setExpanded(false)}>
                 Sign in
               </LinkButton>

@@ -18,6 +18,7 @@ public sealed record VotingCampaignUpsertRequest(
     DateTimeOffset OpensAt,
     DateTimeOffset ClosesAt,
     bool IsPublished,
+    bool ShowLiveResults,
     [param: Required, MinLength(1)] IReadOnlyList<VotingCategoryInput> Categories);
 
 public sealed record VotingNomineeResponse(
@@ -43,6 +44,7 @@ public sealed record VotingCampaignResponse(
     DateTimeOffset OpensAt,
     DateTimeOffset ClosesAt,
     bool IsPublished,
+    bool ShowLiveResults,
     string Status,
     bool CanManage,
     bool ResultsVisible,

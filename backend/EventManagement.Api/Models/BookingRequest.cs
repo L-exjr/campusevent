@@ -13,6 +13,7 @@ public sealed class BookingRequest
     public string? FlexibilityNote { get; set; }
     public int EstimatedAttendance { get; set; }
     public string? PreferredOrganizer { get; set; }
+    public Guid? RequestedOrganizerId { get; set; }
     public required string Description { get; set; }
     public BookingRequestStatus Status { get; set; } = BookingRequestStatus.Submitted;
     public Guid? AssignedOrganizerId { get; set; }
@@ -23,5 +24,6 @@ public sealed class BookingRequest
     public DateTimeOffset? PersonalDataAnonymizedAt { get; set; }
 
     public User? AssignedOrganizer { get; set; }
+    public User? RequestedOrganizer { get; set; }
     public EventEntity? DraftEvent { get; set; }
 }

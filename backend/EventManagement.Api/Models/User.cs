@@ -13,6 +13,14 @@ public sealed class User
     public int SessionVersion { get; set; } = 1;
     public string? ImageUrl { get; set; }
     public string? ImageObjectKey { get; set; }
+    public string? OrganizerBio { get; set; }
+    public string? OrganizerBannerUrl { get; set; }
+    public string? OrganizerBannerObjectKey { get; set; }
+    public string? OrganizerInstagramUrl { get; set; }
+    public string? OrganizerTwitterUrl { get; set; }
+    public string? OrganizerFacebookUrl { get; set; }
+    public string? OrganizerWebsiteUrl { get; set; }
+    public bool IsOrganizerDirectoryVisible { get; set; }
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
 
     public ICollection<EventEntity> OrganizedEvents { get; set; } = [];
@@ -20,7 +28,10 @@ public sealed class User
     public ICollection<OrganizerApplication> OrganizerApplications { get; set; } = [];
     public ICollection<PasswordResetToken> PasswordResetTokens { get; set; } = [];
     public ICollection<BookingRequest> AssignedBookingRequests { get; set; } = [];
+    public ICollection<BookingRequest> RequestedBookingRequests { get; set; } = [];
+    public ICollection<OrganizerSpecialty> OrganizerSpecialties { get; set; } = [];
     public ICollection<ImageUpload> ImageUploads { get; set; } = [];
     public ICollection<VoteRecord> Votes { get; set; } = [];
     public ICollection<VotingPaymentOrder> VotingPaymentOrders { get; set; } = [];
+    public ICollection<Coupon> Coupons { get; set; } = [];
 }

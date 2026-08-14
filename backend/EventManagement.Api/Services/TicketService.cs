@@ -18,6 +18,9 @@ public interface ITicketService
         UserRole actorRole,
         string token,
         CancellationToken cancellationToken);
+    Task<CheckInResponse> CheckInByCodeAsync(
+        Guid eventId, Guid actorId, UserRole actorRole, string ticketCode,
+        CancellationToken cancellationToken);
 }
 
 public sealed class TicketService(
@@ -46,6 +49,7 @@ public sealed class TicketService(
             registration.EventId,
             registration.Event.Title,
             registration.Student.Name,
+            registration.TicketCode,
             tokenService.Create(
                 registration.Id,
                 registration.EventId,
@@ -92,5 +96,32 @@ public sealed class TicketService(
             registration.EventId,
             registration.Student.Name,
             checkedInAt);
+    }
+
+    public async Task<CheckInResponse> CheckInByCodeAsync(
+        Guid eventId, Guid actorId, UserRole actorRole, string ticketCode,
+        CancellationToken cancellationToken)
+    {
+        var normalized = ticketCode.Trim().ToUpperInvariant();
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
+        var eventEntity = await dbContext.Events.AsNoTracking().SingleOrDefaultAsync(
+            item => item.Id == eventId, cancellationToken)
+            ?? throw new ApiException(StatusCodes.Status404NotFound, "Event not found.");
+        authorizationService.EnsureCanManage(eventEntity.OrganizerId, actorId, actorRole);
+        var registration = await dbContext.EventRegistrations
+            .FromSqlInterpolated(
+                $"SELECT * FROM \"EventRegistrations\" WHERE \"TicketCode\" = {normalized} FOR UPDATE")
+            .Include(item => item.Student)
+            .SingleOrDefaultAsync(cancellationToken)
+            ?? throw new ApiException(StatusCodes.Status404NotFound, "Ticket code was not found.");
+        if (registration.EventId != eventId)
+            throw new ApiException(StatusCodes.Status404NotFound, "Ticket code was not found for this event.");
+        if (registration.Attended)
+            throw new ApiException(StatusCodes.Status409Conflict, "This ticket has already been checked in.");
+        registration.Attended = true;
+        var checkedInAt = timeProvider.GetUtcNow();
+        await dbContext.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return new CheckInResponse(registration.Id, eventId, registration.Student.Name, checkedInAt);
     }
 }

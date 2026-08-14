@@ -33,20 +33,6 @@ export default function AdminUsersPage() {
   )
   const { data: userPage, loading, error, reload } = useApiResource(loadUsers)
 
-  const changeRole = async (user: User, nextRole: Exclude<Role, 'admin'>) => {
-    setBusyUserId(user.id)
-    setActionError(null)
-    try {
-      await api.updateUserRole(user.id, nextRole)
-      setNotice(`${user.name} is now ${nextRole === 'organizer' ? 'an Organizer' : 'a Student'}.`)
-      await reload()
-    } catch (caught) {
-      setActionError(caught instanceof Error ? caught.message : 'The role could not be updated.')
-    } finally {
-      setBusyUserId(null)
-    }
-  }
-
   const changeStatus = async () => {
     if (!statusTarget) return
     setBusyUserId(statusTarget.id)
@@ -68,7 +54,7 @@ export default function AdminUsersPage() {
       <PageHeader
         eyebrow="Administration"
         title="Manage users"
-        description="Review accounts, assign Organizer access, and control account status."
+        description="Review accounts and control account status. Ordinary users can both attend and organize events."
       />
       <NotificationToast message={notice} onClose={() => setNotice(null)} />
       {actionError && <Alert variant="danger" dismissible onClose={() => setActionError(null)}>{actionError}</Alert>}
@@ -107,7 +93,6 @@ export default function AdminUsersPage() {
         <AdminUserTable
           users={userPage.items}
           busyUserId={busyUserId}
-          onRoleChange={(user, nextRole) => void changeRole(user, nextRole)}
           onStatusChange={setStatusTarget}
         />
         <PaginationControls {...userPage} label="accounts" onPageChange={setPage} />

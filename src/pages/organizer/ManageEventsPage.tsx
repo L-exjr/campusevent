@@ -2,6 +2,7 @@ import { useCallback, useState } from 'react'
 import Button from 'react-bootstrap/Button'
 import Modal from 'react-bootstrap/Modal'
 import { api } from '../../api'
+import { uploadImage } from '../../api/imageStorage'
 import EventForm from '../../components/events/EventForm'
 import EventCreationWizard from '../../components/events/create-event/EventCreationWizard'
 import OrganizerEventTable from '../../components/organizer/OrganizerEventTable'
@@ -40,7 +41,7 @@ export default function ManageEventsPage() {
     setEditorOpen(true)
   }
 
-  const saveEvent = async (input: EventInput) => {
+  const saveEvent = async (input: EventInput, pendingImage: File | null = null) => {
     setBusy(true)
     setActionError(null)
     try {
@@ -48,7 +49,11 @@ export default function ManageEventsPage() {
         await api.updateEvent(editing.id, input)
         setNotice('Event updated successfully.')
       } else {
-        await api.createEvent(input)
+        const created = await api.createEvent(input)
+        if (pendingImage) {
+          const imageUrl = await uploadImage(pendingImage, 'event-images', created.id)
+          await api.updateEvent(created.id, { ...input, imageUrl, version: created.version })
+        }
         setNotice('Event created successfully.')
       }
       setEditorOpen(false)

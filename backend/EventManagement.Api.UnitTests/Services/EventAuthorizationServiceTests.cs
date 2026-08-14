@@ -14,7 +14,7 @@ public sealed class EventAuthorizationServiceTests
     [InlineData(UserRole.Organizer, false, false)]
     [InlineData(UserRole.Admin, true, true)]
     [InlineData(UserRole.Admin, false, true)]
-    [InlineData(UserRole.Student, true, false)]
+    [InlineData(UserRole.Student, true, true)]
     [InlineData(UserRole.Student, false, false)]
     public void EnsureCanManage_enforces_role_and_ownership_matrix(
         UserRole role,

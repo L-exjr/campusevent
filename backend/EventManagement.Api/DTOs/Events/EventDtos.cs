@@ -2,6 +2,14 @@ using System.ComponentModel.DataAnnotations;
 
 namespace EventManagement.Api.DTOs.Events;
 
+public sealed record TicketTierInput(
+    Guid? Id,
+    [param: Required, StringLength(80, MinimumLength = 1)] string Name,
+    [param: Range(0, long.MaxValue)] long PriceMinor,
+    [param: Range(1, 100000)] int Capacity);
+
+public sealed record TicketTierResponse(Guid Id, string Name, long PriceMinor, int Capacity, int Sold, bool IsActive);
+
 public sealed record EventUpsertRequest(
     [param: Required, StringLength(200, MinimumLength = 3)] string Title,
     [param: Required, StringLength(5000, MinimumLength = 10)] string Description,
@@ -28,7 +36,8 @@ public sealed record EventUpsertRequest(
     [param: Url, StringLength(2048)] string? WebsiteUrl = null,
     bool TicketingEnabled = false,
     bool RegistrationsEnabled = true,
-    bool VotingEnabled = false);
+    bool VotingEnabled = false,
+    IReadOnlyList<TicketTierInput>? TicketTiers = null);
 
 public sealed record TransferEventOwnershipRequest(
     Guid OrganizerId,
@@ -65,7 +74,8 @@ public sealed record EventResponse(
     string? WebsiteUrl = null,
     bool TicketingEnabled = false,
     bool RegistrationsEnabled = true,
-    bool VotingEnabled = false);
+    bool VotingEnabled = false,
+    IReadOnlyList<TicketTierResponse>? TicketTiers = null);
 
 public sealed record EventRegistrantResponse(
     Guid RegistrationId,
@@ -74,6 +84,15 @@ public sealed record EventRegistrantResponse(
     string StudentEmail,
     DateTimeOffset RegisteredAt,
     bool Attended);
+
+public sealed record OrganizerAnalyticsPoint(DateOnly Date, int Registrations);
+public sealed record OrganizerAnalyticsResponse(
+    int RegistrationCount,
+    long TicketRevenueMinor,
+    string Currency,
+    int AttendedCount,
+    decimal AttendanceRate,
+    IReadOnlyList<OrganizerAnalyticsPoint> RegistrationsOverTime);
 
 public sealed record AttendanceUpdateItem(Guid RegistrationId, bool Attended);
 

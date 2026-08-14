@@ -60,7 +60,7 @@ export default function VotingPage() {
     return <ErrorState message={error ?? 'Voting campaign not found.'} onRetry={() => void reload()} />
   }
 
-  const canVote = campaign.status === 'Open' && user?.role === 'student'
+  const canVote = campaign.status === 'Open' && user?.role !== 'admin'
 
   return (
     <>

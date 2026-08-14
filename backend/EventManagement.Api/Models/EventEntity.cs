@@ -36,6 +36,8 @@ public sealed class EventEntity
     public User Organizer { get; set; } = null!;
     public ICollection<EventRegistration> Registrations { get; set; } = [];
     public ICollection<PaymentOrder> PaymentOrders { get; set; } = [];
+    public ICollection<TicketTier> TicketTiers { get; set; } = [];
+    public ICollection<Coupon> Coupons { get; set; } = [];
     public VotingCampaign? VotingCampaign { get; set; }
     public BookingRequest? SourceBookingRequest { get; set; }
 }

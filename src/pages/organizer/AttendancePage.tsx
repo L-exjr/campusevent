@@ -2,6 +2,8 @@ import { useCallback, useState } from 'react'
 import Badge from 'react-bootstrap/Badge'
 import Alert from 'react-bootstrap/Alert'
 import Card from 'react-bootstrap/Card'
+import Form from 'react-bootstrap/Form'
+import Button from 'react-bootstrap/Button'
 import { Navigate, useParams } from 'react-router-dom'
 import { api } from '../../api'
 import AttendanceChecklist from '../../components/organizer/AttendanceChecklist'
@@ -24,6 +26,7 @@ export default function AttendancePage() {
   const [scanBusy, setScanBusy] = useState(false)
   const [scanNotice, setScanNotice] = useState<string | null>(null)
   const [scanError, setScanError] = useState<string | null>(null)
+  const [ticketCode, setTicketCode] = useState('')
   const loadData = useCallback(
     async () => ({
       event: await api.getManagementEvent(id),
@@ -52,6 +55,20 @@ export default function AttendancePage() {
     }
   }
 
+  const manualCheckIn = async (event: React.FormEvent) => {
+    event.preventDefault()
+    if (!ticketCode.trim()) return
+    setScanBusy(true); setScanError(null); setScanNotice(null)
+    try {
+      const result = await api.checkInTicketByCode(id, ticketCode)
+      setScanNotice(`${result.studentName} checked in successfully.`)
+      setTicketCode('')
+      await reload()
+    } catch (caught) {
+      setScanError(caught instanceof Error ? caught.message : 'The ticket code could not be checked in.')
+    } finally { setScanBusy(false) }
+  }
+
   return (
     <>
       <LinkButton to="/organizer/events" variant="link" className="px-0 text-decoration-none mb-2">← Back to events</LinkButton>
@@ -68,6 +85,15 @@ export default function AttendancePage() {
           <h2 className="h4">Scan attendee ticket</h2>
           <p className="text-secondary">Use the rear camera at the entrance. Each signed ticket can check in only once.</p>
           <QrTicketScanner busy={scanBusy} onToken={checkIn} />
+          <hr />
+          <Form onSubmit={(event) => void manualCheckIn(event)}>
+            <Form.Label>Manual ticket code</Form.Label>
+            <div className="d-flex gap-2">
+              <Form.Control value={ticketCode} onChange={(event) => setTicketCode(event.target.value.toUpperCase())}
+                placeholder="EMS-XXXXXXXX" aria-label="Manual ticket code" />
+              <Button type="submit" disabled={scanBusy || !ticketCode.trim()}>Check in</Button>
+            </div>
+          </Form>
         </Card.Body>
       </Card>
       {data.registrants.items.length ? (

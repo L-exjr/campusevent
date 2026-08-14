@@ -1,4 +1,6 @@
 using System.Data;
+using System.Globalization;
+using System.Text;
 using EventManagement.Api.Data;
 using EventManagement.Api.DTOs.Common;
 using EventManagement.Api.DTOs.Events;
@@ -78,6 +80,10 @@ public interface IEventService
         UserRole actorRole,
         BulkAttendanceRequest request,
         CancellationToken cancellationToken);
+    Task<byte[]> ExportRegistrantsCsvAsync(
+        Guid eventId, Guid actorId, UserRole actorRole, CancellationToken cancellationToken);
+    Task<OrganizerAnalyticsResponse> GetOrganizerAnalyticsAsync(
+        Guid organizerId, CancellationToken cancellationToken);
     Task<PaginatedResponse<StudentRegistrationResponse>> GetStudentRegistrationsAsync(
         Guid studentId,
         int page,
@@ -201,8 +207,8 @@ public sealed class EventService(
             .FromSqlInterpolated($"SELECT * FROM \"Users\" WHERE \"Id\" = {actorId} FOR UPDATE")
             .SingleOrDefaultAsync(cancellationToken)
             ?? throw new ApiException(StatusCodes.Status404NotFound, "Creating user not found.");
-        if (organizer.Role is not (UserRole.Organizer or UserRole.Admin))
-            throw new ApiException(StatusCodes.Status403Forbidden, "Only Organizers or Admins can create events.");
+        if (!organizer.IsActive)
+            throw new ApiException(StatusCodes.Status403Forbidden, "An active account is required to create events.");
         if (input.PriceMinor > 0 && !configuration.GetValue("Payments:OrganizerSubaccountsEnabled", false))
             throw new ApiException(
                 StatusCodes.Status409Conflict,
@@ -245,6 +251,15 @@ public sealed class EventService(
             Organizer = organizer,
             IsPublished = request.IsPublished ?? true
         };
+        var tierInputs = NormalizeTiers(request, input.PriceMinor, input.Capacity);
+        foreach (var (tier, position) in tierInputs.Select((tier, position) => (tier, position)))
+            eventEntity.TicketTiers.Add(new TicketTier
+            {
+                Name = tier.Name,
+                PriceMinor = tier.PriceMinor,
+                Capacity = tier.Capacity,
+                Position = position
+            });
         dbContext.Events.Add(eventEntity);
         if (organizer.Role == UserRole.Admin)
             auditService.Append(
@@ -281,6 +296,25 @@ public sealed class EventService(
         var registrationCount = await dbContext.EventRegistrations.CountAsync(
             registration => registration.EventId == eventId,
             cancellationToken);
+        if (request.TicketTiers is { Count: > 0 })
+        {
+            if (registrationCount > 0 || await dbContext.PaymentOrders.AnyAsync(
+                order => order.EventId == eventId, cancellationToken))
+                throw new ApiException(StatusCodes.Status409Conflict,
+                    "Ticket tiers cannot change after registration or payment activity begins.");
+            var replacementTiers = NormalizeTiers(request, input.PriceMinor, input.Capacity);
+            await dbContext.Entry(eventEntity).Collection(item => item.TicketTiers)
+                .LoadAsync(cancellationToken);
+            dbContext.TicketTiers.RemoveRange(eventEntity.TicketTiers);
+            foreach (var (tier, position) in replacementTiers.Select((tier, position) => (tier, position)))
+                eventEntity.TicketTiers.Add(new TicketTier
+                {
+                    Name = tier.Name,
+                    PriceMinor = tier.PriceMinor,
+                    Capacity = tier.Capacity,
+                    Position = position
+                });
+        }
         if (input.Capacity < registrationCount)
             throw new ApiException(
                 StatusCodes.Status409Conflict,
@@ -389,10 +423,10 @@ public sealed class EventService(
             .FromSqlInterpolated($"SELECT * FROM \"Users\" WHERE \"Id\" = {request.OrganizerId} FOR UPDATE")
             .SingleOrDefaultAsync(cancellationToken)
             ?? throw new ApiException(StatusCodes.Status404NotFound, "Organizer not found.");
-        if (!newOrganizer.IsActive || newOrganizer.Role != UserRole.Organizer)
+        if (!newOrganizer.IsActive || newOrganizer.Role == UserRole.Admin)
             throw new ApiException(
                 StatusCodes.Status409Conflict,
-                "Event ownership can only be transferred to an active Organizer.");
+                "Event ownership can only be transferred to an active ordinary user.");
 
         var eventEntity = await dbContext.Events
             .FromSqlInterpolated($"SELECT * FROM \"Events\" WHERE \"Id\" = {eventId} FOR UPDATE")
@@ -480,8 +514,8 @@ public sealed class EventService(
             user => user.Id == studentId,
             cancellationToken)
             ?? throw new ApiException(StatusCodes.Status404NotFound, "Student account not found.");
-        if (student.Role != UserRole.Student)
-            throw new ApiException(StatusCodes.Status403Forbidden, "Only Students can register for events.");
+        if (!student.IsActive)
+            throw new ApiException(StatusCodes.Status403Forbidden, "An active account is required to register for events.");
         // Serialize registrations for this event. A unique student/event index prevents
         // duplicates, while this row lock makes the capacity check and insert atomic.
         var eventEntity = await dbContext.Events
@@ -635,6 +669,51 @@ public sealed class EventService(
         await dbContext.SaveChangesAsync(cancellationToken);
     }
 
+    public async Task<byte[]> ExportRegistrantsCsvAsync(
+        Guid eventId, Guid actorId, UserRole actorRole, CancellationToken cancellationToken)
+    {
+        var eventOwnerId = await dbContext.Events.AsNoTracking()
+            .Where(item => item.Id == eventId)
+            .Select(item => (Guid?)item.OrganizerId)
+            .SingleOrDefaultAsync(cancellationToken)
+            ?? throw new ApiException(StatusCodes.Status404NotFound, "Event not found.");
+        authorizationService.EnsureCanManage(eventOwnerId, actorId, actorRole);
+        var rows = await dbContext.EventRegistrations.AsNoTracking()
+            .Where(item => item.EventId == eventId)
+            .OrderBy(item => item.RegisteredAt)
+            .Select(item => new { item.Student.Name, item.Student.Email, item.RegisteredAt, item.Attended })
+            .ToListAsync(cancellationToken);
+        var csv = new StringBuilder("Name,Email,Registration date,Checked in\r\n");
+        foreach (var row in rows)
+            csv.Append(Csv(row.Name)).Append(',').Append(Csv(row.Email)).Append(',')
+                .Append(row.RegisteredAt.ToString("O", CultureInfo.InvariantCulture)).Append(',')
+                .Append(row.Attended ? "Yes" : "No").Append("\r\n");
+        return Encoding.UTF8.GetPreamble().Concat(Encoding.UTF8.GetBytes(csv.ToString())).ToArray();
+    }
+
+    public async Task<OrganizerAnalyticsResponse> GetOrganizerAnalyticsAsync(
+        Guid organizerId, CancellationToken cancellationToken)
+    {
+        var registrations = await dbContext.EventRegistrations.AsNoTracking()
+            .Where(item => item.Event.OrganizerId == organizerId)
+            .Select(item => new { item.RegisteredAt, item.Attended })
+            .ToListAsync(cancellationToken);
+        var revenue = await dbContext.PaymentOrders.AsNoTracking()
+            .Where(item => item.Event.OrganizerId == organizerId &&
+                item.Status == PaymentOrderStatus.Verified)
+            .SumAsync(item => (long?)item.AmountMinor, cancellationToken) ?? 0;
+        var attended = registrations.Count(item => item.Attended);
+        var points = registrations.GroupBy(item => DateOnly.FromDateTime(item.RegisteredAt.UtcDateTime))
+            .OrderBy(group => group.Key)
+            .Select(group => new OrganizerAnalyticsPoint(group.Key, group.Count())).ToList();
+        return new OrganizerAnalyticsResponse(
+            registrations.Count, revenue, "GHS", attended,
+            registrations.Count == 0 ? 0 : Math.Round(attended * 100m / registrations.Count, 2), points);
+    }
+
+    private static string Csv(string value) =>
+        $"\"{value.Replace("\"", "\"\"", StringComparison.Ordinal)}\"";
+
     public async Task<PaginatedResponse<StudentRegistrationResponse>> GetStudentRegistrationsAsync(
         Guid studentId,
         int page,
@@ -678,7 +757,23 @@ public sealed class EventService(
                     registration.Event.Format,
                     registration.Event.MeetingUrl,
                     registration.Event.SalesStartsAt,
-                    registration.Event.SalesEndsAt)))
+                    registration.Event.SalesEndsAt,
+                    registration.Event.EndDate,
+                    registration.Event.VirtualPlatform,
+                    registration.Event.Latitude,
+                    registration.Event.Longitude,
+                    registration.Event.InstagramUrl,
+                    registration.Event.TwitterUrl,
+                    registration.Event.FacebookUrl,
+                    registration.Event.WebsiteUrl,
+                    registration.Event.TicketingEnabled,
+                    registration.Event.RegistrationsEnabled,
+                    registration.Event.VotingEnabled,
+                    registration.Event.TicketTiers.OrderBy(tier => tier.Position)
+                        .Select(tier => new TicketTierResponse(
+                            tier.Id, tier.Name, tier.PriceMinor, tier.Capacity,
+                            tier.PaymentOrders.Count(order => order.Status == PaymentOrderStatus.Verified),
+                            tier.IsActive)).ToList())))
             .ToListAsync(cancellationToken);
         return new PaginatedResponse<StudentRegistrationResponse>(
             items, page, pageSize, totalCount, Pagination.TotalPages(totalCount, pageSize));
@@ -705,7 +800,23 @@ public sealed class EventService(
             eventEntity.Format,
             eventEntity.MeetingUrl,
             eventEntity.SalesStartsAt,
-            eventEntity.SalesEndsAt));
+            eventEntity.SalesEndsAt,
+            eventEntity.EndDate,
+            eventEntity.VirtualPlatform,
+            eventEntity.Latitude,
+            eventEntity.Longitude,
+            eventEntity.InstagramUrl,
+            eventEntity.TwitterUrl,
+            eventEntity.FacebookUrl,
+            eventEntity.WebsiteUrl,
+            eventEntity.TicketingEnabled,
+            eventEntity.RegistrationsEnabled,
+            eventEntity.VotingEnabled,
+            eventEntity.TicketTiers.OrderBy(tier => tier.Position)
+                .Select(tier => new TicketTierResponse(
+                    tier.Id, tier.Name, tier.PriceMinor, tier.Capacity,
+                    tier.PaymentOrders.Count(order => order.Status == PaymentOrderStatus.Verified),
+                    tier.IsActive)).ToList()));
 
     private static IQueryable<EventEntity> ApplyEventFilters(
         IQueryable<EventEntity> query,
@@ -819,6 +930,24 @@ public sealed class EventService(
             format == "Virtual" ? null : request.Longitude,
             request.InstagramUrl?.Trim(), request.TwitterUrl?.Trim(), request.FacebookUrl?.Trim(), request.WebsiteUrl?.Trim(),
             request.TicketingEnabled, request.RegistrationsEnabled, request.VotingEnabled);
+    }
+
+    private static IReadOnlyList<TicketTierInput> NormalizeTiers(
+        EventUpsertRequest request, long fallbackPriceMinor, int fallbackCapacity)
+    {
+        var tiers = request.TicketTiers is { Count: > 0 }
+            ? request.TicketTiers
+            : [new TicketTierInput(null, "General", fallbackPriceMinor, fallbackCapacity)];
+        if (tiers.Count > 20)
+            throw new ApiException(StatusCodes.Status400BadRequest,
+                "An event can have at most 20 ticket tiers.");
+        var normalized = tiers.Select(tier => tier with { Name = tier.Name.Trim() }).ToList();
+        if (normalized.Any(tier => string.IsNullOrWhiteSpace(tier.Name)) ||
+            normalized.Select(tier => tier.Name)
+                .Distinct(StringComparer.OrdinalIgnoreCase).Count() != normalized.Count)
+            throw new ApiException(StatusCodes.Status400BadRequest,
+                "Ticket tier names must be unique and non-empty.");
+        return normalized;
     }
 
     private readonly record struct NormalizedEventInput(

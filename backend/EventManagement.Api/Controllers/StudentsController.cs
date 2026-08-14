@@ -9,7 +9,7 @@ namespace EventManagement.Api.Controllers;
 
 [ApiController]
 [Route("api/students")]
-[Authorize(Roles = "Student")]
+[Authorize(Roles = "Student,Organizer")]
 public sealed class StudentsController(IEventService eventService) : ControllerBase
 {
     [HttpGet("{id:guid}/registrations")]

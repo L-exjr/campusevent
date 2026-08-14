@@ -18,6 +18,9 @@ import type {
   EventReport,
   OrganizerApplication,
   OrganizerApplicationStatus,
+  OrganizerDetail,
+  OrganizerDirectorySettings,
+  OrganizerSummary,
   OrganizerReport,
   Page,
   PaymentInitialization,
@@ -30,6 +33,9 @@ import type {
   VotingCampaignInput,
   VotingPaymentInitialization,
   VotingPaymentStatus,
+  Coupon,
+  CouponInput,
+  OrganizerAnalytics,
 } from '../types'
 
 interface ApiUser {
@@ -79,6 +85,7 @@ interface ApiEvent {
   version: number
   priceMinor: number
   currency: 'GHS'
+  ticketTiers?: EventItem['ticketTiers']
 }
 
 interface ApiStudentRegistration {
@@ -207,6 +214,7 @@ function mapEvent(event: ApiEvent): EventItem {
     version: event.version,
     priceMinor: event.priceMinor ?? 0,
     currency: event.currency ?? 'GHS',
+    ticketTiers: event.ticketTiers ?? [],
   }
 }
 
@@ -339,8 +347,12 @@ export const realApi: EventManagementApi = {
     await apiRequest(`/events/${eventId}/register`, { method: 'POST' })
   },
 
-  async initializeEventPayment(eventId) {
-    return apiRequest<PaymentInitialization>(`/payments/events/${eventId}/initialize`, {
+  async initializeEventPayment(eventId, ticketTierId, couponCode) {
+    const query = new URLSearchParams()
+    if (ticketTierId) query.set('ticketTierId', ticketTierId)
+    if (couponCode?.trim()) query.set('couponCode', couponCode.trim())
+    const suffix = query.size ? `?${query}` : ''
+    return apiRequest<PaymentInitialization>(`/payments/events/${eventId}/initialize${suffix}`, {
       method: 'POST',
     })
   },
@@ -361,6 +373,12 @@ export const realApi: EventManagementApi = {
     return apiRequest<CheckInResult>(`/events/${eventId}/check-in`, {
       method: 'POST',
       body: JSON.stringify({ token }),
+    })
+  },
+
+  async checkInTicketByCode(eventId, ticketCode) {
+    return apiRequest<CheckInResult>(`/events/${eventId}/check-in/manual`, {
+      method: 'POST', body: JSON.stringify({ ticketCode }),
     })
   },
 
@@ -569,6 +587,22 @@ export const realApi: EventManagementApi = {
     })
   },
 
+  async exportEventRegistrants(eventId) {
+    return apiDownload(`/events/${eventId}/registrants/export`)
+  },
+
+  async getOrganizerAnalytics() {
+    return apiRequest<OrganizerAnalytics>('/events/analytics/mine')
+  },
+
+  async getCoupons() { return apiRequest<Coupon[]>('/coupons') },
+  async createCoupon(input: CouponInput) {
+    return apiRequest<Coupon>('/coupons', { method: 'POST', body: JSON.stringify(input) })
+  },
+  async updateCoupon(id, input: CouponInput) {
+    return apiRequest<Coupon>(`/coupons/${id}`, { method: 'PUT', body: JSON.stringify(input) })
+  },
+
   async getUsers(page = 1, pageSize = 20, search = '', role, signal) {
     const query = new URLSearchParams({ page: String(page), pageSize: String(pageSize) })
     if (search.trim()) query.set('search', search.trim())
@@ -704,6 +738,26 @@ export const realApi: EventManagementApi = {
       body: JSON.stringify({ ...input, proposedDate: new Date(input.proposedDate).toISOString() }),
     })
     return response.message
+  },
+
+  async getOrganizers(search = '', category = '', page = 1, pageSize = 12, signal) {
+    const query = new URLSearchParams({ page: String(page), pageSize: String(pageSize) })
+    if (search.trim()) query.set('search', search.trim())
+    if (category) query.set('category', category)
+    return apiRequest<PaginatedResponse<OrganizerSummary>>(`/organizers?${query}`, { signal })
+  },
+
+  async getOrganizer(id) {
+    const organizer = await apiRequest<Omit<OrganizerDetail, 'events'> & { events: ApiEvent[] }>(`/organizers/${id}`)
+    return { ...organizer, events: organizer.events.map(mapEvent) }
+  },
+
+  async getOrganizerDirectorySettings() {
+    return apiRequest<OrganizerDirectorySettings>('/organizers/me/settings')
+  },
+
+  async updateOrganizerDirectorySettings(settings) {
+    return apiRequest<OrganizerDirectorySettings>('/organizers/me/settings', { method: 'PUT', body: JSON.stringify(settings) })
   },
 
   async getBookingRequests(page = 1, pageSize = 20) {

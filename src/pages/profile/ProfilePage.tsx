@@ -14,6 +14,8 @@ import {
 import PageHeader from '../../components/shared/PageHeader'
 import NotificationToast from '../../components/shared/NotificationToast'
 import { useAuth } from '../../hooks/useAuth'
+import { api } from '../../api'
+import { EVENT_CATEGORIES, type OrganizerDirectorySettings } from '../../types'
 
 export default function ProfilePage() {
   const { user, updateProfileImage } = useAuth()
@@ -23,6 +25,10 @@ export default function ProfilePage() {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [saved, setSaved] = useState(false)
+  const [directory, setDirectory] = useState<OrganizerDirectorySettings | null>(null)
+  const [bannerFile, setBannerFile] = useState<File | null>(null)
+
+  useEffect(() => { if (user && user.role !== 'admin') void api.getOrganizerDirectorySettings().then(setDirectory).catch(caught => setError(caught instanceof Error ? caught.message : 'Directory settings could not be loaded.')) }, [user])
 
   useEffect(() => () => {
     if (preview.startsWith('blob:')) URL.revokeObjectURL(preview)
@@ -71,6 +77,16 @@ export default function ProfilePage() {
     } finally {
       setBusy(false)
     }
+  }
+
+  const saveDirectory = async (submission: FormEvent<HTMLFormElement>) => {
+    submission.preventDefault(); if (!directory) return
+    setBusy(true); setError(null); setSaved(false)
+    try {
+      const bannerUrl = bannerFile ? await uploadImage(bannerFile, 'organizer-banners') : directory.bannerUrl
+      const updated = await api.updateOrganizerDirectorySettings({ ...directory, bannerUrl })
+      setDirectory(updated); setBannerFile(null); setSaved(true)
+    } catch (caught) { setError(caught instanceof Error ? caught.message : 'Directory settings could not be saved.') } finally { setBusy(false) }
   }
 
   return (
@@ -124,6 +140,14 @@ export default function ProfilePage() {
           </Card>
         </Col>
       </Row>
+      {user?.role !== 'admin' && directory && <Row className="justify-content-center mt-4"><Col lg={8}><Card className="border-0"><Card.Body className="p-4 p-md-5"><h2 className="h3">Public Organizer directory</h2><p className="text-secondary">Opt in after creating an event. Email and phone are never shown.</p><Form onSubmit={event => void saveDirectory(event)}>
+        <Form.Check type="switch" id="directory-visible" className="mb-3" label="Show my profile in the public directory" checked={directory.isVisible} onChange={event => setDirectory({ ...directory, isVisible: event.target.checked })} />
+        <Form.Group className="mb-3" controlId="directory-bio"><Form.Label>Public bio</Form.Label><Form.Control as="textarea" rows={5} maxLength={3000} value={directory.bio ?? ''} onChange={event => setDirectory({ ...directory, bio: event.target.value })} /></Form.Group>
+        <Form.Group className="mb-3" controlId="directory-banner"><Form.Label>Banner image</Form.Label><Form.Control type="file" accept={IMAGE_ACCEPT} onChange={event => setBannerFile((event.target as HTMLInputElement).files?.[0] ?? null)} /></Form.Group>
+        <Form.Label>Specialties</Form.Label><Row className="g-2 mb-3">{EVENT_CATEGORIES.map(category => <Col sm={6} key={category}><Form.Check id={`specialty-${category}`} label={category} checked={directory.specialties.includes(category)} onChange={event => setDirectory({ ...directory, specialties: event.target.checked ? [...directory.specialties, category] : directory.specialties.filter(item => item !== category) })} /></Col>)}</Row>
+        <Row className="g-3">{(['instagramUrl', 'twitterUrl', 'facebookUrl', 'websiteUrl'] as const).map(field => <Col md={6} key={field}><Form.Group controlId={`directory-${field}`}><Form.Label>{field.replace('Url', '').replace(/^./, char => char.toUpperCase())}</Form.Label><Form.Control type="url" maxLength={2048} value={directory[field] ?? ''} onChange={event => setDirectory({ ...directory, [field]: event.target.value })} /></Form.Group></Col>)}</Row>
+        <Button className="mt-4" type="submit" disabled={busy}>{busy ? 'Saving…' : 'Save directory settings'}</Button>
+      </Form></Card.Body></Card></Col></Row>}
     </>
   )
 }

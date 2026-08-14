@@ -42,11 +42,14 @@ const highlights = [
 
 const faqs = [
   ['Do I need an account to explore events?', 'No. Event discovery and details are public. A Student account is required for registration, tickets, and voting.'],
-  ['How are paid registrations confirmed?', 'Paid places are confirmed only after the server verifies the Paystack webhook. A browser success message alone never confirms a booking.'],
+  ['How are paid registrations confirmed?', 'Paid places are confirmed only after the server verifies the configured payment provider’s webhook and transaction record. A browser success message alone never confirms a booking.'],
   ['Can I request help organizing an event?', 'Yes. Submit the public organizer request form with your preferred date, audience size, and event details.'],
-  ['How does event check-in work?', 'Each confirmed registration has a signed QR ticket. An authorized organizer scans it once to record attendance.'],
+  ['How does event check-in work?', 'Each confirmed registration has a signed QR ticket and a short ticket code. An authorized event owner can scan the QR code or type the code once to record attendance.'],
   ['When can I download a certificate?', 'After the event date has passed and an organizer has confirmed your attendance, a private certificate download becomes available.'],
-  ['When are voting results visible?', 'Organizers can monitor live totals. Public totals are revealed after the voting campaign closes.'],
+  ['When are voting results visible?', 'Organizers can always monitor totals. They can choose to show live public results, otherwise public totals appear only after voting closes.'],
+  ['Which payment methods are available?', 'Card and Ghana mobile-money availability depends on the configured payment provider. USSD, Apple Pay, and direct bank-payment checkout are planned but are not currently offered.'],
+  ['Does the platform hold organizer balances or provide wallet payouts?', 'Not yet. Organizer wallets, payout balances, and payout-time guarantees are planned features; they are not part of the current platform.'],
+  ['Can organizers publish a public nomination form?', 'Not yet. Organizers currently configure nominees inside voting campaign settings; a public nomination-form builder is planned.'],
 ]
 
 export default function LandingPage() {

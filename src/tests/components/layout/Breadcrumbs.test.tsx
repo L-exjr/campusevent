@@ -12,7 +12,7 @@ describe('Breadcrumbs', () => {
 
   it.each([
     [users.student, '/student'],
-    [users.organizer, '/organizer'],
+    [users.organizer, '/student'],
     [users.admin, '/admin'],
   ])('links Home to the authenticated role home', (user, destination) => {
     renderWithAuth(<Breadcrumbs />, { user, initialEntries: ['/events/event-12345678901234567890'] })

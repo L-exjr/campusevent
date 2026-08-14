@@ -78,6 +78,16 @@ export interface EventItem {
   version: number
   priceMinor: number
   currency: 'GHS'
+  ticketTiers?: TicketTier[]
+}
+
+export interface TicketTier {
+  id: string
+  name: string
+  priceMinor: number
+  capacity: number
+  sold: number
+  isActive: boolean
 }
 
 export interface EventInput {
@@ -107,6 +117,7 @@ export interface EventInput {
   version?: number
   priceMinor: number
   currency: 'GHS'
+  ticketTiers?: Array<{ id?: string | null; name: string; priceMinor: number; capacity: number }>
 }
 
 export type PaymentStatus =
@@ -122,6 +133,11 @@ export interface PaymentInitialization {
   reference: string
   authorizationUrl: string
   amountMinor: number
+  originalAmountMinor?: number
+  discountAmountMinor?: number
+  ticketTierId?: string | null
+  ticketTierName?: string | null
+  couponCode?: string | null
   currency: string
   expiresAt: string
 }
@@ -140,6 +156,7 @@ export interface Ticket {
   eventId: string
   eventTitle: string
   studentName: string
+  ticketCode?: string
   token: string
   expiresAt: string
 }
@@ -185,6 +202,7 @@ export interface VotingCampaign {
   opensAt: string
   closesAt: string
   isPublished: boolean
+  showLiveResults?: boolean
   status: 'Draft' | 'Scheduled' | 'Open' | 'Closed'
   canManage: boolean
   resultsVisible: boolean
@@ -195,6 +213,7 @@ export interface VotingCampaignInput {
   opensAt: string
   closesAt: string
   isPublished: boolean
+  showLiveResults?: boolean
   categories: Array<{
     name: string
     description?: string
@@ -227,6 +246,29 @@ export interface VotingPaymentStatus {
   expiresAt: string
 }
 
+export interface OrganizerAnalytics {
+  registrationCount: number
+  ticketRevenueMinor: number
+  currency: 'GHS'
+  attendedCount: number
+  attendanceRate: number
+  registrationsOverTime: Array<{ date: string; registrations: number }>
+}
+
+export interface Coupon {
+  id: string
+  code: string
+  percentageDiscount: number
+  usageLimit: number | null
+  used: number
+  eventId: string | null
+  eventTitle: string | null
+  expiresAt: string | null
+  isActive: boolean
+}
+
+export type CouponInput = Omit<Coupon, 'id' | 'used' | 'eventTitle'>
+
 export interface BookingRequestInput {
   organizationName: string
   contactName: string
@@ -238,6 +280,7 @@ export interface BookingRequestInput {
   flexibilityNote?: string
   estimatedAttendance: number
   preferredOrganizer?: string
+  requestedOrganizerId?: string | null
   description: string
   website: string
 }
@@ -246,12 +289,42 @@ export interface BookingRequest extends Omit<BookingRequestInput, 'website'> {
   id: string
   status: BookingRequestStatus
   assignedOrganizerId: string | null
+  requestedOrganizerId: string | null
+  requestedOrganizerName: string | null
   assignedOrganizerName: string | null
   organizerResponseNote: string | null
   draftEventId: string | null
   submittedAt: string
   updatedAt: string
   personalDataAnonymizedAt?: string | null
+}
+
+export interface OrganizerSummary {
+  id: string
+  name: string
+  imageUrl: string | null
+  bannerUrl: string | null
+  bio: string | null
+  specialties: EventCategory[]
+}
+
+export interface OrganizerDetail extends OrganizerSummary {
+  instagramUrl: string | null
+  twitterUrl: string | null
+  facebookUrl: string | null
+  websiteUrl: string | null
+  events: EventItem[]
+}
+
+export interface OrganizerDirectorySettings {
+  isVisible: boolean
+  bio: string | null
+  bannerUrl: string | null
+  instagramUrl: string | null
+  twitterUrl: string | null
+  facebookUrl: string | null
+  websiteUrl: string | null
+  specialties: EventCategory[]
 }
 
 export interface EventFilters {

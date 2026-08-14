@@ -7,6 +7,7 @@ public sealed class VotingCampaign
     public DateTimeOffset OpensAt { get; set; }
     public DateTimeOffset ClosesAt { get; set; }
     public bool IsPublished { get; set; }
+    public bool ShowLiveResults { get; set; }
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
     public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
 

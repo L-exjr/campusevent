@@ -6,7 +6,6 @@ import type { EventInput } from '../../../types'
 import { toDateTimeLocal } from '../../../utils/formatters'
 import {
   DEFAULT_EVENT_IMAGE,
-  uploadImage,
   validateImageFile,
 } from '../../../api/imageStorage'
 import BasicInformationStep from './BasicInformationStep'
@@ -31,7 +30,7 @@ import './EventCreationWizard.css'
 interface EventCreationWizardProps {
   busy?: boolean
   error?: string | null
-  onSubmit: (input: EventInput) => Promise<void>
+  onSubmit: (input: EventInput, imageFile: File | null) => Promise<void>
   onCancel: () => void
 }
 
@@ -198,11 +197,8 @@ export default function EventCreationWizard({
     setUploading(true)
     setImageError(null)
     try {
-      const imageUrl = imageFile
-        ? await uploadImage(imageFile, 'event-images')
-        : values.imageUrl
-      const payload = buildCreateEventPayload(snapshot, imageUrl)
-      await onSubmit(payload)
+      const payload = buildCreateEventPayload(snapshot, values.imageUrl)
+      await onSubmit(payload, imageFile)
     } catch (caught) {
       const message = caught instanceof Error
         ? caught.message

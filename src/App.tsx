@@ -33,7 +33,6 @@ const ManageVotingPage = lazy(() => import('./pages/organizer/ManageVotingPage')
 const EventDetailsPage = lazy(() => import('./pages/student/EventDetailsPage'))
 const EventsPage = lazy(() => import('./pages/student/EventsPage'))
 const MyRegistrationsPage = lazy(() => import('./pages/student/MyRegistrationsPage'))
-const OrganizerApplicationPage = lazy(() => import('./pages/student/OrganizerApplicationPage'))
 const StudentDashboardPage = lazy(() => import('./pages/student/StudentDashboardPage'))
 const PaymentCallbackPage = lazy(() => import('./pages/student/PaymentCallbackPage'))
 const VotingPaymentCallbackPage = lazy(() => import('./pages/student/VotingPaymentCallbackPage'))
@@ -42,6 +41,8 @@ const ProfilePage = lazy(() => import('./pages/profile/ProfilePage'))
 const LandingPage = lazy(() => import('./pages/LandingPage'))
 const AboutPage = lazy(() => import('./pages/AboutPage'))
 const PrivacyPage = lazy(() => import('./pages/PrivacyPage'))
+const OrganizerDirectoryPage = lazy(() => import('./pages/OrganizerDirectoryPage'))
+const OrganizerDetailPage = lazy(() => import('./pages/OrganizerDetailPage'))
 
 export default function App() {
   return (
@@ -57,6 +58,8 @@ export default function App() {
         <Route path="/events/:id" element={<EventDetailsPage />} />
         <Route path="/events/:id/voting" element={<VotingPage />} />
         <Route path="/request-organizer" element={<BookingRequestForm />} />
+        <Route path="/organizers" element={<OrganizerDirectoryPage />} />
+        <Route path="/organizers/:id" element={<OrganizerDetailPage />} />
         <Route path="/request-organizer/thank-you" element={<BookingRequestThankYouPage />} />
         <Route path="/about" element={<AboutPage />} />
         <Route path="/privacy" element={<PrivacyPage />} />
@@ -77,7 +80,6 @@ export default function App() {
             <Route path="/student/events" element={<Navigate to="/events" replace />} />
             <Route path="/student/events/:id" element={<EventDetailsPage />} />
             <Route path="/student/registrations" element={<MyRegistrationsPage />} />
-            <Route path="/student/organizer-application" element={<OrganizerApplicationPage />} />
             <Route path="/payment/callback" element={<PaymentCallbackPage />} />
             <Route path="/voting/payment/callback" element={<VotingPaymentCallbackPage />} />
           </Route>

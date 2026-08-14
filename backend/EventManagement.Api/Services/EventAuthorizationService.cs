@@ -13,7 +13,7 @@ public sealed class EventAuthorizationService : IEventAuthorizationService
     public void EnsureCanManage(Guid eventOwnerId, Guid actorId, UserRole actorRole)
     {
         if (actorRole == UserRole.Admin) return;
-        if (actorRole != UserRole.Organizer || eventOwnerId != actorId)
+        if (eventOwnerId != actorId)
         {
             throw new ApiException(
                 StatusCodes.Status403Forbidden,

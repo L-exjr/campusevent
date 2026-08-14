@@ -6,20 +6,24 @@ using System.Text.Json;
 
 namespace EventManagement.Api.Services;
 
-public sealed record PaystackInitialization(
+public sealed record PaymentProviderInitialization(
     string AuthorizationUrl,
     string Reference);
 
-public sealed record PaystackVerification(
+public sealed record PaymentProviderVerification(
     bool IsSuccessful,
     string Reference,
     long AmountMinor,
     string Currency);
 
-public interface IPaystackPaymentProvider
+public sealed record PaymentWebhookNotification(string EventType, string Reference);
+
+public interface IPaymentProvider
 {
+    string Name { get; }
     bool HasValidSignature(string payload, string? signature);
-    Task<PaystackInitialization> InitializeAsync(
+    bool TryGetSuccessfulWebhook(string payload, out PaymentWebhookNotification? notification);
+    Task<PaymentProviderInitialization> InitializeAsync(
         string email,
         long amountMinor,
         string currency,
@@ -29,16 +33,17 @@ public interface IPaystackPaymentProvider
         Guid eventId,
         Guid studentId,
         CancellationToken cancellationToken);
-    Task<PaystackVerification> VerifyAsync(string reference, CancellationToken cancellationToken);
+    Task<PaymentProviderVerification> VerifyAsync(string reference, CancellationToken cancellationToken);
     Task<bool> RequestRefundAsync(string reference, long amountMinor, CancellationToken cancellationToken);
 }
 
 public sealed class PaystackPaymentProvider(
     IConfiguration configuration,
     IHttpClientFactory httpClientFactory,
-    ILogger<PaystackPaymentProvider> logger) : IPaystackPaymentProvider
+    ILogger<PaystackPaymentProvider> logger) : IPaymentProvider
 {
     private const string BaseUrl = "https://api.paystack.co";
+    public string Name => "Paystack";
 
     public bool HasValidSignature(string payload, string? signature)
     {
@@ -59,7 +64,21 @@ public sealed class PaystackPaymentProvider(
             CryptographicOperations.FixedTimeEquals(supplied, expected);
     }
 
-    public async Task<PaystackInitialization> InitializeAsync(
+    public bool TryGetSuccessfulWebhook(string payload, out PaymentWebhookNotification? notification)
+    {
+        notification = null;
+        using var document = JsonDocument.Parse(payload);
+        var root = document.RootElement;
+        if (!root.TryGetProperty("event", out var eventValue) ||
+            !string.Equals(eventValue.GetString(), "charge.success", StringComparison.Ordinal) ||
+            !root.TryGetProperty("data", out var data) ||
+            !data.TryGetProperty("reference", out var referenceValue) ||
+            string.IsNullOrWhiteSpace(referenceValue.GetString())) return false;
+        notification = new PaymentWebhookNotification("charge.success", referenceValue.GetString()!);
+        return true;
+    }
+
+    public async Task<PaymentProviderInitialization> InitializeAsync(
         string email,
         long amountMinor,
         string currency,
@@ -97,10 +116,10 @@ public sealed class PaystackPaymentProvider(
                 (int)response.StatusCode);
             throw new PaymentProviderException("Paystack could not initialize the payment.");
         }
-        return new PaystackInitialization(payload.Data.AuthorizationUrl, payload.Data.Reference);
+        return new PaymentProviderInitialization(payload.Data.AuthorizationUrl, payload.Data.Reference);
     }
 
-    public async Task<PaystackVerification> VerifyAsync(
+    public async Task<PaymentProviderVerification> VerifyAsync(
         string reference,
         CancellationToken cancellationToken)
     {
@@ -112,7 +131,7 @@ public sealed class PaystackPaymentProvider(
             cancellationToken: cancellationToken);
         if (!response.IsSuccessStatusCode || payload?.Status != true || payload.Data is null)
             throw new PaymentProviderException("Paystack could not verify the payment.");
-        return new PaystackVerification(
+        return new PaymentProviderVerification(
             string.Equals(payload.Data.Status, "success", StringComparison.OrdinalIgnoreCase),
             payload.Data.Reference,
             payload.Data.Amount,

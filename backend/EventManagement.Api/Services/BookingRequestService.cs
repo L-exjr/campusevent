@@ -39,6 +39,16 @@ public sealed class BookingRequestService(
             return new BookingSubmissionResponse(SubmissionMessage, null);
         if (request.ProposedDate <= timeProvider.GetUtcNow())
             throw new ApiException(StatusCodes.Status400BadRequest, "The proposed date must be in the future.");
+        User? requestedOrganizer = null;
+        if (request.RequestedOrganizerId.HasValue)
+        {
+            requestedOrganizer = await dbContext.Users.AsNoTracking().SingleOrDefaultAsync(user =>
+                user.Id == request.RequestedOrganizerId && user.IsActive &&
+                user.Role != UserRole.Admin && user.IsOrganizerDirectoryVisible && user.OrganizedEvents.Any(),
+                cancellationToken);
+            if (requestedOrganizer is null)
+                throw new ApiException(StatusCodes.Status400BadRequest, "The selected Organizer is no longer available in the public directory.");
+        }
 
         var entity = new BookingRequest
         {
@@ -52,6 +62,7 @@ public sealed class BookingRequestService(
             FlexibilityNote = NormalizeOptional(request.FlexibilityNote),
             EstimatedAttendance = request.EstimatedAttendance,
             PreferredOrganizer = NormalizeOptional(request.PreferredOrganizer),
+            RequestedOrganizerId = requestedOrganizer?.Id,
             Description = request.Description.Trim()
         };
         dbContext.BookingRequests.Add(entity);
@@ -112,8 +123,8 @@ public sealed class BookingRequestService(
             .FromSqlInterpolated(
                 $"SELECT * FROM \"Users\" WHERE \"Id\" = {organizerId} FOR UPDATE")
             .SingleOrDefaultAsync(cancellationToken);
-        if (organizer is null || !organizer.IsActive || organizer.Role != UserRole.Organizer)
-            throw new ApiException(StatusCodes.Status400BadRequest, "Choose an active Organizer.");
+        if (organizer is null || !organizer.IsActive || organizer.Role == UserRole.Admin)
+            throw new ApiException(StatusCodes.Status400BadRequest, "Choose an active ordinary user.");
         var request = await FindForUpdateAsync(id, cancellationToken);
         if (request.Status != BookingRequestStatus.SentToOrganizer)
             StateTransitionRules.EnsureBookingTransition(
@@ -149,6 +160,7 @@ public sealed class BookingRequestService(
             .FromSqlInterpolated(
                 $"SELECT * FROM \"BookingRequests\" WHERE \"Id\" = {id} FOR UPDATE")
             .Include(item => item.AssignedOrganizer)
+            .Include(item => item.RequestedOrganizer)
             .SingleOrDefaultAsync(cancellationToken)
             ?? throw new ApiException(StatusCodes.Status404NotFound, "Booking request not found.");
         if (request.AssignedOrganizerId != organizerId)
@@ -179,7 +191,17 @@ public sealed class BookingRequestService(
                 RegistrationsEnabled = true,
                 OrganizerId = organizerId,
                 Organizer = request.AssignedOrganizer!,
-                IsPublished = false
+                IsPublished = false,
+                TicketTiers =
+                [
+                    new TicketTier
+                    {
+                        Name = "General",
+                        PriceMinor = 0,
+                        Capacity = request.EstimatedAttendance,
+                        Position = 0
+                    }
+                ]
             };
             dbContext.Events.Add(draft);
             request.DraftEvent = draft;
@@ -225,6 +247,7 @@ public sealed class BookingRequestService(
             .FromSqlInterpolated(
                 $"SELECT * FROM \"BookingRequests\" WHERE \"Id\" = {id} FOR UPDATE")
             .Include(request => request.AssignedOrganizer)
+            .Include(request => request.RequestedOrganizer)
             .SingleOrDefaultAsync(cancellationToken)
         ?? throw new ApiException(StatusCodes.Status404NotFound, "Booking request not found.");
 
@@ -235,7 +258,8 @@ public sealed class BookingRequestService(
         query.Select(request => new BookingRequestResponse(
             request.Id, request.OrganizationName, request.ContactName, request.Email, request.Phone,
             request.EventType, request.ProposedDate, request.AlternativeDates, request.FlexibilityNote,
-            request.EstimatedAttendance, request.PreferredOrganizer, request.Description, request.Status,
+            request.EstimatedAttendance, request.PreferredOrganizer, request.RequestedOrganizerId,
+            request.RequestedOrganizer == null ? null : request.RequestedOrganizer.Name, request.Description, request.Status,
             request.AssignedOrganizerId, request.AssignedOrganizer == null ? null : request.AssignedOrganizer.Name,
             request.OrganizerResponseNote, request.DraftEventId, request.SubmittedAt, request.UpdatedAt,
             request.PersonalDataAnonymizedAt));
@@ -243,7 +267,8 @@ public sealed class BookingRequestService(
     private static BookingRequestResponse ToResponse(BookingRequest request) => new(
         request.Id, request.OrganizationName, request.ContactName, request.Email, request.Phone,
         request.EventType, request.ProposedDate, request.AlternativeDates, request.FlexibilityNote,
-        request.EstimatedAttendance, request.PreferredOrganizer, request.Description, request.Status,
+        request.EstimatedAttendance, request.PreferredOrganizer, request.RequestedOrganizerId,
+        request.RequestedOrganizer?.Name, request.Description, request.Status,
         request.AssignedOrganizerId, request.AssignedOrganizer?.Name, request.OrganizerResponseNote,
         request.DraftEventId, request.SubmittedAt, request.UpdatedAt,
         request.PersonalDataAnonymizedAt);

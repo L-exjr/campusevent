@@ -1,15 +1,16 @@
-import { useState, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import Alert from 'react-bootstrap/Alert'
 import Button from 'react-bootstrap/Button'
 import Card from 'react-bootstrap/Card'
 import Col from 'react-bootstrap/Col'
 import Form from 'react-bootstrap/Form'
 import Row from 'react-bootstrap/Row'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import Spinner from 'react-bootstrap/Spinner'
 import { api } from '../api'
-import type { BookingRequestInput } from '../types'
+import type { BookingRequestInput, OrganizerSummary } from '../types'
 import { formatDateTime } from '../utils/formatters'
+import LinkButton from '../components/shared/LinkButton'
 
 const initial: BookingRequestInput = {
   organizationName: '',
@@ -22,6 +23,7 @@ const initial: BookingRequestInput = {
   flexibilityNote: '',
   estimatedAttendance: 1,
   preferredOrganizer: '',
+  requestedOrganizerId: null,
   description: '',
   website: '',
 }
@@ -40,6 +42,7 @@ function displayDateTime(value: string) {
 
 export default function BookingRequestForm() {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const [form, setForm] = useState(initial)
   const initialDateTime = splitDateTime(initial.proposedDate)
   const [proposedDate, setProposedDate] = useState(initialDateTime.date)
@@ -48,8 +51,18 @@ export default function BookingRequestForm() {
   const [busy, setBusy] = useState(false)
   const [validated, setValidated] = useState(false)
   const [reviewing, setReviewing] = useState(false)
+  const [selectedOrganizer, setSelectedOrganizer] = useState<OrganizerSummary | null>(null)
 
-  const update = (field: keyof BookingRequestInput, value: string | number) =>
+  useEffect(() => {
+    const id = searchParams.get('organizerId')
+    if (!id) return
+    void api.getOrganizer(id).then(organizer => {
+      setSelectedOrganizer(organizer)
+      setForm(current => ({ ...current, requestedOrganizerId: organizer.id }))
+    }).catch(() => setError('That organizer is no longer available in the public directory.'))
+  }, [searchParams])
+
+  const update = (field: keyof BookingRequestInput, value: string | number | null) =>
     setForm((current) => ({ ...current, [field]: value }))
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
@@ -135,6 +148,7 @@ export default function BookingRequestForm() {
                   {form.alternativeDates && <><dt className="col-sm-4">Alternative dates</dt><dd className="col-sm-8">{form.alternativeDates}</dd></>}
                   {form.flexibilityNote && <><dt className="col-sm-4">Flexibility</dt><dd className="col-sm-8">{form.flexibilityNote}</dd></>}
                   {form.preferredOrganizer && <><dt className="col-sm-4">Preferred Organizer</dt><dd className="col-sm-8">{form.preferredOrganizer}</dd></>}
+                  <dt className="col-sm-4">Organizer path</dt><dd className="col-sm-8">{selectedOrganizer ? `Directory selection: ${selectedOrganizer.name}` : 'No preference — admin triage'}</dd>
                 </dl>
               </section>
             ) : (
@@ -218,11 +232,16 @@ export default function BookingRequestForm() {
                 </Col>
 
                 <Col xs={12}>
+                  <div className="form-section-heading mt-2"><span>03</span><div><h2>Do you have an Organizer in mind?</h2><p>A directory selection is a preference; administrators still handle final assignment.</p></div></div>
+                  <Card className="border-0 bg-light"><Card.Body className="d-flex flex-column flex-md-row justify-content-between gap-3 align-items-md-center"><div><h3 className="h5 mb-1">{selectedOrganizer ? selectedOrganizer.name : 'No Organizer preference'}</h3><p className="text-secondary mb-0">{selectedOrganizer ? 'This organizer will be recorded as your requested preference.' : 'Your request will go to the existing admin triage queue.'}</p></div><div className="d-flex gap-2"><LinkButton to="/organizers" variant="outline-primary">Back to Organizer directory</LinkButton>{selectedOrganizer && <Button type="button" variant="light" onClick={() => { setSelectedOrganizer(null); update('requestedOrganizerId', null) }}>Clear selection</Button>}</div></Card.Body></Card>
+                </Col>
+
+                <Col xs={12}>
                   <details className="optional-fields">
                     <summary>Add optional scheduling preferences</summary>
                     <Row className="g-3 pt-3">
                       <Col md={6}><Form.Group controlId="booking-alternatives"><Form.Label>Alternative dates</Form.Label><Form.Control maxLength={500} value={form.alternativeDates} onChange={(event) => update('alternativeDates', event.target.value)} /></Form.Group></Col>
-                      <Col md={6}><Form.Group controlId="booking-organizer"><Form.Label>Preferred Organizer</Form.Label><Form.Control maxLength={200} value={form.preferredOrganizer} onChange={(event) => update('preferredOrganizer', event.target.value)} /></Form.Group></Col>
+                      <Col md={6}><Form.Group controlId="booking-organizer"><Form.Label>Organizer preference notes</Form.Label><Form.Control maxLength={200} value={form.preferredOrganizer} placeholder="Fallback name or additional notes" onChange={(event) => update('preferredOrganizer', event.target.value)} /></Form.Group></Col>
                       <Col xs={12}><Form.Group controlId="booking-flexibility"><Form.Label>Scheduling flexibility</Form.Label><Form.Control as="textarea" rows={3} maxLength={1000} value={form.flexibilityNote} onChange={(event) => update('flexibilityNote', event.target.value)} /></Form.Group></Col>
                     </Row>
                   </details>

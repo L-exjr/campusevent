@@ -26,19 +26,19 @@ describe('AppNavbar', () => {
     expect(navigation).not.toHaveClass('show')
   })
 
-  it('shows Student primary navigation and keeps secondary actions in the account menu', async () => {
+  it('shows the unified ordinary-user navigation', async () => {
     const user = userEvent.setup()
     renderWithAuth(<AppNavbar />, { user: users.student })
 
     expect(screen.getByRole('link', { name: 'My registrations' })).toBeVisible()
     await user.click(screen.getByRole('button', { name: /Sam Student/i }))
-    expect(screen.getByRole('link', { name: 'Apply to organize' })).toBeVisible()
-    expect(screen.queryByRole('link', { name: 'Manage events' })).not.toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Request an Organizer' })).toBeVisible()
+    expect(screen.getByRole('link', { name: 'Manage events' })).toBeVisible()
     expect(screen.queryByRole('link', { name: 'Users' })).not.toBeInTheDocument()
     expect(screen.queryByRole('link', { name: 'Reports' })).not.toBeInTheDocument()
   })
 
-  it('shows Organizer primary navigation and secondary booking requests', async () => {
+  it('gives legacy Organizer accounts the same ordinary-user navigation', async () => {
     const user = userEvent.setup()
     renderWithAuth(<AppNavbar />, { user: users.organizer })
 
@@ -46,8 +46,8 @@ describe('AppNavbar', () => {
     await user.click(screen.getByRole('button', { name: /Olivia Organizer/i }))
     expect(screen.getByRole('link', { name: 'Booking requests' })).toBeVisible()
     expect(screen.getByRole('link', { name: 'Explore events' })).toBeVisible()
-    expect(screen.queryByRole('link', { name: 'Request an Organizer' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('link', { name: 'My registrations' })).not.toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Request an Organizer' })).toBeVisible()
+    expect(screen.getByRole('link', { name: 'My registrations' })).toBeVisible()
     expect(screen.queryByRole('link', { name: 'Users' })).not.toBeInTheDocument()
     expect(screen.queryByRole('link', { name: 'Reports' })).not.toBeInTheDocument()
   })
