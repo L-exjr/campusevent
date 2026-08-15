@@ -8,7 +8,7 @@ import Row from 'react-bootstrap/Row'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import Spinner from 'react-bootstrap/Spinner'
 import { api } from '../api'
-import type { BookingRequestInput, OrganizerSummary } from '../types'
+import { EVENT_CATEGORIES, type BookingRequestInput, type OrganizerSummary } from '../types'
 import { formatDateTime } from '../utils/formatters'
 import LinkButton from '../components/shared/LinkButton'
 
@@ -18,10 +18,18 @@ const initial: BookingRequestInput = {
   email: '',
   phone: '',
   eventType: '',
+  eventCategory: '',
+  budgetMinimumMinor: null,
+  budgetMaximumMinor: null,
   proposedDate: '',
+  expectedEndDate: null,
   alternativeDates: '',
   flexibilityNote: '',
   estimatedAttendance: 1,
+  requiresTicketing: false,
+  requiresVoting: false,
+  requiresRegistration: true,
+  referenceLinks: '',
   preferredOrganizer: '',
   requestedOrganizerId: null,
   description: '',
@@ -62,7 +70,7 @@ export default function BookingRequestForm() {
     }).catch(() => setError('That organizer is no longer available in the public directory.'))
   }, [searchParams])
 
-  const update = (field: keyof BookingRequestInput, value: string | number | null) =>
+  const update = (field: keyof BookingRequestInput, value: string | number | boolean | null) =>
     setForm((current) => ({ ...current, [field]: value }))
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
@@ -101,9 +109,9 @@ export default function BookingRequestForm() {
     setBusy(true)
     setError(null)
     try {
-      const message = await api.submitBookingRequest(normalized)
+      const submission = await api.submitBookingRequest(normalized)
       setForm(initial)
-      navigate('/request-organizer/thank-you', { state: { message } })
+      navigate('/request-organizer/thank-you', { state: submission })
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Unable to submit your request.')
     } finally {
@@ -144,6 +152,8 @@ export default function BookingRequestForm() {
                   <dt className="col-sm-4">Event</dt><dd className="col-sm-8">{form.eventType}</dd>
                   <dt className="col-sm-4">Preferred schedule</dt><dd className="col-sm-8">{displayDateTime(form.proposedDate)}</dd>
                   <dt className="col-sm-4">Attendance</dt><dd className="col-sm-8">About {form.estimatedAttendance.toLocaleString()} people</dd>
+                  <dt className="col-sm-4">Category</dt><dd className="col-sm-8">{form.eventCategory || 'Not specified'}</dd>
+                  <dt className="col-sm-4">Required tools</dt><dd className="col-sm-8">{[form.requiresRegistration && 'Registration', form.requiresTicketing && 'Ticketing', form.requiresVoting && 'Voting'].filter(Boolean).join(', ') || 'None specified'}</dd>
                   <dt className="col-sm-4">Description</dt><dd className="col-sm-8 review-list__long-text">{form.description}</dd>
                   {form.alternativeDates && <><dt className="col-sm-4">Alternative dates</dt><dd className="col-sm-8">{form.alternativeDates}</dd></>}
                   {form.flexibilityNote && <><dt className="col-sm-4">Flexibility</dt><dd className="col-sm-8">{form.flexibilityNote}</dd></>}
@@ -201,6 +211,15 @@ export default function BookingRequestForm() {
                     <Form.Control.Feedback type="invalid">Describe the event type or purpose.</Form.Control.Feedback>
                   </Form.Group>
                 </Col>
+                <Col md={7}>
+                  <Form.Group controlId="booking-category">
+                    <Form.Label>Event category</Form.Label>
+                    <Form.Select value={form.eventCategory ?? ''} onChange={(event) => update('eventCategory', event.target.value)}>
+                      <option value="">Choose a category (optional)</option>
+                      {EVENT_CATEGORIES.map(category => <option key={category}>{category}</option>)}
+                    </Form.Select>
+                  </Form.Group>
+                </Col>
                 <Col sm={6} md={3}>
                   <Form.Group controlId="booking-proposed-date">
                     <Form.Label>Preferred date</Form.Label>
@@ -220,6 +239,39 @@ export default function BookingRequestForm() {
                     <Form.Label>Estimated attendance</Form.Label>
                     <Form.Control required type="number" min={1} max={100000} value={form.estimatedAttendance} onChange={(event) => update('estimatedAttendance', Number(event.target.value))} />
                     <Form.Control.Feedback type="invalid">Enter at least one attendee.</Form.Control.Feedback>
+                  </Form.Group>
+                </Col>
+                <Col md={4}>
+                  <Form.Group controlId="booking-expected-end">
+                    <Form.Label>Expected end date/time</Form.Label>
+                    <Form.Control type="datetime-local" value={form.expectedEndDate ?? ''} onChange={(event) => update('expectedEndDate', event.target.value || null)} />
+                  </Form.Group>
+                </Col>
+                <Col md={4}>
+                  <Form.Group controlId="booking-budget-min">
+                    <Form.Label>Minimum budget (GHS, optional)</Form.Label>
+                    <Form.Control type="number" min={0} value={form.budgetMinimumMinor == null ? '' : form.budgetMinimumMinor / 100} onChange={(event) => update('budgetMinimumMinor', event.target.value === '' ? null : Math.round(Number(event.target.value) * 100))} />
+                  </Form.Group>
+                </Col>
+                <Col md={4}>
+                  <Form.Group controlId="booking-budget-max">
+                    <Form.Label>Maximum budget (GHS, optional)</Form.Label>
+                    <Form.Control type="number" min={0} value={form.budgetMaximumMinor == null ? '' : form.budgetMaximumMinor / 100} onChange={(event) => update('budgetMaximumMinor', event.target.value === '' ? null : Math.round(Number(event.target.value) * 100))} />
+                  </Form.Group>
+                </Col>
+                <Col xs={12}>
+                  <Form.Label>Required platform tools</Form.Label>
+                  <div className="d-flex flex-wrap gap-4">
+                    <Form.Check id="requires-registration" label="Registration" checked={form.requiresRegistration} onChange={(event) => update('requiresRegistration', event.target.checked)} />
+                    <Form.Check id="requires-ticketing" label="Ticketing" checked={form.requiresTicketing} onChange={(event) => update('requiresTicketing', event.target.checked)} />
+                    <Form.Check id="requires-voting" label="Voting" checked={form.requiresVoting} onChange={(event) => update('requiresVoting', event.target.checked)} />
+                  </div>
+                </Col>
+                <Col xs={12}>
+                  <Form.Group controlId="booking-reference-links">
+                    <Form.Label>Attachments or reference links (optional)</Form.Label>
+                    <Form.Control as="textarea" rows={2} maxLength={4000} value={form.referenceLinks ?? ''} placeholder="Paste one secure file or reference URL per line" onChange={(event) => update('referenceLinks', event.target.value)} />
+                    <Form.Text>Use links to cloud-hosted attachments; do not include passwords or private credentials.</Form.Text>
                   </Form.Group>
                 </Col>
                 <Col md={8}>

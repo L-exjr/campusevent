@@ -22,6 +22,7 @@ const ForgotPassword = lazy(() => import('./pages/auth/ForgotPassword'))
 const ResetPassword = lazy(() => import('./pages/auth/ResetPassword'))
 const BookingRequestForm = lazy(() => import('./pages/BookingRequestForm'))
 const BookingRequestThankYouPage = lazy(() => import('./pages/BookingRequestThankYouPage'))
+const BookingRequestTrackingPage = lazy(() => import('./pages/BookingRequestTrackingPage'))
 const NotFoundPage = lazy(() => import('./pages/errors/NotFoundPage'))
 const UnauthorizedPage = lazy(() => import('./pages/errors/UnauthorizedPage'))
 const AttendancePage = lazy(() => import('./pages/organizer/AttendancePage'))
@@ -30,6 +31,7 @@ const OrganizerDashboardPage = lazy(() => import('./pages/organizer/OrganizerDas
 const RegistrantsPage = lazy(() => import('./pages/organizer/RegistrantsPage'))
 const OrganizerBookingRequestsPage = lazy(() => import('./pages/organizer/OrganizerBookingRequestsPage'))
 const ManageVotingPage = lazy(() => import('./pages/organizer/ManageVotingPage'))
+const EventTeamPage = lazy(() => import('./pages/organizer/EventTeamPage'))
 const EventDetailsPage = lazy(() => import('./pages/student/EventDetailsPage'))
 const EventsPage = lazy(() => import('./pages/student/EventsPage'))
 const MyRegistrationsPage = lazy(() => import('./pages/student/MyRegistrationsPage'))
@@ -43,6 +45,7 @@ const AboutPage = lazy(() => import('./pages/AboutPage'))
 const PrivacyPage = lazy(() => import('./pages/PrivacyPage'))
 const OrganizerDirectoryPage = lazy(() => import('./pages/OrganizerDirectoryPage'))
 const OrganizerDetailPage = lazy(() => import('./pages/OrganizerDetailPage'))
+const OrganizerApplicationPage = lazy(() => import('./pages/student/OrganizerApplicationPage'))
 
 export default function App() {
   return (
@@ -61,6 +64,7 @@ export default function App() {
         <Route path="/organizers" element={<OrganizerDirectoryPage />} />
         <Route path="/organizers/:id" element={<OrganizerDetailPage />} />
         <Route path="/request-organizer/thank-you" element={<BookingRequestThankYouPage />} />
+        <Route path="/request-organizer/track/:id" element={<BookingRequestTrackingPage />} />
         <Route path="/about" element={<AboutPage />} />
         <Route path="/privacy" element={<PrivacyPage />} />
       </Route>
@@ -75,6 +79,7 @@ export default function App() {
       <Route element={<ProtectedRoute allowedRoles={ROUTE_ROLES.authenticated} />}>
         <Route element={<AppLayout />}>
           <Route path="/profile" element={<ProfilePage />} />
+          <Route path="/profile/verification" element={<OrganizerApplicationPage />} />
           <Route element={<ProtectedRoute allowedRoles={ROUTE_ROLES.student} />}>
             <Route path="/student" element={<StudentDashboardPage />} />
             <Route path="/student/events" element={<Navigate to="/events" replace />} />
@@ -91,6 +96,7 @@ export default function App() {
             <Route path="/organizer/events/:id/registrants" element={<RegistrantsPage />} />
             <Route path="/organizer/events/:id/attendance" element={<AttendancePage />} />
             <Route path="/organizer/events/:id/voting" element={<ManageVotingPage />} />
+            <Route path="/organizer/events/:id/team" element={<EventTeamPage />} />
           </Route>
 
           <Route element={<ProtectedRoute allowedRoles={ROUTE_ROLES.admin} />}>

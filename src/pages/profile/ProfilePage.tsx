@@ -16,6 +16,7 @@ import NotificationToast from '../../components/shared/NotificationToast'
 import { useAuth } from '../../hooks/useAuth'
 import { api } from '../../api'
 import { EVENT_CATEGORIES, type OrganizerDirectorySettings } from '../../types'
+import LinkButton from '../../components/shared/LinkButton'
 
 export default function ProfilePage() {
   const { user, updateProfileImage } = useAuth()
@@ -140,6 +141,7 @@ export default function ProfilePage() {
           </Card>
         </Col>
       </Row>
+      {user && user.role !== 'admin' && <Row className="justify-content-center mt-4"><Col lg={8}><Card className="border-0"><Card.Body className="p-4 p-md-5 d-flex flex-column flex-md-row justify-content-between gap-3 align-items-md-center"><div><h2 className="h3">Organizer verification</h2><p className="text-secondary mb-0">Verification is an optional trust signal and does not affect your ability to create or manage events.</p></div><LinkButton to="/profile/verification">{user.verificationStatus === 'verified' ? 'View verification' : user.verificationStatus === 'pending' ? 'View pending request' : 'Request verification'}</LinkButton></Card.Body></Card></Col></Row>}
       {user?.role !== 'admin' && directory && <Row className="justify-content-center mt-4"><Col lg={8}><Card className="border-0"><Card.Body className="p-4 p-md-5"><h2 className="h3">Public Organizer directory</h2><p className="text-secondary">Opt in after creating an event. Email and phone are never shown.</p><Form onSubmit={event => void saveDirectory(event)}>
         <Form.Check type="switch" id="directory-visible" className="mb-3" label="Show my profile in the public directory" checked={directory.isVisible} onChange={event => setDirectory({ ...directory, isVisible: event.target.checked })} />
         <Form.Group className="mb-3" controlId="directory-bio"><Form.Label>Public bio</Form.Label><Form.Control as="textarea" rows={5} maxLength={3000} value={directory.bio ?? ''} onChange={event => setDirectory({ ...directory, bio: event.target.value })} /></Form.Group>

@@ -6,11 +6,14 @@ import type {
   AdminAuditLog,
   BookingRequest,
   BookingRequestInput,
+  BookingSubmission,
+  TrackedBookingRequest,
   CheckInResult,
   CertificateDownload,
   EmailDeadLetter,
   FailedImageCleanup,
   EventFilters,
+  EventTeamMember,
   EventInput,
   EventItem,
   EventRegistrant,
@@ -43,6 +46,7 @@ interface ApiUser {
   name: string
   email: string
   role: string
+  verificationStatus?: string
   isActive: boolean
   createdAt: string
   imageUrl: string | null
@@ -109,6 +113,7 @@ interface ApiOrganizerApplication {
   userId: string
   userName: string
   userEmail: string
+  userVerificationStatus?: string
   reason: string
   status: string
   rejectionReason: string | null
@@ -160,6 +165,7 @@ function mapUser(user: ApiUser): User {
     name: user.name,
     email: user.email,
     role: mapRole(user.role),
+    verificationStatus: (user.verificationStatus?.toLowerCase() ?? 'unverified') as User['verificationStatus'],
     active: user.isActive,
     joinedAt: user.createdAt,
     imageUrl: user.imageUrl,
@@ -178,6 +184,7 @@ function mapOrganizerApplication(application: ApiOrganizerApplication): Organize
   return {
     ...application,
     status: mapApplicationStatus(application.status),
+    userVerificationStatus: (application.userVerificationStatus?.toLowerCase() ?? (application.status.toLowerCase() === 'approved' ? 'verified' : application.status.toLowerCase() === 'pending' ? 'pending' : 'unverified')) as OrganizerApplication['userVerificationStatus'],
   }
 }
 
@@ -342,6 +349,20 @@ export const realApi: EventManagementApi = {
   async getManagementEvent(id) {
     return mapEvent(await apiRequest<ApiEvent>(`/events/${id}/management`))
   },
+  async getEventAccess(id) { return apiRequest(`/events/${id}/access`) },
+  async getEventTeam(id) {
+    const members = await apiRequest<Array<Omit<EventTeamMember, 'role'> & { role: string | null }>>(`/events/${id}/team`)
+    return members.map(member => ({ ...member, role: member.role ? (member.role[0].toLowerCase() + member.role.slice(1)) as EventTeamMember['role'] : null }))
+  },
+  async inviteEventTeamMember(id, email, role) {
+    const apiRole = role === 'checkInStaff' ? 'CheckInStaff' : `${role[0].toUpperCase()}${role.slice(1)}`
+    return apiRequest(`/events/${id}/team`, { method: 'POST', body: JSON.stringify({ email, role: apiRole }) })
+  },
+  async updateEventTeamMember(id, userId, role) {
+    const apiRole = role === 'checkInStaff' ? 'CheckInStaff' : `${role[0].toUpperCase()}${role.slice(1)}`
+    return apiRequest(`/events/${id}/team/${userId}`, { method: 'PUT', body: JSON.stringify({ role: apiRole }) })
+  },
+  async removeEventTeamMember(id, userId) { await apiRequest(`/events/${id}/team/${userId}`, { method: 'DELETE' }) },
 
   async registerForEvent(eventId) {
     await apiRequest(`/events/${eventId}/register`, { method: 'POST' })
@@ -603,10 +624,12 @@ export const realApi: EventManagementApi = {
     return apiRequest<Coupon>(`/coupons/${id}`, { method: 'PUT', body: JSON.stringify(input) })
   },
 
-  async getUsers(page = 1, pageSize = 20, search = '', role, signal) {
+  async getUsers(page = 1, pageSize = 20, search = '', role, verificationStatus, isActive, signal) {
     const query = new URLSearchParams({ page: String(page), pageSize: String(pageSize) })
     if (search.trim()) query.set('search', search.trim())
     if (role) query.set('role', `${role[0].toUpperCase()}${role.slice(1)}`)
+    if (verificationStatus) query.set('verificationStatus', `${verificationStatus[0].toUpperCase()}${verificationStatus.slice(1)}`)
+    if (isActive !== undefined) query.set('isActive', String(isActive))
     return mapPage(
       await apiRequest<PaginatedResponse<ApiUser>>(`/users?${query}`, { signal }),
       mapUser,
@@ -733,11 +756,18 @@ export const realApi: EventManagementApi = {
   },
 
   async submitBookingRequest(input: BookingRequestInput) {
-    const response = await apiRequest<{ message: string }>('/booking-requests', {
+    return apiRequest<BookingSubmission>('/booking-requests', {
       method: 'POST',
-      body: JSON.stringify({ ...input, proposedDate: new Date(input.proposedDate).toISOString() }),
+      body: JSON.stringify({
+        ...input,
+        proposedDate: new Date(input.proposedDate).toISOString(),
+        expectedEndDate: input.expectedEndDate ? new Date(input.expectedEndDate).toISOString() : null,
+      }),
     })
-    return response.message
+  },
+
+  async trackBookingRequest(id, token) {
+    return apiRequest<TrackedBookingRequest>(`/booking-requests/${id}/track?token=${encodeURIComponent(token)}`)
   },
 
   async getOrganizers(search = '', category = '', page = 1, pageSize = 12, signal) {
@@ -804,6 +834,14 @@ export const realApi: EventManagementApi = {
         method: 'PUT',
         body: JSON.stringify({ accept, note: note?.trim() || null }),
       },
+    )
+    return mapBookingRequest(request)
+  },
+
+  async submitBookingRequestQuote(id, proposedFeeMinor, proposedTimeline, message) {
+    const request = await apiRequest<Omit<BookingRequest, 'status'> & { status: string }>(
+      `/booking-requests/${id}/quote`,
+      { method: 'POST', body: JSON.stringify({ proposedFeeMinor, proposedTimeline, message }) },
     )
     return mapBookingRequest(request)
   },

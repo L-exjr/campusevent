@@ -49,7 +49,7 @@ const ROLE_NAVIGATION: Record<Role, NavigationItem[]> = {
   student: [
     { label: 'Overview', to: '/student' },
     { label: 'My registrations', to: '/student/registrations' },
-    { label: 'Apply to organize', to: '/student/organizer-application' },
+    { label: 'Request verification', to: '/profile/verification' },
   ],
   organizer: [
     { label: 'Overview', to: '/organizer' },
@@ -101,7 +101,7 @@ export function getNavigationGroupsForRole(role: Role): NavigationGroups {
       { label: 'Users', to: '/admin/users' },
     ],
     secondary: [
-      { label: 'Applications', to: '/admin/organizer-applications' },
+      { label: 'Verification requests', to: '/admin/organizer-applications' },
       { label: 'Booking requests', to: '/admin/booking-requests' },
       { label: 'Failed emails', to: '/admin/email-outbox' },
       { label: 'Failed images', to: '/admin/image-cleanup' },

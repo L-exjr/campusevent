@@ -4,6 +4,8 @@ import type {
   BookingRequest,
   BookingRequestInput,
   BookingRequestStatus,
+  BookingSubmission,
+  TrackedBookingRequest,
   CheckInResult,
   CertificateDownload,
   EmailDeadLetter,
@@ -29,6 +31,7 @@ import type {
   VotingCampaignInput,
   VotingPaymentInitialization,
   VotingPaymentStatus,
+  VerificationStatus,
   Coupon,
   CouponInput,
   OrganizerAnalytics,
@@ -102,6 +105,7 @@ function createSeedDatabase(): MockDatabase {
       email: 'student@cevents.com',
       password: 'demo123',
       role: 'student',
+      verificationStatus: 'verified',
       active: true,
       joinedAt,
       directory: { isVisible: true, bio: 'Campus event producer focused on technology, conferences, and hands-on learning.', bannerUrl: null, instagramUrl: null, twitterUrl: null, facebookUrl: null, websiteUrl: null, specialties: ['Startup & Tech', 'Conferences', 'Workshops & Training'] },
@@ -112,6 +116,7 @@ function createSeedDatabase(): MockDatabase {
       email: 'daniel@cevents.com',
       password: 'demo123',
       role: 'student',
+      verificationStatus: 'unverified',
       active: true,
       joinedAt,
     },
@@ -121,6 +126,7 @@ function createSeedDatabase(): MockDatabase {
       email: 'leila@cevents.com',
       password: 'demo123',
       role: 'student',
+      verificationStatus: 'unverified',
       active: true,
       joinedAt,
     },
@@ -130,6 +136,7 @@ function createSeedDatabase(): MockDatabase {
       email: 'organizer@cevents.com',
       password: 'demo123',
       role: 'organizer',
+      verificationStatus: 'verified',
       active: true,
       joinedAt,
     },
@@ -139,6 +146,7 @@ function createSeedDatabase(): MockDatabase {
       email: 'priya@cevents.com',
       password: 'demo123',
       role: 'organizer',
+      verificationStatus: 'unverified',
       active: true,
       joinedAt,
     },
@@ -148,6 +156,7 @@ function createSeedDatabase(): MockDatabase {
       email: 'admin@cevents.com',
       password: 'demo123',
       role: 'admin',
+      verificationStatus: 'unverified',
       active: true,
       joinedAt,
     },
@@ -279,6 +288,7 @@ function createSeedDatabase(): MockDatabase {
       userId: 'user-student-2',
       userName: 'Daniel Owusu',
       userEmail: 'daniel@cevents.com',
+      userVerificationStatus: 'pending',
       reason:
         'I help lead our entrepreneurship society and want to organize practical founder workshops, mentoring sessions, and student showcase events.',
       status: 'pending',
@@ -298,6 +308,7 @@ function createSeedDatabase(): MockDatabase {
       email: 'ama@example.com',
       phone: '+233 20 000 0000',
       eventType: 'Industry workshop',
+      requiresTicketing: false, requiresVoting: false, requiresRegistration: true,
       proposedDate: daysFromNow(35, 14),
       alternativeDates: undefined,
       flexibilityNote: 'Weekday afternoons are preferred.',
@@ -313,6 +324,8 @@ function createSeedDatabase(): MockDatabase {
       draftEventId: null,
       submittedAt: daysFromNow(-1, 10),
       updatedAt: daysFromNow(-1, 10),
+      quote: null,
+      statusHistory: [{ id: 'history-1', status: 'submitted', note: 'Request submitted.', createdAt: daysFromNow(-1, 10) }],
     },
     {
       id: 'booking-request-2',
@@ -321,6 +334,7 @@ function createSeedDatabase(): MockDatabase {
       email: 'kojo@example.com',
       phone: '+233 24 000 0000',
       eventType: 'Wellness seminar',
+      requiresTicketing: false, requiresVoting: false, requiresRegistration: true,
       proposedDate: daysFromNow(42, 11),
       alternativeDates: undefined,
       flexibilityNote: undefined,
@@ -336,6 +350,11 @@ function createSeedDatabase(): MockDatabase {
       draftEventId: null,
       submittedAt: daysFromNow(-3, 9),
       updatedAt: daysFromNow(-2, 9),
+      quote: null,
+      statusHistory: [
+        { id: 'history-2', status: 'submitted', note: 'Request submitted.', createdAt: daysFromNow(-3, 9) },
+        { id: 'history-3', status: 'sentToOrganizer', note: 'Assigned to Alex Morgan.', createdAt: daysFromNow(-2, 9) },
+      ],
     },
   ]
 
@@ -437,6 +456,7 @@ function publicUser(user: StoredUser): User {
     name: user.name,
     email: user.email,
     role: user.role,
+    verificationStatus: user.verificationStatus,
     active: user.active,
     joinedAt: user.joinedAt,
     imageUrl: user.imageUrl ?? null,
@@ -615,6 +635,7 @@ export const mockApi: EventManagementApi = {
       email: email.trim().toLowerCase(),
       password,
       role: 'student',
+      verificationStatus: 'unverified',
       active: true,
       joinedAt: new Date().toISOString(),
     }
@@ -717,6 +738,20 @@ export const mockApi: EventManagementApi = {
     }
     return eventWithCount(database, event)
   },
+
+  async getEventAccess(id: string) {
+    const database = getDatabase(); const event = database.events.find(item => item.id === id); const user = getCurrentUser(database)
+    if (!event || (event.organizerId !== user.id && user.role !== 'admin')) throw new Error('You are not part of this event team.')
+    return { canViewAttendees: true, canCheckIn: true, canEdit: true, canManageOperations: true, canViewRevenue: true, canManageTeam: true, canDelete: true }
+  },
+  async getEventTeam(id: string) {
+    const database = getDatabase(); const event = database.events.find(item => item.id === id); const owner = database.users.find(item => item.id === event?.organizerId)
+    if (!event || !owner) throw new Error('Event not found.')
+    return [{ userId: owner.id, name: owner.name, email: owner.email, role: null, isOwner: true, joinedAt: null }]
+  },
+  async inviteEventTeamMember() { throw new Error('Team invitations require the real API.') },
+  async updateEventTeamMember() { throw new Error('Team role updates require the real API.') },
+  async removeEventTeamMember() { throw new Error('Team removal requires the real API.') },
 
   // TODO: replace with POST /api/events/{id}/registrations.
   async registerForEvent(eventId: string, studentId: string) {
@@ -982,7 +1017,8 @@ export const mockApi: EventManagementApi = {
     await pause()
     const database = getDatabase()
     const user = getCurrentUser(database)
-    if (user.role !== 'student') throw new Error('Only Students can apply to become Organizers.')
+    if (user.role === 'admin') throw new Error('Admin accounts cannot request organizer verification.')
+    if (user.verificationStatus === 'verified') throw new Error('Your organizer profile is already verified.')
     if (database.organizerApplications.some(
       (application) => application.userId === user.id && application.status === 'pending',
     )) {
@@ -991,7 +1027,7 @@ export const mockApi: EventManagementApi = {
 
     const normalizedReason = reason.trim()
     if (normalizedReason.length < 20) {
-      throw new Error('Tell us why you want to become an Organizer using at least 20 characters.')
+      throw new Error('Tell us why your organizer identity should be verified using at least 20 characters.')
     }
     if (normalizedReason.length > 2000) {
       throw new Error('Your reason cannot be longer than 2000 characters.')
@@ -1002,6 +1038,7 @@ export const mockApi: EventManagementApi = {
       userId: user.id,
       userName: user.name,
       userEmail: user.email,
+      userVerificationStatus: 'pending',
       reason: normalizedReason,
       status: 'pending',
       rejectionReason: null,
@@ -1011,6 +1048,7 @@ export const mockApi: EventManagementApi = {
       reviewedByAdminName: null,
     }
     database.organizerApplications.push(application)
+    user.verificationStatus = 'pending'
     saveDatabase(database)
     return application
   },
@@ -1040,20 +1078,20 @@ export const mockApi: EventManagementApi = {
     if (application.status !== 'pending') throw new Error('This application has already been reviewed.')
     const applicant = database.users.find((user) => user.id === application.userId)
     if (!applicant) throw new Error('User account not found.')
-    if (!applicant.active) throw new Error('An inactive user cannot become an Organizer.')
-    if (applicant.role !== 'student') throw new Error('The applicant is no longer a Student.')
+    if (!applicant.active) throw new Error('An inactive user cannot be verified.')
 
     application.status = 'approved'
     application.reviewedAt = new Date().toISOString()
     application.reviewedByAdminId = admin.id
     application.reviewedByAdminName = admin.name
     application.rejectionReason = null
-    applicant.role = 'organizer'
+    applicant.verificationStatus = 'verified'
+    application.userVerificationStatus = 'verified'
     appendAdminAudit(
       database,
       admin,
-      'OrganizerApplicationApproved',
-      'OrganizerApplication',
+      'OrganizerVerificationApproved',
+      'OrganizerVerificationRequest',
       application.id,
       { userId: applicant.id, status: 'approved' },
     )
@@ -1072,7 +1110,6 @@ export const mockApi: EventManagementApi = {
     const applicant = database.users.find((user) => user.id === application.userId)
     if (!applicant) throw new Error('User account not found.')
     if (!applicant.active) throw new Error('An inactive user application cannot be reviewed.')
-    if (applicant.role !== 'student') throw new Error('The applicant is no longer a Student.')
 
     const normalizedReason = reason?.trim() || null
     if (normalizedReason && normalizedReason.length > 1000) {
@@ -1083,11 +1120,13 @@ export const mockApi: EventManagementApi = {
     application.reviewedByAdminId = admin.id
     application.reviewedByAdminName = admin.name
     application.rejectionReason = normalizedReason
+    applicant.verificationStatus = 'unverified'
+    application.userVerificationStatus = 'unverified'
     appendAdminAudit(
       database,
       admin,
-      'OrganizerApplicationRejected',
-      'OrganizerApplication',
+      'OrganizerVerificationRejected',
+      'OrganizerVerificationRequest',
       application.id,
       { userId: applicant.id, status: 'rejected' },
     )
@@ -1111,9 +1150,6 @@ export const mockApi: EventManagementApi = {
     await pause()
     const database = getDatabase()
     const organizer = getCurrentUser(database)
-    if (organizer.role !== 'organizer' && organizer.role !== 'admin') {
-      throw new Error('Only Organizers or Admins can create events.')
-    }
     const normalized = normalizeEventInput(input, true)
     const event: StoredEvent = {
       ...normalized,
@@ -1318,12 +1354,14 @@ export const mockApi: EventManagementApi = {
   },
 
   // TODO: replace with GET /api/admin/users.
-  async getUsers(page = 1, pageSize = 20, search = '', role?: Role): Promise<Page<User>> {
+  async getUsers(page = 1, pageSize = 20, search = '', role?: Role, verificationStatus?: VerificationStatus, isActive?: boolean): Promise<Page<User>> {
     await pause()
     const query = search.trim().toLowerCase()
     return paginate(getDatabase().users.map(publicUser).filter((user) =>
       (!query || user.name.toLowerCase().includes(query) || user.email.toLowerCase().includes(query)) &&
-      (!role || user.role === role)), page, pageSize)
+      (!role || user.role === role) &&
+      (!verificationStatus || user.verificationStatus === verificationStatus) &&
+      (isActive === undefined || user.active === isActive)), page, pageSize)
   },
 
   async searchOrganizers(search = '', pageSize = 20): Promise<Page<User>> {
@@ -1557,25 +1595,34 @@ export const mockApi: EventManagementApi = {
     ], { type: 'text/csv' })
   },
 
-  async submitBookingRequest(input: BookingRequestInput): Promise<string> {
+  async submitBookingRequest(input: BookingRequestInput): Promise<BookingSubmission> {
     await pause()
-    if (input.website.trim()) return 'Your organizer request has been received.'
+    if (input.website.trim()) return { message: 'Your organizer request has been received.', id: null, trackingToken: null }
     if (new Date(input.proposedDate).getTime() <= Date.now()) {
       throw new Error('The proposed date must be in the future.')
     }
     const database = getDatabase()
     const now = new Date().toISOString()
+    const id = makeId('booking-request')
     database.bookingRequests.push({
-      id: makeId('booking-request'),
+      id,
       organizationName: input.organizationName.trim(),
       contactName: input.contactName.trim(),
       email: input.email.trim().toLowerCase(),
       phone: input.phone.trim(),
       eventType: input.eventType.trim(),
+      eventCategory: input.eventCategory,
+      budgetMinimumMinor: input.budgetMinimumMinor,
+      budgetMaximumMinor: input.budgetMaximumMinor,
       proposedDate: new Date(input.proposedDate).toISOString(),
+      expectedEndDate: input.expectedEndDate,
       alternativeDates: input.alternativeDates?.trim() || undefined,
       flexibilityNote: input.flexibilityNote?.trim() || undefined,
       estimatedAttendance: input.estimatedAttendance,
+      requiresTicketing: input.requiresTicketing,
+      requiresVoting: input.requiresVoting,
+      requiresRegistration: input.requiresRegistration,
+      referenceLinks: input.referenceLinks,
       preferredOrganizer: input.preferredOrganizer?.trim() || undefined,
       requestedOrganizerId: input.requestedOrganizerId || null,
       requestedOrganizerName: database.users.find(user => user.id === input.requestedOrganizerId)?.name ?? null,
@@ -1587,9 +1634,22 @@ export const mockApi: EventManagementApi = {
       draftEventId: null,
       submittedAt: now,
       updatedAt: now,
+      quote: null,
+      statusHistory: [{ id: makeId('booking-history'), status: 'submitted', note: 'Request submitted.', createdAt: now }],
     })
     saveDatabase(database)
-    return 'Your organizer request has been received.'
+    return { message: 'Your organizer request has been received.', id, trackingToken: `mock-${id}` }
+  },
+
+  async trackBookingRequest(id: string, token: string): Promise<TrackedBookingRequest> {
+    await pause()
+    const request = getDatabase().bookingRequests.find(item => item.id === id)
+    if (!request || token !== `mock-${id}`) throw new Error('Booking request not found.')
+    return { id, organizationName: request.organizationName, eventType: request.eventType,
+      eventCategory: request.eventCategory || null, proposedDate: request.proposedDate,
+      expectedEndDate: request.expectedEndDate || null, estimatedAttendance: request.estimatedAttendance,
+      status: request.status, quote: request.quote, statusHistory: request.statusHistory,
+      draftEventId: request.draftEventId }
   },
 
   async getOrganizers(search = '', category = '', page = 1, pageSize = 12): Promise<Page<OrganizerSummary>> {
@@ -1598,7 +1658,7 @@ export const mockApi: EventManagementApi = {
     const database = getDatabase()
     const items = database.users.filter(user => user.role !== 'admin' && user.active && user.directory?.isVisible && database.events.some(event => event.organizerId === user.id))
       .filter(user => (!query || user.name.toLowerCase().includes(query)) && (!category || user.directory?.specialties.includes(category as never)))
-      .map(user => ({ id: user.id, name: user.name, imageUrl: user.imageUrl ?? null, bannerUrl: user.directory?.bannerUrl ?? null, bio: user.directory?.bio ?? null, specialties: user.directory?.specialties ?? [] }))
+      .map(user => ({ id: user.id, name: user.name, imageUrl: user.imageUrl ?? null, bannerUrl: user.directory?.bannerUrl ?? null, bio: user.directory?.bio ?? null, specialties: user.directory?.specialties ?? [], verificationStatus: user.verificationStatus }))
     return paginate(items, page, pageSize)
   },
 
@@ -1735,5 +1795,18 @@ export const mockApi: EventManagementApi = {
     }
     saveDatabase(database)
     return request
+  },
+
+  async submitBookingRequestQuote(id, proposedFeeMinor, proposedTimeline, message) {
+    await pause()
+    const database = getDatabase(); const organizer = getCurrentUser(database)
+    const request = database.bookingRequests.find(item => item.id === id)
+    if (!request || request.assignedOrganizerId !== organizer.id) throw new Error('Only the assigned Organizer can quote.')
+    ensureBookingTransition(request.status, 'quoted')
+    const now = new Date().toISOString()
+    request.quote = { id: makeId('booking-quote'), proposedFeeMinor, currency: 'GHS', proposedTimeline, message, submittedAt: now }
+    request.status = 'quoted'; request.updatedAt = now
+    request.statusHistory.push({ id: makeId('booking-history'), status: 'quoted', note: 'Organizer submitted a quote.', createdAt: now })
+    saveDatabase(database); return request
   },
 }

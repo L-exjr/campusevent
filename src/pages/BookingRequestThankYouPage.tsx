@@ -5,7 +5,8 @@ import LinkButton from '../components/shared/LinkButton'
 
 export default function BookingRequestThankYouPage() {
   const location = useLocation()
-  const message = (location.state as { message?: string } | null)?.message
+  const state = location.state as { message?: string; id?: string; trackingToken?: string } | null
+  const message = state?.message
   return (
     <Card className="detail-card border-0 mx-auto" style={{ maxWidth: 760 }}>
       <Card.Body className="p-4 p-lg-5 text-center">
@@ -18,6 +19,7 @@ export default function BookingRequestThankYouPage() {
           We aim to reply within 24 hours on working days. Keep an eye on the email address you supplied.
         </Alert>
         <div className="d-flex flex-wrap justify-content-center gap-2">
+          {state?.id && state.trackingToken && <LinkButton to={`/request-organizer/track/${state.id}?token=${encodeURIComponent(state.trackingToken)}`}>Track this request</LinkButton>}
           <LinkButton to="/events">Explore events</LinkButton>
           <LinkButton to="/about" variant="outline-primary">How Campus Events works</LinkButton>
         </div>

@@ -64,7 +64,8 @@ public sealed class VotingService(
             .FromSqlInterpolated($"SELECT * FROM \"Events\" WHERE \"Id\" = {eventId} FOR UPDATE")
             .SingleOrDefaultAsync(cancellationToken)
             ?? throw new ApiException(StatusCodes.Status404NotFound, "Event not found.");
-        authorizationService.EnsureCanManage(eventEntity.OrganizerId, actorId, actorRole);
+        await authorizationService.EnsureCanAsync(eventId, eventEntity.OrganizerId, actorId, actorRole,
+            EventCapability.ManageOperations, cancellationToken);
 
         var existing = await dbContext.VotingCampaigns
             .Include(item => item.Categories)

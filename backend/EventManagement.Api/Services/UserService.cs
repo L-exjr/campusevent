@@ -13,6 +13,7 @@ public interface IUserService
     Task<PaginatedResponse<UserResponse>> GetAsync(
         string? search,
         UserRole? role,
+        VerificationStatus? verificationStatus,
         bool? isActive,
         int page,
         int pageSize,
@@ -44,6 +45,7 @@ public sealed class UserService(
     public async Task<PaginatedResponse<UserResponse>> GetAsync(
         string? search,
         UserRole? role,
+        VerificationStatus? verificationStatus,
         bool? isActive,
         int page,
         int pageSize,
@@ -58,6 +60,8 @@ public sealed class UserService(
                 user.Name.ToLower().Contains(term) || user.Email.ToLower().Contains(term));
         }
         if (role.HasValue) query = query.Where(user => user.Role == role.Value);
+        if (verificationStatus.HasValue)
+            query = query.Where(user => user.VerificationStatus == verificationStatus.Value);
         if (isActive.HasValue) query = query.Where(user => user.IsActive == isActive.Value);
 
         var totalCount = await query.CountAsync(cancellationToken);

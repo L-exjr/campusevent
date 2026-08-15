@@ -15,7 +15,7 @@ public sealed class OrganizerApplicationsController(
     IOrganizerApplicationService applicationService) : ControllerBase
 {
     [HttpPost]
-    [Authorize(Roles = "Student")]
+    [Authorize(Roles = "Student,Organizer")]
     public async Task<ActionResult<OrganizerApplicationResponse>> Submit(
         CreateOrganizerApplicationRequest request,
         CancellationToken cancellationToken)
@@ -28,7 +28,7 @@ public sealed class OrganizerApplicationsController(
     }
 
     [HttpGet("mine")]
-    [Authorize(Roles = "Student")]
+    [Authorize(Roles = "Student,Organizer")]
     public async Task<ActionResult<OrganizerApplicationResponse?>> GetMine(
         CancellationToken cancellationToken) =>
         Ok(await applicationService.GetLatestForUserAsync(

@@ -4,6 +4,8 @@ using EventManagement.Api.DTOs.Common;
 using EventManagement.Api.Infrastructure;
 using EventManagement.Api.Models;
 using Microsoft.EntityFrameworkCore;
+using System.Security.Cryptography;
+using System.Text;
 
 namespace EventManagement.Api.Services;
 
@@ -18,6 +20,8 @@ public interface IBookingRequestService
     Task<BookingRequestResponse> AssignAsync(
         Guid id, Guid organizerId, Guid adminId, CancellationToken cancellationToken);
     Task<BookingRequestResponse> RespondAsync(Guid id, Guid organizerId, RespondToBookingRequest request, CancellationToken cancellationToken);
+    Task<BookingRequestResponse> SubmitQuoteAsync(Guid id, Guid organizerId, SubmitBookingRequestQuote request, CancellationToken cancellationToken);
+    Task<TrackedBookingRequestResponse> TrackAsync(Guid id, string token, CancellationToken cancellationToken);
     Task<BookingRequestResponse> UpdateStatusAsync(
         Guid id, BookingRequestStatus status, Guid adminId, CancellationToken cancellationToken);
 }
@@ -36,9 +40,13 @@ public sealed class BookingRequestService(
         // Bots commonly fill every input. Return the normal response so the trap
         // is not detectable, but never persist a honeypot submission.
         if (!string.IsNullOrWhiteSpace(request.Website))
-            return new BookingSubmissionResponse(SubmissionMessage, null);
+            return new BookingSubmissionResponse(SubmissionMessage, null, null);
         if (request.ProposedDate <= timeProvider.GetUtcNow())
             throw new ApiException(StatusCodes.Status400BadRequest, "The proposed date must be in the future.");
+        if (request.ExpectedEndDate.HasValue && request.ExpectedEndDate < request.ProposedDate)
+            throw new ApiException(StatusCodes.Status400BadRequest, "The expected end date cannot be before the start date.");
+        if (request.BudgetMinimumMinor.HasValue && request.BudgetMaximumMinor.HasValue && request.BudgetMinimumMinor > request.BudgetMaximumMinor)
+            throw new ApiException(StatusCodes.Status400BadRequest, "The minimum budget cannot exceed the maximum budget.");
         User? requestedOrganizer = null;
         if (request.RequestedOrganizerId.HasValue)
         {
@@ -50,6 +58,8 @@ public sealed class BookingRequestService(
                 throw new ApiException(StatusCodes.Status400BadRequest, "The selected Organizer is no longer available in the public directory.");
         }
 
+        var trackingToken = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32))
+            .TrimEnd('=').Replace('+', '-').Replace('/', '_');
         var entity = new BookingRequest
         {
             OrganizationName = request.OrganizationName.Trim(),
@@ -57,17 +67,33 @@ public sealed class BookingRequestService(
             Email = request.Email.Trim().ToLowerInvariant(),
             Phone = request.Phone.Trim(),
             EventType = request.EventType.Trim(),
+            EventCategory = NormalizeOptional(request.EventCategory),
+            BudgetMinimumMinor = request.BudgetMinimumMinor,
+            BudgetMaximumMinor = request.BudgetMaximumMinor,
             ProposedDate = request.ProposedDate,
+            ExpectedEndDate = request.ExpectedEndDate,
             AlternativeDates = NormalizeOptional(request.AlternativeDates),
             FlexibilityNote = NormalizeOptional(request.FlexibilityNote),
             EstimatedAttendance = request.EstimatedAttendance,
+            RequiresTicketing = request.RequiresTicketing,
+            RequiresVoting = request.RequiresVoting,
+            RequiresRegistration = request.RequiresRegistration,
+            ReferenceLinks = NormalizeOptional(request.ReferenceLinks),
             PreferredOrganizer = NormalizeOptional(request.PreferredOrganizer),
             RequestedOrganizerId = requestedOrganizer?.Id,
-            Description = request.Description.Trim()
+            Description = request.Description.Trim(),
+            TrackingTokenHash = HashToken(trackingToken)
         };
+        entity.StatusHistory.Add(new BookingRequestStatusHistory
+        {
+            BookingRequestId = entity.Id,
+            Status = BookingRequestStatus.Submitted,
+            Note = "Request submitted.",
+            CreatedAt = entity.SubmittedAt
+        });
         dbContext.BookingRequests.Add(entity);
         await dbContext.SaveChangesAsync(cancellationToken);
-        return new BookingSubmissionResponse(SubmissionMessage, entity.Id);
+        return new BookingSubmissionResponse(SubmissionMessage, entity.Id, trackingToken);
     }
 
     public Task<PaginatedResponse<BookingRequestResponse>> GetAllAsync(
@@ -106,8 +132,14 @@ public sealed class BookingRequestService(
             .ThenByDescending(request => request.Id)
             .Skip((page - 1) * pageSize)
             .Take(pageSize);
-        var items = await Project(pageQuery)
+        var entities = await pageQuery
+            .Include(request => request.AssignedOrganizer)
+            .Include(request => request.RequestedOrganizer)
+            .Include(request => request.Quote)
+            .Include(request => request.StatusHistory)
+            .AsSplitQuery()
             .ToListAsync(cancellationToken);
+        var items = entities.Select(ToResponse).ToList();
         return new PaginatedResponse<BookingRequestResponse>(
             items, page, pageSize, totalCount, Pagination.TotalPages(totalCount, pageSize));
     }
@@ -136,6 +168,7 @@ public sealed class BookingRequestService(
         request.AssignedOrganizer = organizer;
         request.Status = BookingRequestStatus.SentToOrganizer;
         request.UpdatedAt = timeProvider.GetUtcNow();
+        AppendHistory(request, BookingRequestStatus.SentToOrganizer, $"Assigned to {organizer.Name}.", request.UpdatedAt);
         auditService.Append(
             adminId,
             previousOrganizerId.HasValue
@@ -161,6 +194,8 @@ public sealed class BookingRequestService(
                 $"SELECT * FROM \"BookingRequests\" WHERE \"Id\" = {id} FOR UPDATE")
             .Include(item => item.AssignedOrganizer)
             .Include(item => item.RequestedOrganizer)
+            .Include(item => item.Quote)
+            .Include(item => item.StatusHistory)
             .SingleOrDefaultAsync(cancellationToken)
             ?? throw new ApiException(StatusCodes.Status404NotFound, "Booking request not found.");
         if (request.AssignedOrganizerId != organizerId)
@@ -169,6 +204,8 @@ public sealed class BookingRequestService(
             ? BookingRequestStatus.Accepted
             : BookingRequestStatus.Declined;
         StateTransitionRules.EnsureBookingTransition(request.Status, responseStatus);
+        if (response.Accept && request.Quote is null)
+            throw new ApiException(StatusCodes.Status409Conflict, "Submit a quote before accepting this request.");
 
         request.OrganizerResponseNote = NormalizeOptional(response.Note);
         request.UpdatedAt = timeProvider.GetUtcNow();
@@ -206,9 +243,57 @@ public sealed class BookingRequestService(
             dbContext.Events.Add(draft);
             request.DraftEvent = draft;
         }
+        AppendHistory(request, responseStatus,
+            response.Accept ? "Quote accepted and private event draft created." : "Organizer declined the request.",
+            request.UpdatedAt);
         await dbContext.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return ToResponse(request);
+    }
+
+    public async Task<BookingRequestResponse> SubmitQuoteAsync(
+        Guid id, Guid organizerId, SubmitBookingRequestQuote quote, CancellationToken cancellationToken)
+    {
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
+        var request = await FindForUpdateAsync(id, cancellationToken);
+        if (request.AssignedOrganizerId != organizerId)
+            throw new ApiException(StatusCodes.Status403Forbidden, "Only the assigned Organizer can quote.");
+        StateTransitionRules.EnsureBookingTransition(request.Status, BookingRequestStatus.Quoted);
+        var now = timeProvider.GetUtcNow();
+        request.Quote = new BookingRequestQuote
+        {
+            BookingRequestId = request.Id,
+            OrganizerId = organizerId,
+            ProposedFeeMinor = quote.ProposedFeeMinor,
+            ProposedTimeline = quote.ProposedTimeline.Trim(),
+            Message = quote.Message.Trim(),
+            SubmittedAt = now
+        };
+        dbContext.BookingRequestQuotes.Add(request.Quote);
+        request.Status = BookingRequestStatus.Quoted;
+        request.UpdatedAt = now;
+        AppendHistory(request, BookingRequestStatus.Quoted, "Organizer submitted a quote.", now);
+        await dbContext.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return ToResponse(request);
+    }
+
+    public async Task<TrackedBookingRequestResponse> TrackAsync(
+        Guid id, string token, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(token))
+            throw new ApiException(StatusCodes.Status404NotFound, "Booking request not found.");
+        var hash = HashToken(token);
+        var request = await dbContext.BookingRequests.AsNoTracking()
+            .Include(item => item.Quote)
+            .Include(item => item.StatusHistory)
+            .AsSplitQuery()
+            .SingleOrDefaultAsync(item => item.Id == id && item.TrackingTokenHash == hash, cancellationToken)
+            ?? throw new ApiException(StatusCodes.Status404NotFound, "Booking request not found.");
+        return new TrackedBookingRequestResponse(
+            request.Id, request.OrganizationName, request.EventType, request.EventCategory,
+            request.ProposedDate, request.ExpectedEndDate, request.EstimatedAttendance, request.Status,
+            ToQuoteResponse(request.Quote), ToHistoryResponse(request.StatusHistory), request.DraftEventId);
     }
 
     public async Task<BookingRequestResponse> UpdateStatusAsync(
@@ -225,6 +310,7 @@ public sealed class BookingRequestService(
         StateTransitionRules.EnsureBookingTransition(previousStatus, status);
         request.Status = status;
         request.UpdatedAt = timeProvider.GetUtcNow();
+        AppendHistory(request, status, $"Status changed to {status}.", request.UpdatedAt);
         auditService.Append(
             adminId,
             "BookingRequestStatusChanged",
@@ -248,28 +334,42 @@ public sealed class BookingRequestService(
                 $"SELECT * FROM \"BookingRequests\" WHERE \"Id\" = {id} FOR UPDATE")
             .Include(request => request.AssignedOrganizer)
             .Include(request => request.RequestedOrganizer)
+            .Include(request => request.Quote)
+            .Include(request => request.StatusHistory)
             .SingleOrDefaultAsync(cancellationToken)
         ?? throw new ApiException(StatusCodes.Status404NotFound, "Booking request not found.");
 
     private static string? NormalizeOptional(string? value) =>
         string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 
-    private static IQueryable<BookingRequestResponse> Project(IQueryable<BookingRequest> query) =>
-        query.Select(request => new BookingRequestResponse(
-            request.Id, request.OrganizationName, request.ContactName, request.Email, request.Phone,
-            request.EventType, request.ProposedDate, request.AlternativeDates, request.FlexibilityNote,
-            request.EstimatedAttendance, request.PreferredOrganizer, request.RequestedOrganizerId,
-            request.RequestedOrganizer == null ? null : request.RequestedOrganizer.Name, request.Description, request.Status,
-            request.AssignedOrganizerId, request.AssignedOrganizer == null ? null : request.AssignedOrganizer.Name,
-            request.OrganizerResponseNote, request.DraftEventId, request.SubmittedAt, request.UpdatedAt,
-            request.PersonalDataAnonymizedAt));
-
     private static BookingRequestResponse ToResponse(BookingRequest request) => new(
         request.Id, request.OrganizationName, request.ContactName, request.Email, request.Phone,
-        request.EventType, request.ProposedDate, request.AlternativeDates, request.FlexibilityNote,
-        request.EstimatedAttendance, request.PreferredOrganizer, request.RequestedOrganizerId,
+        request.EventType, request.EventCategory, request.BudgetMinimumMinor, request.BudgetMaximumMinor,
+        request.ProposedDate, request.ExpectedEndDate, request.AlternativeDates, request.FlexibilityNote,
+        request.EstimatedAttendance, request.RequiresTicketing, request.RequiresVoting,
+        request.RequiresRegistration, request.ReferenceLinks, request.PreferredOrganizer, request.RequestedOrganizerId,
         request.RequestedOrganizer?.Name, request.Description, request.Status,
         request.AssignedOrganizerId, request.AssignedOrganizer?.Name, request.OrganizerResponseNote,
         request.DraftEventId, request.SubmittedAt, request.UpdatedAt,
-        request.PersonalDataAnonymizedAt);
+        request.PersonalDataAnonymizedAt, ToQuoteResponse(request.Quote), ToHistoryResponse(request.StatusHistory));
+
+    private static BookingRequestQuoteResponse? ToQuoteResponse(BookingRequestQuote? quote) => quote is null ? null :
+        new(quote.Id, quote.ProposedFeeMinor, quote.Currency, quote.ProposedTimeline, quote.Message, quote.SubmittedAt);
+
+    private static IReadOnlyList<BookingRequestStatusHistoryResponse> ToHistoryResponse(
+        IEnumerable<BookingRequestStatusHistory> history) => history.OrderBy(item => item.CreatedAt)
+        .Select(item => new BookingRequestStatusHistoryResponse(item.Id, item.Status, item.Note, item.CreatedAt)).ToList();
+
+    private void AppendHistory(BookingRequest request, BookingRequestStatus status, string note, DateTimeOffset at)
+    {
+        var history = new BookingRequestStatusHistory
+        {
+            BookingRequestId = request.Id, Status = status, Note = note, CreatedAt = at
+        };
+        request.StatusHistory.Add(history);
+        dbContext.BookingRequestStatusHistory.Add(history);
+    }
+
+    private static string HashToken(string token) =>
+        Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(token))).ToLowerInvariant();
 }

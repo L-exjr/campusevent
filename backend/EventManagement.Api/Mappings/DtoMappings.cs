@@ -12,6 +12,7 @@ public static class DtoMappings
         user.Name,
         user.Email,
         user.Role,
+        user.VerificationStatus,
         user.IsActive,
         user.CreatedAt,
         user.ImageUrl);
@@ -21,6 +22,7 @@ public static class DtoMappings
         application.UserId,
         application.User.Name,
         application.User.Email,
+        application.User.VerificationStatus,
         application.Reason,
         application.Status,
         application.RejectionReason,

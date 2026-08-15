@@ -5,7 +5,7 @@ import Card from 'react-bootstrap/Card'
 import Col from 'react-bootstrap/Col'
 import Form from 'react-bootstrap/Form'
 import Row from 'react-bootstrap/Row'
-import { Navigate, useParams } from 'react-router-dom'
+import { useParams } from 'react-router-dom'
 import { api } from '../../api'
 import RegistrantTable from '../../components/organizer/RegistrantTable'
 import EmptyState from '../../components/shared/EmptyState'
@@ -17,7 +17,6 @@ import PaginationControls from '../../components/shared/PaginationControls'
 import { useApiResource } from '../../hooks/useApiResource'
 import { useDebouncedValue } from '../../hooks/useDebouncedValue'
 import { useAuth } from '../../hooks/useAuth'
-import { canManageEvent } from '../../utils/permissions'
 
 export default function RegistrantsPage() {
   const { id = '' } = useParams()
@@ -29,9 +28,6 @@ export default function RegistrantsPage() {
   const loadData = useCallback(
     async (signal: AbortSignal) => {
       const event = await api.getManagementEvent(id)
-      if (!user || !canManageEvent(user, event)) {
-        return { event, registrants: null }
-      }
       const attended = attendance ? attendance === 'attended' : undefined
       return { event, registrants: await api.getEventRegistrants(id, page, 50, debouncedSearch, attended, signal) }
     },
@@ -66,9 +62,7 @@ export default function RegistrantsPage() {
 
   if (loading) return <LoadingState label="Loading registrants" />
   if (error || !data) return <ErrorState message={error ?? 'No data returned.'} onRetry={() => void reload()} />
-  if (!user || !canManageEvent(user, data.event) || !data.registrants) {
-    return <Navigate to="/unauthorized" replace />
-  }
+  if (!user || !data.registrants) return null
 
   const attendedCount = registrants.filter((registrant) => registrant.attended).length
   const backPath = user.role === 'admin' ? '/admin/events' : '/organizer/events'

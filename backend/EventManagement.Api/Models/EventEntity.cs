@@ -40,4 +40,5 @@ public sealed class EventEntity
     public ICollection<Coupon> Coupons { get; set; } = [];
     public VotingCampaign? VotingCampaign { get; set; }
     public BookingRequest? SourceBookingRequest { get; set; }
+    public ICollection<EventTeamMember> TeamMembers { get; set; } = [];
 }

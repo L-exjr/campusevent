@@ -31,3 +31,6 @@ dotnet test backend/EventManagement.Api.IntegrationTests
 ```
 
 Integration tests start an isolated PostgreSQL database and apply every migration, including the default-tier historical backfill.
+In restricted or offline environments, the .NET test host must be allowed to open its loopback coordination socket and start PostgreSQL child processes. Restore and build first, then use `--no-build --no-restore` with TRX logging; allow roughly five minutes for the serialized suite. See the canonical [restricted/offline runner guidance](../backend/README.md#restricted-or-offline-test-environments) instead of duplicating the full command here.
+
+The current verified totals are 86/86 frontend tests, 62/62 backend unit tests, and 107/107 backend integration tests: 255/255 overall.

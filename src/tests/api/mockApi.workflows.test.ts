@@ -16,6 +16,10 @@ describe('mockApi operational workflows', () => {
     await mockApi.login('organizer@cevents.com', 'demo123')
     const organizerQueue = await mockApi.getAssignedBookingRequests()
     expect(organizerQueue.items.some((request) => request.id === submitted!.id)).toBe(true)
+    const quoted = await mockApi.submitBookingRequestQuote(
+      submitted!.id, 250000, 'Four weeks', 'Includes planning and delivery.',
+    )
+    expect(quoted.status).toBe('quoted')
     const accepted = await mockApi.respondToBookingRequest(
       submitted!.id,
       true,

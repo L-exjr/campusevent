@@ -74,7 +74,8 @@ public sealed class TicketService(
             item => item.Id == eventId,
             cancellationToken)
             ?? throw new ApiException(StatusCodes.Status404NotFound, "Event not found.");
-        authorizationService.EnsureCanManage(eventEntity.OrganizerId, actorId, actorRole);
+        await authorizationService.EnsureCanAsync(eventId, eventEntity.OrganizerId, actorId, actorRole,
+            EventCapability.CheckIn, cancellationToken);
 
         var registration = await dbContext.EventRegistrations
             .FromSqlInterpolated(
@@ -107,7 +108,8 @@ public sealed class TicketService(
         var eventEntity = await dbContext.Events.AsNoTracking().SingleOrDefaultAsync(
             item => item.Id == eventId, cancellationToken)
             ?? throw new ApiException(StatusCodes.Status404NotFound, "Event not found.");
-        authorizationService.EnsureCanManage(eventEntity.OrganizerId, actorId, actorRole);
+        await authorizationService.EnsureCanAsync(eventId, eventEntity.OrganizerId, actorId, actorRole,
+            EventCapability.CheckIn, cancellationToken);
         var registration = await dbContext.EventRegistrations
             .FromSqlInterpolated(
                 $"SELECT * FROM \"EventRegistrations\" WHERE \"TicketCode\" = {normalized} FOR UPDATE")

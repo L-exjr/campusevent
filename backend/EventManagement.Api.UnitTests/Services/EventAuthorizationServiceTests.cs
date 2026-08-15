@@ -7,34 +7,36 @@ namespace EventManagement.Api.UnitTests.Services;
 
 public sealed class EventAuthorizationServiceTests
 {
-    private readonly EventAuthorizationService _service = new();
-
-    [Theory]
-    [InlineData(UserRole.Organizer, true, true)]
-    [InlineData(UserRole.Organizer, false, false)]
-    [InlineData(UserRole.Admin, true, true)]
-    [InlineData(UserRole.Admin, false, true)]
-    [InlineData(UserRole.Student, true, true)]
-    [InlineData(UserRole.Student, false, false)]
-    public void EnsureCanManage_enforces_role_and_ownership_matrix(
-        UserRole role,
-        bool ownsEvent,
-        bool allowed)
+    public static TheoryData<EventTeamRole?, EventCapability, bool> TeamMatrix => new()
     {
-        var ownerId = Guid.NewGuid();
-        var actorId = ownsEvent ? ownerId : Guid.NewGuid();
+        { EventTeamRole.Admin, EventCapability.Edit, true },
+        { EventTeamRole.Admin, EventCapability.ViewRevenue, true },
+        { EventTeamRole.Admin, EventCapability.ManageTeam, true },
+        { EventTeamRole.Admin, EventCapability.Delete, true },
+        { EventTeamRole.Member, EventCapability.Edit, true },
+        { EventTeamRole.Member, EventCapability.ManageOperations, true },
+        { EventTeamRole.Member, EventCapability.ViewAttendees, true },
+        { EventTeamRole.Member, EventCapability.CheckIn, true },
+        { EventTeamRole.Member, EventCapability.ViewRevenue, false },
+        { EventTeamRole.Member, EventCapability.ManageTeam, false },
+        { EventTeamRole.Member, EventCapability.Delete, false },
+        { EventTeamRole.CheckInStaff, EventCapability.ViewAttendees, true },
+        { EventTeamRole.CheckInStaff, EventCapability.CheckIn, true },
+        { EventTeamRole.CheckInStaff, EventCapability.Edit, false },
+        { EventTeamRole.CheckInStaff, EventCapability.ManageOperations, false },
+        { EventTeamRole.CheckInStaff, EventCapability.ViewRevenue, false },
+        { EventTeamRole.CheckInStaff, EventCapability.ManageTeam, false },
+        { EventTeamRole.CheckInStaff, EventCapability.Delete, false },
+        { null, EventCapability.ViewAttendees, false }
+    };
 
+    [Theory, MemberData(nameof(TeamMatrix))]
+    public void Team_roles_enforce_exact_capability_boundaries(
+        EventTeamRole? role, EventCapability capability, bool allowed)
+    {
         var exception = Record.Exception(() =>
-            _service.EnsureCanManage(ownerId, actorId, role));
-
-        if (allowed)
-        {
-            Assert.Null(exception);
-        }
-        else
-        {
-            var apiException = Assert.IsType<ApiException>(exception);
-            Assert.Equal(StatusCodes.Status403Forbidden, apiException.StatusCode);
-        }
+            EventAuthorizationService.EnsureTeamCapability(role, capability));
+        if (allowed) Assert.Null(exception);
+        else Assert.Equal(StatusCodes.Status403Forbidden, Assert.IsType<ApiException>(exception).StatusCode);
     }
 }

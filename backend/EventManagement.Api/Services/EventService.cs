@@ -146,7 +146,8 @@ public sealed class EventService(
         CancellationToken cancellationToken)
     {
         var query = dbContext.Events.AsNoTracking()
-            .Where(eventEntity => eventEntity.OrganizerId == userId);
+            .Where(eventEntity => eventEntity.OrganizerId == userId ||
+                eventEntity.TeamMembers.Any(member => member.UserId == userId));
         if (upcoming)
         {
             var now = timeProvider.GetUtcNow();
@@ -186,7 +187,8 @@ public sealed class EventService(
                 dbContext.Events.AsNoTracking().Where(item => item.Id == eventId))
             .SingleOrDefaultAsync(cancellationToken)
             ?? throw new ApiException(StatusCodes.Status404NotFound, "Event not found.");
-        authorizationService.EnsureCanManage(response.OrganizerId, actorId, actorRole);
+        await authorizationService.EnsureCanAsync(eventId, response.OrganizerId, actorId, actorRole,
+            EventCapability.ViewAttendees, cancellationToken);
         return response;
     }
 
@@ -286,7 +288,8 @@ public sealed class EventService(
             .Include(item => item.Organizer)
             .SingleOrDefaultAsync(item => item.Id == eventId, cancellationToken)
             ?? throw new ApiException(StatusCodes.Status404NotFound, "Event not found.");
-        authorizationService.EnsureCanManage(eventEntity.OrganizerId, actorId, actorRole);
+        await authorizationService.EnsureCanAsync(eventId, eventEntity.OrganizerId, actorId, actorRole,
+            EventCapability.Edit, cancellationToken);
         if (!request.Version.HasValue)
             throw new ApiException(StatusCodes.Status400BadRequest, "Refresh the event before saving changes.");
         if (request.Version.Value != eventEntity.Version)
@@ -396,6 +399,13 @@ public sealed class EventService(
             {
                 bookingRequest.Status = BookingRequestStatus.Converted;
                 bookingRequest.UpdatedAt = timeProvider.GetUtcNow();
+                dbContext.BookingRequestStatusHistory.Add(new BookingRequestStatusHistory
+                {
+                    BookingRequestId = bookingRequest.Id,
+                    Status = BookingRequestStatus.Converted,
+                    Note = "Private draft published and converted to an event.",
+                    CreatedAt = bookingRequest.UpdatedAt
+                });
             }
         }
         try
@@ -489,7 +499,8 @@ public sealed class EventService(
             item => item.Id == eventId,
             cancellationToken)
             ?? throw new ApiException(StatusCodes.Status404NotFound, "Event not found.");
-        authorizationService.EnsureCanManage(eventEntity.OrganizerId, actorId, actorRole);
+        await authorizationService.EnsureCanAsync(eventId, eventEntity.OrganizerId, actorId, actorRole,
+            EventCapability.Delete, cancellationToken);
         await imageLifecycleService.MarkForDeletionAsync(
             eventEntity.ImageObjectKey,
             cancellationToken);
@@ -609,7 +620,8 @@ public sealed class EventService(
             item => item.Id == eventId,
             cancellationToken)
             ?? throw new ApiException(StatusCodes.Status404NotFound, "Event not found.");
-        authorizationService.EnsureCanManage(eventEntity.OrganizerId, actorId, actorRole);
+        await authorizationService.EnsureCanAsync(eventId, eventEntity.OrganizerId, actorId, actorRole,
+            EventCapability.ViewAttendees, cancellationToken);
         (page, pageSize) = Pagination.Normalize(page, pageSize);
         var query = dbContext.EventRegistrations.AsNoTracking()
             .Where(registration => registration.EventId == eventId);
@@ -651,7 +663,8 @@ public sealed class EventService(
             item => item.Id == eventId,
             cancellationToken)
             ?? throw new ApiException(StatusCodes.Status404NotFound, "Event not found.");
-        authorizationService.EnsureCanManage(eventEntity.OrganizerId, actorId, actorRole);
+        await authorizationService.EnsureCanAsync(eventId, eventEntity.OrganizerId, actorId, actorRole,
+            EventCapability.CheckIn, cancellationToken);
         var ids = request.Registrations.Select(item => item.RegistrationId).ToList();
         if (ids.Count != ids.Distinct().Count())
             throw new ApiException(StatusCodes.Status400BadRequest, "Each registration may appear only once.");
@@ -677,7 +690,8 @@ public sealed class EventService(
             .Select(item => (Guid?)item.OrganizerId)
             .SingleOrDefaultAsync(cancellationToken)
             ?? throw new ApiException(StatusCodes.Status404NotFound, "Event not found.");
-        authorizationService.EnsureCanManage(eventOwnerId, actorId, actorRole);
+        await authorizationService.EnsureCanAsync(eventId, eventOwnerId, actorId, actorRole,
+            EventCapability.ViewAttendees, cancellationToken);
         var rows = await dbContext.EventRegistrations.AsNoTracking()
             .Where(item => item.EventId == eventId)
             .OrderBy(item => item.RegisteredAt)

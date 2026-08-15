@@ -51,14 +51,16 @@ public sealed class OrganizerApplicationService(
         if (reason.Length < 20)
             throw new ApiException(
                 StatusCodes.Status400BadRequest,
-                "Tell us why you want to become an Organizer using at least 20 characters.");
+                "Tell us why your organizer identity should be verified using at least 20 characters.");
 
         var user = await dbContext.Users.SingleOrDefaultAsync(
             item => item.Id == userId,
             cancellationToken)
             ?? throw new ApiException(StatusCodes.Status404NotFound, "User account not found.");
-        if (user.Role != UserRole.Student)
-            throw new ApiException(StatusCodes.Status403Forbidden, "Only Students can apply to become Organizers.");
+        if (user.Role == UserRole.Admin)
+            throw new ApiException(StatusCodes.Status403Forbidden, "Admin accounts cannot request organizer verification.");
+        if (user.VerificationStatus == VerificationStatus.Verified)
+            throw new ApiException(StatusCodes.Status409Conflict, "Your organizer profile is already verified.");
         if (await dbContext.OrganizerApplications.AnyAsync(
             application => application.UserId == userId && application.Status == ApplicationStatus.Pending,
             cancellationToken))
@@ -74,6 +76,7 @@ public sealed class OrganizerApplicationService(
             Status = ApplicationStatus.Pending
         };
         dbContext.OrganizerApplications.Add(application);
+        user.VerificationStatus = VerificationStatus.Pending;
         try
         {
             await dbContext.SaveChangesAsync(cancellationToken);
@@ -177,15 +180,17 @@ public sealed class OrganizerApplicationService(
         if (application.Status != ApplicationStatus.Pending)
             throw new ApiException(StatusCodes.Status409Conflict, "This application has already been reviewed.");
         if (!application.User.IsActive)
-            throw new ApiException(StatusCodes.Status409Conflict, "An inactive user cannot become an Organizer.");
-        if (application.User.Role != UserRole.Student)
-            throw new ApiException(StatusCodes.Status409Conflict, "The applicant is no longer a Student.");
+            throw new ApiException(StatusCodes.Status409Conflict, "An inactive user cannot be verified.");
+        if (application.User.Role == UserRole.Admin)
+            throw new ApiException(StatusCodes.Status409Conflict, "Admin accounts cannot receive organizer verification.");
 
         application.Status = status;
         application.ReviewedAt = timeProvider.GetUtcNow();
         application.ReviewedByAdminId = adminId;
         application.RejectionReason = status == ApplicationStatus.Rejected ? rejectionReason : null;
-        if (status == ApplicationStatus.Approved) application.User.Role = UserRole.Organizer;
+        application.User.VerificationStatus = status == ApplicationStatus.Approved
+            ? VerificationStatus.Verified
+            : VerificationStatus.Unverified;
         EmailOutbox.EnqueueDomainMessage(
             dbContext,
             $"organizer-application-decision:{application.Id}",
@@ -194,9 +199,9 @@ public sealed class OrganizerApplicationService(
         auditService.Append(
             adminId,
             status == ApplicationStatus.Approved
-                ? "OrganizerApplicationApproved"
-                : "OrganizerApplicationRejected",
-            "OrganizerApplication",
+                ? "OrganizerVerificationApproved"
+                : "OrganizerVerificationRejected",
+            "OrganizerVerificationRequest",
             application.Id,
             new { application.UserId, Status = status.ToString() });
         await dbContext.SaveChangesAsync(cancellationToken);

@@ -31,9 +31,11 @@ public sealed class BookingRequestsControllerTests(ApiIntegrationFixture fixture
         using var adminClient = CreateAuthenticatedClient(admin.Token);
         using var assignment = await adminClient.PutAsJsonAsync(
             $"/api/booking-requests/{bookingId}/assign", new { organizerId = organizer.UserId });
-        Assert.Equal(HttpStatusCode.OK, assignment.StatusCode);
+        Assert.True(assignment.IsSuccessStatusCode, await assignment.Content.ReadAsStringAsync());
 
         using var organizerClient = CreateAuthenticatedClient(organizer.Token);
+        using var quote = await SubmitQuoteAsync(organizerClient, bookingId);
+        quote.EnsureSuccessStatusCode();
         using var response = await organizerClient.PutAsJsonAsync(
             $"/api/booking-requests/{bookingId}/respond", new { accept = true, note = "Happy to help." });
         response.EnsureSuccessStatusCode();
@@ -72,6 +74,28 @@ public sealed class BookingRequestsControllerTests(ApiIntegrationFixture fixture
     }
 
     [Fact]
+    public async Task Tracking_token_is_scoped_to_one_request_and_returns_history()
+    {
+        await ResetAsync();
+        using var client = CookieClient();
+        SetClientAddress(client, "203.0.113.29");
+        using var submission = await SendWithCsrfAsync(client, HttpMethod.Post, "/api/booking-requests", Payload());
+        submission.EnsureSuccessStatusCode();
+        var body = await ReadJsonAsync(submission);
+        var id = body.GetProperty("id").GetGuid();
+        var token = body.GetProperty("trackingToken").GetString();
+
+        using var tracked = await client.GetAsync($"/api/booking-requests/{id}/track?token={Uri.EscapeDataString(token!)}");
+        tracked.EnsureSuccessStatusCode();
+        var trackedBody = await ReadJsonAsync(tracked);
+        Assert.Equal("Submitted", trackedBody.GetProperty("status").GetString());
+        Assert.Single(trackedBody.GetProperty("statusHistory").EnumerateArray());
+
+        using var rejected = await client.GetAsync($"/api/booking-requests/{id}/track?token=wrong-token");
+        Assert.Equal(HttpStatusCode.NotFound, rejected.StatusCode);
+    }
+
+    [Fact]
     public async Task Unassigned_organizer_cannot_respond()
     {
         await ResetAsync();
@@ -99,7 +123,7 @@ public sealed class BookingRequestsControllerTests(ApiIntegrationFixture fixture
         using var closed = await client.PutAsJsonAsync(
             $"/api/booking-requests/{bookingId}/status",
             new { status = "Closed" });
-        closed.EnsureSuccessStatusCode();
+        Assert.True(closed.IsSuccessStatusCode, await closed.Content.ReadAsStringAsync());
 
         using var invalid = await client.PutAsJsonAsync(
             $"/api/booking-requests/{bookingId}/status",
@@ -126,6 +150,8 @@ public sealed class BookingRequestsControllerTests(ApiIntegrationFixture fixture
 
         using var firstClient = CreateAuthenticatedClient(organizer.Token);
         using var secondClient = CreateAuthenticatedClient(organizer.Token);
+        using var quote = await SubmitQuoteAsync(firstClient, bookingId);
+        quote.EnsureSuccessStatusCode();
         var gate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var firstTask = SendAfterGateAsync(
             gate.Task,
@@ -169,6 +195,8 @@ public sealed class BookingRequestsControllerTests(ApiIntegrationFixture fixture
             new { organizerId = firstOrganizer.UserId });
         initialAssignment.EnsureSuccessStatusCode();
         using var organizerClient = CreateAuthenticatedClient(firstOrganizer.Token);
+        using var quote = await SubmitQuoteAsync(organizerClient, bookingId);
+        quote.EnsureSuccessStatusCode();
         var gate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var reassignTask = SendAfterGateAsync(gate.Task, () => adminClient.PutAsJsonAsync(
             $"/api/booking-requests/{bookingId}/assign",
@@ -222,6 +250,14 @@ public sealed class BookingRequestsControllerTests(ApiIntegrationFixture fixture
         description = "A detailed public booking request for an integration test event.",
         website
     };
+
+    private static Task<HttpResponseMessage> SubmitQuoteAsync(HttpClient client, Guid bookingId) =>
+        client.PostAsJsonAsync($"/api/booking-requests/{bookingId}/quote", new
+        {
+            proposedFeeMinor = 250000,
+            proposedTimeline = "Four weeks",
+            message = "Includes planning and delivery."
+        });
 
     private static void SetClientAddress(HttpClient client, string address)
     {

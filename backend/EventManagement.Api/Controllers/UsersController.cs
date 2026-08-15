@@ -19,6 +19,7 @@ public sealed class UsersController(IUserService userService) : ControllerBase
     public async Task<ActionResult<PaginatedResponse<UserResponse>>> Get(
         [FromQuery] string? search,
         [FromQuery] UserRole? role,
+        [FromQuery] VerificationStatus? verificationStatus,
         [FromQuery] bool? isActive,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 20,
@@ -26,6 +27,7 @@ public sealed class UsersController(IUserService userService) : ControllerBase
         Ok(await userService.GetAsync(
             search,
             role,
+            verificationStatus,
             isActive,
             page,
             pageSize,

@@ -4,7 +4,7 @@ import Alert from 'react-bootstrap/Alert'
 import Card from 'react-bootstrap/Card'
 import Form from 'react-bootstrap/Form'
 import Button from 'react-bootstrap/Button'
-import { Navigate, useParams } from 'react-router-dom'
+import { useParams } from 'react-router-dom'
 import { api } from '../../api'
 import AttendanceChecklist from '../../components/organizer/AttendanceChecklist'
 import QrTicketScanner from '../../components/organizer/QrTicketScanner'
@@ -17,7 +17,6 @@ import PageHeader from '../../components/shared/PageHeader'
 import PaginationControls from '../../components/shared/PaginationControls'
 import { useApiResource } from '../../hooks/useApiResource'
 import { useAuth } from '../../hooks/useAuth'
-import { canManageEvent } from '../../utils/permissions'
 
 export default function AttendancePage() {
   const { id = '' } = useParams()
@@ -38,7 +37,7 @@ export default function AttendancePage() {
 
   if (loading) return <LoadingState label="Loading attendance sheet" />
   if (error || !data) return <ErrorState message={error ?? 'No data returned.'} onRetry={() => void reload()} />
-  if (!user || !canManageEvent(user, data.event)) return <Navigate to="/unauthorized" replace />
+  if (!user) return null
 
   const checkIn = async (token: string) => {
     setScanBusy(true)

@@ -30,7 +30,7 @@ export default function OrganizerDirectoryPage() {
     {loading ? <LoadingState label="Loading organizers" /> : error ? <ErrorState message={error} onRetry={() => void reload()} /> : data?.items.length ? <>
       <Row className="g-4">{data.items.map(organizer => <Col md={6} lg={4} key={organizer.id}><Card className="border-0 h-100 organizer-card overflow-hidden">
         {organizer.bannerUrl && <Card.Img variant="top" src={organizer.bannerUrl} alt="" className="organizer-card__banner object-fit-cover" />}
-        <Card.Body className="p-4"><h2 className="h4"><Link className="stretched-link text-decoration-none" to={`/organizers/${organizer.id}`}>{organizer.name}</Link></h2><p className="text-secondary">{organizer.bio || 'View this organizer’s profile and published events.'}</p><div className="d-flex flex-wrap gap-2">{organizer.specialties.map(item => <Badge bg="light" text="dark" key={item}>{item}</Badge>)}</div></Card.Body>
+        <Card.Body className="p-4"><h2 className="h4"><Link className="stretched-link text-decoration-none" to={`/organizers/${organizer.id}`}>{organizer.name}</Link> {organizer.verificationStatus === 'verified' && <Badge bg="primary" aria-label="Verified organizer">Verified</Badge>}</h2><p className="text-secondary">{organizer.bio || 'View this organizer’s profile and published events.'}</p><div className="d-flex flex-wrap gap-2">{organizer.specialties.map(item => <Badge bg="light" text="dark" key={item}>{item}</Badge>)}</div></Card.Body>
       </Card></Col>)}</Row><PaginationControls {...data} label="organizers" onPageChange={setPage} /></> : <EmptyState title="No organizers found" message="Try a different name or specialty." />}
   </>
 }

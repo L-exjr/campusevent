@@ -5,6 +5,7 @@ public enum BookingRequestStatus
     Submitted,
     UnderReview,
     SentToOrganizer,
+    Quoted,
     Accepted,
     Declined,
     Converted,

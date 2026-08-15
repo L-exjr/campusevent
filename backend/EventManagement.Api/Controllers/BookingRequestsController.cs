@@ -21,6 +21,13 @@ public sealed class BookingRequestsController(IBookingRequestService service) : 
         CancellationToken cancellationToken) =>
         Accepted(await service.SubmitAsync(request, cancellationToken));
 
+    [AllowAnonymous]
+    [EnableRateLimiting("PublicBookingRequests")]
+    [HttpGet("{id:guid}/track")]
+    public async Task<ActionResult<TrackedBookingRequestResponse>> Track(
+        Guid id, [FromQuery] string token, CancellationToken cancellationToken) =>
+        Ok(await service.TrackAsync(id, token, cancellationToken));
+
     [Authorize(Roles = "Admin")]
     [HttpGet]
     public async Task<ActionResult<PaginatedResponse<BookingRequestResponse>>> GetAll(
@@ -55,6 +62,12 @@ public sealed class BookingRequestsController(IBookingRequestService service) : 
     public async Task<ActionResult<BookingRequestResponse>> Respond(
         Guid id, RespondToBookingRequest request, CancellationToken cancellationToken) =>
         Ok(await service.RespondAsync(id, User.GetRequiredUserId(), request, cancellationToken));
+
+    [Authorize(Roles = "Student,Organizer")]
+    [HttpPost("{id:guid}/quote")]
+    public async Task<ActionResult<BookingRequestResponse>> SubmitQuote(
+        Guid id, SubmitBookingRequestQuote request, CancellationToken cancellationToken) =>
+        Ok(await service.SubmitQuoteAsync(id, User.GetRequiredUserId(), request, cancellationToken));
 
     [Authorize(Roles = "Admin")]
     [HttpPut("{id:guid}/status")]

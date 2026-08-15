@@ -152,6 +152,7 @@ builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<IEventAuthorizationService, EventAuthorizationService>();
 builder.Services.AddScoped<IEventImageAuthorizationService, EventImageAuthorizationService>();
 builder.Services.AddScoped<IEventService, EventService>();
+builder.Services.AddScoped<IEventTeamService, EventTeamService>();
 builder.Services.AddScoped<ICouponService, CouponService>();
 builder.Services.AddScoped<IReportService, ReportService>();
 builder.Services.AddScoped<IPaymentProvider, PaystackPaymentProvider>();

@@ -32,6 +32,7 @@ public sealed class EventImageAuthorizationService(
             .SingleOrDefaultAsync(cancellationToken)
             ?? throw new ApiException(StatusCodes.Status404NotFound, "Event not found.");
 
-        eventAuthorizationService.EnsureCanManage(eventOwnerId, actorId, actorRole);
+        await eventAuthorizationService.EnsureCanAsync(eventId.Value, eventOwnerId, actorId, actorRole,
+            EventCapability.Edit, cancellationToken);
     }
 }

@@ -56,7 +56,7 @@ export default function AdminOrganizerApplicationsPage() {
     try {
       await api.approveOrganizerApplication(target.id)
       removeFromQueue(target.id)
-      setNotice(`${target.userName} is now an Organizer.`)
+      setNotice(`${target.userName} is now verified.`)
       setApprovalTarget(null)
     } catch (caught) {
       setActionError(caught instanceof Error ? caught.message : 'The application could not be approved.')
@@ -102,9 +102,9 @@ export default function AdminOrganizerApplicationsPage() {
   return (
     <>
       <PageHeader
-        eyebrow="Organizer access"
-        title="Pending applications"
-        description="Review why Students want to organize events before deciding whether to grant Organizer access."
+        eyebrow="Organizer trust"
+        title="Pending verification requests"
+        description="Review organizer identity requests. Decisions only change verification status, never roles or event permissions."
         action={
           applications ? (
             <Badge bg="warning" text="dark" pill className="pending-count-badge">
@@ -195,7 +195,7 @@ export default function AdminOrganizerApplicationsPage() {
                           setApprovalTarget(application)
                         }}
                       >
-                        Approve and promote
+                        Approve verification
                       </Button>
                     </div>
                   </Card.Body>
@@ -223,8 +223,8 @@ export default function AdminOrganizerApplicationsPage() {
       <ConfirmModal
         show={Boolean(approvalTarget)}
         title="Approve this application?"
-        message={`${approvalTarget?.userName ?? 'This Student'} will immediately become an Organizer and may need to sign in again to refresh their access.`}
-        confirmLabel="Approve and promote"
+        message={`${approvalTarget?.userName ?? 'This user'} will receive a public verification badge. Their role and event permissions will not change.`}
+        confirmLabel="Approve verification"
         confirmVariant="success"
         busy={busyApplicationId === approvalTarget?.id}
         onConfirm={() => void approveApplication()}

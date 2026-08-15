@@ -2,7 +2,11 @@
 
 ## Events and organizer tools
 
-Any active ordinary account can create an event. The creator becomes `OrganizerId`; subsequent management is owner-or-Admin. Events support physical, virtual, and hybrid details, publication state, registration/ticketing switches, sales windows, attendee CSV export, attendance management, and aggregate organizer analytics.
+Any active ordinary account can create an event. The creator becomes `OrganizerId`; subsequent management is capability-based: platform Admins and the event owner have full access, while invited event-team members receive only the capabilities attached to their team role. Events support physical, virtual, and hybrid details, publication state, registration/ticketing switches, sales windows, attendee CSV export, attendance management, and aggregate organizer analytics.
+
+### Event teams
+
+An owner or platform Admin can add an existing active ordinary account to an event team, change its role, or remove it. `Team Admin` has full event access; `Member` can view attendees, check in guests, edit the event, and manage operations but cannot see revenue, manage the team, or delete the event; `Check-in Staff` can only view attendees and check them in. The management UI obtains the server-calculated capability set from `GET /api/events/{eventId}/access` rather than inferring permissions from a role label.
 
 ## Ticket tiers, registration, and coupons
 
@@ -22,9 +26,15 @@ Event owners configure campaign dates, publication, categories, nominees, and fr
 
 The organizer dashboard aggregates existing registrations and verified payment orders. It reports daily registration counts, verified ticket revenue in GHS, attendance totals, and attendance rate. No behavioral tracking is introduced.
 
-## Organizer directory and booking requests
+## Organizer directory and commissioning
 
-Users who own events may opt into the public organizer directory and maintain bio, banner, links, and specialties. Public booking requests may select a visible organizer. Admins assign requests; only the assigned user may respond. Acceptance creates a private event draft.
+Users who own events may opt into the public organizer directory and maintain bio, banner, links, and specialties. Public commissioning requests may select a visible organizer or enter Admin triage. Their structured briefs capture category, budget range, dates and flexibility, attendance, requested platform tools, references, and the event description.
+
+Commissioning remains single-assignment: an Admin assigns one organizer, and only that organizer may submit the request's single GHS quote with a proposed fee, timeline, and message. The lifecycle is recorded as status-history entries across `Submitted`, `UnderReview`, `SentToOrganizer`, `Quoted`, `Accepted`, `Declined`, `Converted`, and `Closed`. Anonymous requesters receive a one-time cryptographically random tracking token; the API stores only its SHA-256 hash and requires the raw token to retrieve the privacy-reduced tracking view. Accepting the quote preserves the existing conversion flow by creating an unpublished event draft for the assigned organizer; publishing that draft advances the request to `Converted`.
+
+## Demonstration catalog
+
+When `DemoData__Enabled=true`, the idempotent initializer creates 38 draft catalog records spanning all 19 event categories (two per category). The records are distributed across six explicitly fictional demo organizers: two `Verified` and directory-visible, two `Pending` (one visible and one hidden), and two `Unverified` and hidden. Verified and Pending profiles include demo biographies, placeholder banners, social links, and specialties derived from their assigned catalog categories. These states exist solely to demonstrate directory filters and badges; they are not endorsements or claims of affiliation.
 
 ## Certificates, email, and administration
 

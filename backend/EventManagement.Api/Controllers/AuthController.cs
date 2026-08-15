@@ -9,15 +9,26 @@ namespace EventManagement.Api.Controllers;
 
 [ApiController]
 [Route("api/auth")]
-public sealed class AuthController(IAuthService authService, IUserService userService) : ControllerBase
+public sealed class AuthController(
+    IAuthService authService,
+    IUserService userService,
+    IConfiguration configuration,
+    IWebHostEnvironment environment) : ControllerBase
 {
+    private readonly bool secureCookies = configuration.GetValue<bool?>("Security:SecureCookies")
+        ?? !environment.IsDevelopment();
+
     [AllowAnonymous]
     [HttpGet("csrf")]
     public ActionResult<object> Csrf()
     {
         var token = Convert.ToHexString(RandomNumberGenerator.GetBytes(32)).ToLowerInvariant();
         Response.Cookies.Append("campus_events_csrf", token, new CookieOptions {
-            HttpOnly = false, Secure = true, SameSite = SameSiteMode.None, Path = "/", IsEssential = true
+            HttpOnly = false,
+            Secure = secureCookies,
+            SameSite = secureCookies ? SameSiteMode.None : SameSiteMode.Lax,
+            Path = "/",
+            IsEssential = true
         });
         return Ok(new { token });
     }
@@ -78,10 +89,10 @@ public sealed class AuthController(IAuthService authService, IUserService userSe
     [HttpPost("logout")]
     public IActionResult Logout()
     {
-        Response.Cookies.Delete(AuthCookie.Name, AuthCookie.Options(DateTimeOffset.UnixEpoch));
+        Response.Cookies.Delete(AuthCookie.Name, AuthCookie.Options(DateTimeOffset.UnixEpoch, secureCookies));
         return NoContent();
     }
 
     private void IssueCookie(AuthResponse session)
-        => Response.Cookies.Append(AuthCookie.Name, session.Token, AuthCookie.Options(session.ExpiresAt));
+        => Response.Cookies.Append(AuthCookie.Name, session.Token, AuthCookie.Options(session.ExpiresAt, secureCookies));
 }

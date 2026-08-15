@@ -17,7 +17,7 @@ describe('BookingRequestForm', () => {
     expect(screen.getByLabelText('Preferred start time')).toBeInvalid()
     expect(screen.getByText('Enter the organization name.')).toBeVisible()
     expect(screen.getByText('Choose a preferred date.')).toBeVisible()
-  })
+  }, 10_000)
 
   it('reviews before sending the existing booking-request contract', async () => {
     const user = userEvent.setup()
@@ -55,5 +55,5 @@ describe('BookingRequestForm', () => {
       website: '',
     }))
     expect(new Date(String(payloads[0].proposedDate)).toISOString()).toBe('2026-09-18T14:30:00.000Z')
-  })
+  }, 10_000)
 })

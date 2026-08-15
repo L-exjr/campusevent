@@ -51,7 +51,7 @@ public sealed class OrganizerApplicationsControllerTests(ApiIntegrationFixture f
     }
 
     [Fact]
-    public async Task Admin_approval_changes_role_and_new_login_issues_organizer_JWT()
+    public async Task Admin_approval_verifies_profile_without_changing_role_or_event_capability()
     {
         await ResetAsync();
         var applicant = await RegisterStudentAsync("approved@example.test");
@@ -62,15 +62,17 @@ public sealed class OrganizerApplicationsControllerTests(ApiIntegrationFixture f
         using var approval = await adminClient.PutAsync(
             $"/api/organizer-applications/{applicationId}/approve",
             null);
+        var approved = await ReadJsonAsync(approval);
         var refreshed = await LoginAsync("approved@example.test");
         var principal = ValidateToken(refreshed.Token);
 
         Assert.Equal(HttpStatusCode.OK, approval.StatusCode);
         Assert.Equal(1, await Fixture.CountEmailOutboxMessagesAsync("OrganizerApplicationDecision"));
         Assert.False(await Fixture.EmailOutboxPayloadExistsAsync("OrganizerApplicationDecision"));
-        Assert.Equal("Organizer", principal.FindFirstValue(JwtClaimNames.Role));
-        using var organizerClient = CreateAuthenticatedClient(refreshed.Token);
-        using var createEvent = await organizerClient.PostAsJsonAsync(
+        Assert.Equal("Student", principal.FindFirstValue(JwtClaimNames.Role));
+        Assert.Equal("Verified", approved.GetProperty("userVerificationStatus").GetString());
+        using var memberClient = CreateAuthenticatedClient(refreshed.Token);
+        using var createEvent = await memberClient.PostAsJsonAsync(
             "/api/events",
             EventPayload("Approved organizer event", 10));
         Assert.Equal(HttpStatusCode.Created, createEvent.StatusCode);

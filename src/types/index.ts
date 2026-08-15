@@ -1,7 +1,11 @@
 export type Role = 'student' | 'organizer' | 'admin'
+export type VerificationStatus = 'unverified' | 'pending' | 'verified'
+export type EventTeamRole = 'admin' | 'member' | 'checkInStaff'
+export interface EventTeamMember { userId: string; name: string; email: string; role: EventTeamRole | null; isOwner: boolean; joinedAt: string | null }
+export interface EventAccess { canViewAttendees: boolean; canCheckIn: boolean; canEdit: boolean; canManageOperations: boolean; canViewRevenue: boolean; canManageTeam: boolean; canDelete: boolean }
 export type OrganizerApplicationStatus = 'pending' | 'approved' | 'rejected'
 export type BookingRequestStatus =
-  | 'submitted' | 'underReview' | 'sentToOrganizer' | 'accepted'
+  | 'submitted' | 'underReview' | 'sentToOrganizer' | 'quoted' | 'accepted'
   | 'declined' | 'converted' | 'closed'
 
 export type EventCategory =
@@ -33,6 +37,7 @@ export interface User {
   name: string
   email: string
   role: Role
+  verificationStatus: VerificationStatus
   active: boolean
   joinedAt: string
   imageUrl: string | null
@@ -275,10 +280,18 @@ export interface BookingRequestInput {
   email: string
   phone: string
   eventType: string
+  eventCategory?: EventCategory | ''
+  budgetMinimumMinor?: number | null
+  budgetMaximumMinor?: number | null
   proposedDate: string
+  expectedEndDate?: string | null
   alternativeDates?: string
   flexibilityNote?: string
   estimatedAttendance: number
+  requiresTicketing: boolean
+  requiresVoting: boolean
+  requiresRegistration: boolean
+  referenceLinks?: string
   preferredOrganizer?: string
   requestedOrganizerId?: string | null
   description: string
@@ -297,6 +310,32 @@ export interface BookingRequest extends Omit<BookingRequestInput, 'website'> {
   submittedAt: string
   updatedAt: string
   personalDataAnonymizedAt?: string | null
+  quote: BookingRequestQuote | null
+  statusHistory: BookingRequestStatusHistory[]
+}
+
+export interface BookingRequestQuote {
+  id: string
+  proposedFeeMinor: number
+  currency: 'GHS'
+  proposedTimeline: string
+  message: string
+  submittedAt: string
+}
+
+export interface BookingRequestStatusHistory {
+  id: string
+  status: BookingRequestStatus
+  note: string | null
+  createdAt: string
+}
+
+export interface BookingSubmission { message: string; id: string | null; trackingToken: string | null }
+export interface TrackedBookingRequest {
+  id: string; organizationName: string; eventType: string; eventCategory: string | null
+  proposedDate: string; expectedEndDate: string | null; estimatedAttendance: number
+  status: BookingRequestStatus; quote: BookingRequestQuote | null
+  statusHistory: BookingRequestStatusHistory[]; draftEventId: string | null
 }
 
 export interface OrganizerSummary {
@@ -306,6 +345,7 @@ export interface OrganizerSummary {
   bannerUrl: string | null
   bio: string | null
   specialties: EventCategory[]
+  verificationStatus: VerificationStatus
 }
 
 export interface OrganizerDetail extends OrganizerSummary {
@@ -365,6 +405,7 @@ export interface OrganizerApplication {
   userId: string
   userName: string
   userEmail: string
+  userVerificationStatus: VerificationStatus
   reason: string
   status: OrganizerApplicationStatus
   rejectionReason: string | null

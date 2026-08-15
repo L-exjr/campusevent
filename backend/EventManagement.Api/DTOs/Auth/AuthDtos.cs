@@ -30,6 +30,7 @@ public sealed record UserResponse(
     string Name,
     string Email,
     UserRole Role,
+    VerificationStatus VerificationStatus,
     bool IsActive,
     DateTimeOffset CreatedAt,
     string? ImageUrl);

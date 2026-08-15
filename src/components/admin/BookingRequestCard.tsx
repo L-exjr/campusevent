@@ -3,6 +3,7 @@ import Button from 'react-bootstrap/Button'
 import Card from 'react-bootstrap/Card'
 import Form from 'react-bootstrap/Form'
 import type { BookingRequest, User } from '../../types'
+import BookingCommissioningDetails from '../bookings/BookingCommissioningDetails'
 
 interface BookingRequestCardProps {
   request: BookingRequest
@@ -41,6 +42,7 @@ export default function BookingRequestCard({
           </div>
         </div>
         <p>{request.description}</p>
+        <BookingCommissioningDetails request={request} />
         {request.personalDataAnonymizedAt ? (
           <p className="small text-secondary mb-3">Contact details were removed under the retention policy.</p>
         ) : (

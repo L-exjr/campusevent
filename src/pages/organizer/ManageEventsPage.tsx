@@ -15,7 +15,7 @@ import PageHeader from '../../components/shared/PageHeader'
 import PaginationControls from '../../components/shared/PaginationControls'
 import { useApiResource } from '../../hooks/useApiResource'
 import { useAuth } from '../../hooks/useAuth'
-import type { EventInput, EventItem } from '../../types'
+import type { EventAccess, EventInput, EventItem } from '../../types'
 
 export default function ManageEventsPage() {
   const { user } = useAuth()
@@ -26,8 +26,13 @@ export default function ManageEventsPage() {
   const [actionError, setActionError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [page, setPage] = useState(1)
-  const loadEvents = useCallback(() => api.getOrganizerEvents(user!.id, false, page, 20), [page, user])
-  const { data: eventPage, loading, error, reload } = useApiResource(loadEvents)
+  const loadEvents = useCallback(async () => {
+    const eventPage = await api.getOrganizerEvents(user!.id, false, page, 20)
+    const entries = await Promise.all(eventPage.items.map(async event => [event.id, await api.getEventAccess(event.id)] as const))
+    return { eventPage, access: Object.fromEntries(entries) as Record<string, EventAccess> }
+  }, [page, user])
+  const { data, loading, error, reload } = useApiResource(loadEvents)
+  const eventPage = data?.eventPage
 
   const openCreate = () => {
     setEditing(null)
@@ -96,7 +101,7 @@ export default function ManageEventsPage() {
         <ErrorState message={error} onRetry={() => void reload()} />
       ) : eventPage?.items.length ? (
         <>
-          <OrganizerEventTable events={eventPage.items} onEdit={openEdit} onDelete={setDeleting} />
+          <OrganizerEventTable events={eventPage.items} access={data?.access ?? {}} onEdit={openEdit} onDelete={setDeleting} />
           <PaginationControls {...eventPage} label="events" onPageChange={setPage} />
         </>
       ) : (

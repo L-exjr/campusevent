@@ -12,6 +12,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
     public DbSet<EventRegistration> EventRegistrations => Set<EventRegistration>();
     public DbSet<PasswordResetToken> PasswordResetTokens => Set<PasswordResetToken>();
     public DbSet<BookingRequest> BookingRequests => Set<BookingRequest>();
+    public DbSet<BookingRequestQuote> BookingRequestQuotes => Set<BookingRequestQuote>();
+    public DbSet<BookingRequestStatusHistory> BookingRequestStatusHistory => Set<BookingRequestStatusHistory>();
     public DbSet<EmailOutboxMessage> EmailOutboxMessages => Set<EmailOutboxMessage>();
     public DbSet<ImageUpload> ImageUploads => Set<ImageUpload>();
     public DbSet<AuthRateLimitBucket> AuthRateLimitBuckets => Set<AuthRateLimitBucket>();
@@ -26,6 +28,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
     public DbSet<VoteRecord> VoteRecords => Set<VoteRecord>();
     public DbSet<VotingPaymentOrder> VotingPaymentOrders => Set<VotingPaymentOrder>();
     public DbSet<VotingWebhookReceipt> VotingWebhookReceipts => Set<VotingWebhookReceipt>();
+    public DbSet<EventTeamMember> EventTeamMembers => Set<EventTeamMember>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -48,6 +51,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
             entity.Property(user => user.OrganizerWebsiteUrl).HasMaxLength(2048);
             entity.Property(user => user.IsOrganizerDirectoryVisible).HasDefaultValue(false);
             entity.Property(user => user.Role).HasConversion<string>().HasMaxLength(30);
+            entity.Property(user => user.VerificationStatus).HasConversion<string>().HasMaxLength(30)
+                .HasDefaultValue(VerificationStatus.Unverified);
             entity.Property(user => user.SessionVersion).HasDefaultValue(1);
             entity.HasIndex(user => user.Email).IsUnique();
             entity.HasIndex(user => user.GoogleSubject).IsUnique();
@@ -114,6 +119,19 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
                 .WithMany(user => user.OrganizedEvents)
                 .HasForeignKey(eventEntity => eventEntity.OrganizerId)
                 .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<EventTeamMember>(entity =>
+        {
+            entity.HasKey(member => new { member.EventId, member.UserId });
+            entity.Property(member => member.Role).HasConversion<string>().HasMaxLength(30);
+            entity.HasIndex(member => member.UserId);
+            entity.HasOne(member => member.Event).WithMany(eventEntity => eventEntity.TeamMembers)
+                .HasForeignKey(member => member.EventId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(member => member.User).WithMany(user => user.EventTeamMemberships)
+                .HasForeignKey(member => member.UserId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(member => member.InvitedByUser).WithMany()
+                .HasForeignKey(member => member.InvitedByUserId).OnDelete(DeleteBehavior.Restrict);
         });
 
         modelBuilder.Entity<EventRegistration>(entity =>
@@ -326,6 +344,9 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
             entity.Property(request => request.Email).HasMaxLength(320).IsRequired();
             entity.Property(request => request.Phone).HasMaxLength(50).IsRequired();
             entity.Property(request => request.EventType).HasMaxLength(150).IsRequired();
+            entity.Property(request => request.EventCategory).HasMaxLength(100);
+            entity.Property(request => request.ReferenceLinks).HasMaxLength(4000);
+            entity.Property(request => request.TrackingTokenHash).HasMaxLength(64);
             entity.Property(request => request.AlternativeDates).HasMaxLength(500);
             entity.Property(request => request.FlexibilityNote).HasMaxLength(1000);
             entity.Property(request => request.PreferredOrganizer).HasMaxLength(200);
@@ -336,6 +357,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
             entity.HasIndex(request => new { request.Status, request.UpdatedAt });
             entity.HasIndex(request => request.SubmittedAt);
             entity.HasIndex(request => request.RequestedOrganizerId);
+            entity.HasIndex(request => request.TrackingTokenHash).IsUnique();
             entity.HasOne(request => request.RequestedOrganizer)
                 .WithMany(user => user.RequestedBookingRequests)
                 .HasForeignKey(request => request.RequestedOrganizerId)
@@ -348,6 +370,29 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
                 .WithOne(eventEntity => eventEntity.SourceBookingRequest)
                 .HasForeignKey<BookingRequest>(request => request.DraftEventId)
                 .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        modelBuilder.Entity<BookingRequestQuote>(entity =>
+        {
+            entity.HasKey(quote => quote.Id);
+            entity.Property(quote => quote.Currency).HasMaxLength(3).IsRequired();
+            entity.Property(quote => quote.ProposedTimeline).HasMaxLength(500).IsRequired();
+            entity.Property(quote => quote.Message).HasMaxLength(1000).IsRequired();
+            entity.HasIndex(quote => quote.BookingRequestId).IsUnique();
+            entity.HasOne(quote => quote.BookingRequest).WithOne(request => request.Quote)
+                .HasForeignKey<BookingRequestQuote>(quote => quote.BookingRequestId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(quote => quote.Organizer).WithMany()
+                .HasForeignKey(quote => quote.OrganizerId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<BookingRequestStatusHistory>(entity =>
+        {
+            entity.HasKey(history => history.Id);
+            entity.Property(history => history.Status).HasConversion<string>().HasMaxLength(30);
+            entity.Property(history => history.Note).HasMaxLength(500);
+            entity.HasIndex(history => new { history.BookingRequestId, history.CreatedAt });
+            entity.HasOne(history => history.BookingRequest).WithMany(request => request.StatusHistory)
+                .HasForeignKey(history => history.BookingRequestId).OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<EmailOutboxMessage>(entity =>

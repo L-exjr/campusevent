@@ -274,6 +274,32 @@ CI or environments without local PostgreSQL binaries can point the suite at a de
 EMS_TEST_POSTGRES='Host=localhost;Port=5432;Database=event_management_tests;Username=postgres;Password=...' dotnet test EventManagement.slnx
 ```
 
+### Restricted or offline test environments
+
+The .NET test host opens a loopback coordination socket, and the integration
+fixture starts `initdb`, `postgres`, and `pg_ctl` child processes. Run the suite
+with those local capabilities enabled; a restricted sandbox can otherwise abort
+with `SocketException: Permission denied` before any tests execute. This is an
+environment failure, not a hanging test.
+
+Restore and build once while package access is available, then use the following
+command for repeatable offline runs. `--no-build --no-restore` prevents NuGet
+metadata retries from making an otherwise healthy run appear stuck, and the TRX
+file preserves the authoritative full-suite count even when application or EF
+logs are verbose:
+
+```bash
+dotnet test EventManagement.Api.IntegrationTests/EventManagement.Api.IntegrationTests.csproj \
+  --no-build --no-restore \
+  --logger "trx;LogFileName=complete-integration.trx"
+```
+
+The suite is intentionally serialized and can take about three minutes on a
+developer machine because each test class owns a disposable PostgreSQL fixture.
+Allow at least five minutes before treating the run as stalled. The fixture uses
+`pg_ctl stop -m fast -w` and bounds graceful shutdown to 15 seconds before
+force-terminating the disposable server.
+
 ## Deployment notes
 
 Gmail SMTP requires 2FA and a Google App Password. Keep Mailtrap selected for

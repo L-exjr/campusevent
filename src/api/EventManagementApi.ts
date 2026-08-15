@@ -3,6 +3,8 @@ import type {
   AdminAuditLog,
   BookingRequest,
   BookingRequestInput,
+  BookingSubmission,
+  TrackedBookingRequest,
   CheckInResult,
   CertificateDownload,
   EmailDeadLetter,
@@ -10,6 +12,9 @@ import type {
   EventFilters,
   EventInput,
   EventItem,
+  EventAccess,
+  EventTeamMember,
+  EventTeamRole,
   EventRegistrant,
   EventPaymentStatus,
   OrganizerApplication,
@@ -30,6 +35,7 @@ import type {
   VotingCampaignInput,
   VotingPaymentInitialization,
   VotingPaymentStatus,
+  VerificationStatus,
 } from '../types'
 
 export interface EventManagementApi {
@@ -43,6 +49,11 @@ export interface EventManagementApi {
   getEvents(filters?: EventFilters, page?: number, pageSize?: number, signal?: AbortSignal): Promise<Page<EventItem>>
   getEvent(id: string): Promise<EventItem>
   getManagementEvent(id: string): Promise<EventItem>
+  getEventAccess(id: string): Promise<EventAccess>
+  getEventTeam(id: string): Promise<EventTeamMember[]>
+  inviteEventTeamMember(id: string, email: string, role: EventTeamRole): Promise<EventTeamMember>
+  updateEventTeamMember(id: string, userId: string, role: EventTeamRole): Promise<EventTeamMember>
+  removeEventTeamMember(id: string, userId: string): Promise<void>
   registerForEvent(eventId: string, studentId: string): Promise<void>
   initializeEventPayment(eventId: string, ticketTierId?: string, couponCode?: string): Promise<PaymentInitialization>
   getPaymentStatus(reference: string): Promise<EventPaymentStatus>
@@ -85,7 +96,7 @@ export interface EventManagementApi {
   getCoupons(): Promise<Coupon[]>
   createCoupon(input: CouponInput): Promise<Coupon>
   updateCoupon(id: string, input: CouponInput): Promise<Coupon>
-  getUsers(page?: number, pageSize?: number, search?: string, role?: Role, signal?: AbortSignal): Promise<Page<User>>
+  getUsers(page?: number, pageSize?: number, search?: string, role?: Role, verificationStatus?: VerificationStatus, isActive?: boolean, signal?: AbortSignal): Promise<Page<User>>
   searchOrganizers(search?: string, pageSize?: number, signal?: AbortSignal): Promise<Page<User>>
   updateUserRole(id: string, role: Exclude<Role, 'admin'>): Promise<void>
   updateUserStatus(id: string, active: boolean): Promise<void>
@@ -103,7 +114,8 @@ export interface EventManagementApi {
     signal?: AbortSignal,
   ): Promise<Page<AdminAuditLog>>
   exportAdminAuditLogs(from?: string, to?: string): Promise<Blob>
-  submitBookingRequest(input: BookingRequestInput): Promise<string>
+  submitBookingRequest(input: BookingRequestInput): Promise<BookingSubmission>
+  trackBookingRequest(id: string, token: string): Promise<TrackedBookingRequest>
   getOrganizers(search?: string, category?: string, page?: number, pageSize?: number, signal?: AbortSignal): Promise<Page<OrganizerSummary>>
   getOrganizer(id: string): Promise<OrganizerDetail>
   getOrganizerDirectorySettings(): Promise<OrganizerDirectorySettings>
@@ -116,4 +128,5 @@ export interface EventManagementApi {
     status: Extract<BookingRequest['status'], 'underReview' | 'converted' | 'closed'>,
   ): Promise<BookingRequest>
   respondToBookingRequest(id: string, accept: boolean, note?: string): Promise<BookingRequest>
+  submitBookingRequestQuote(id: string, proposedFeeMinor: number, proposedTimeline: string, message: string): Promise<BookingRequest>
 }

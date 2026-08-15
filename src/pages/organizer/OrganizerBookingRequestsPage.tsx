@@ -13,6 +13,7 @@ import PageHeader from '../../components/shared/PageHeader'
 import PaginationControls from '../../components/shared/PaginationControls'
 import { useApiResource } from '../../hooks/useApiResource'
 import type { BookingRequest } from '../../types'
+import BookingCommissioningDetails from '../../components/bookings/BookingCommissioningDetails'
 
 export default function OrganizerBookingRequestsPage() {
   const [page, setPage] = useState(1)
@@ -22,6 +23,19 @@ export default function OrganizerBookingRequestsPage() {
   const [busyId, setBusyId] = useState<string | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
+  const [quotes, setQuotes] = useState<Record<string, { fee: string; timeline: string; message: string }>>({})
+
+  const submitQuote = async (request: BookingRequest) => {
+    const quote = quotes[request.id]
+    if (!quote) return
+    setBusyId(request.id); setActionError(null)
+    try {
+      const updated = await api.submitBookingRequestQuote(request.id, Math.round(Number(quote.fee) * 100), quote.timeline, quote.message)
+      setData(current => current ? { ...current, items: current.items.map(item => item.id === updated.id ? updated : item) } : current)
+      setNotice('Quote submitted. You can now formally accept or decline the request.')
+    } catch (caught) { setActionError(caught instanceof Error ? caught.message : 'Unable to submit quote.') }
+    finally { setBusyId(null) }
+  }
 
   const respond = async (request: BookingRequest, accept: boolean) => {
     setBusyId(request.id)
@@ -60,7 +74,8 @@ export default function OrganizerBookingRequestsPage() {
         <>
         <div className="d-grid gap-3">
           {data.items.map((request) => {
-            const awaitingResponse = request.status === 'sentToOrganizer'
+            const awaitingQuote = request.status === 'sentToOrganizer'
+            const awaitingResponse = request.status === 'quoted'
             const busy = busyId === request.id
             return (
               <Card key={request.id} className="border-0">
@@ -77,12 +92,18 @@ export default function OrganizerBookingRequestsPage() {
                     </Badge>
                   </div>
                   <p>{request.description}</p>
+                  <BookingCommissioningDetails request={request} />
                   {request.requestedOrganizerName && <p className="mb-1"><strong>Requester selected:</strong> {request.requestedOrganizerName}</p>}
                   {request.preferredOrganizer && <p className="small text-secondary"><strong>Preference notes:</strong> {request.preferredOrganizer}</p>}
                   <p className="small">
                     Contact: <a href={`mailto:${request.email}`}>{request.contactName}</a> · {request.phone}
                   </p>
-                  {awaitingResponse ? (
+                  {awaitingQuote ? <div className="row g-3 mt-2">
+                    <div className="col-md-4"><Form.Group controlId={`quote-fee-${request.id}`}><Form.Label>Proposed fee (GHS)</Form.Label><Form.Control type="number" min={0} value={quotes[request.id]?.fee ?? ''} onChange={event => setQuotes(current => ({ ...current, [request.id]: { fee: event.target.value, timeline: current[request.id]?.timeline ?? '', message: current[request.id]?.message ?? '' } }))} /></Form.Group></div>
+                    <div className="col-md-8"><Form.Group controlId={`quote-timeline-${request.id}`}><Form.Label>Proposed timeline</Form.Label><Form.Control value={quotes[request.id]?.timeline ?? ''} onChange={event => setQuotes(current => ({ ...current, [request.id]: { fee: current[request.id]?.fee ?? '', timeline: event.target.value, message: current[request.id]?.message ?? '' } }))} /></Form.Group></div>
+                    <div className="col-12"><Form.Group controlId={`quote-message-${request.id}`}><Form.Label>Quote message</Form.Label><Form.Control as="textarea" rows={2} value={quotes[request.id]?.message ?? ''} onChange={event => setQuotes(current => ({ ...current, [request.id]: { fee: current[request.id]?.fee ?? '', timeline: current[request.id]?.timeline ?? '', message: event.target.value } }))} /></Form.Group></div>
+                    <div className="col-12"><Button disabled={busy || !quotes[request.id]?.fee || !quotes[request.id]?.timeline.trim() || !quotes[request.id]?.message.trim()} onClick={() => void submitQuote(request)}>Submit quote</Button></div>
+                  </div> : awaitingResponse ? (
                     <>
                       <Form.Group controlId={`booking-note-${request.id}`} className="mb-3">
                         <Form.Label>Response note (optional)</Form.Label>

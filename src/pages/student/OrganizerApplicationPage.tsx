@@ -64,7 +64,7 @@ export default function OrganizerApplicationPage() {
       setData(submitted)
       setReason('')
       setReviewing(false)
-      setNotice('Your application has been submitted for Admin review.')
+      setNotice('Your verification request has been submitted for Admin review.')
     } catch (caught) {
       setSubmitError(caught instanceof Error ? caught.message : 'Unable to submit your application.')
     } finally {
@@ -81,9 +81,9 @@ export default function OrganizerApplicationPage() {
   return (
     <>
       <PageHeader
-        eyebrow="Organizer access"
-        title="Help shape campus events"
-        description="Tell the Admin team how you plan to create useful, well-run events for the campus community."
+        eyebrow="Organizer trust"
+        title="Request verification"
+        description="Ask the Admin team to verify your organizer identity. Verification is optional and never limits event creation or management."
       />
 
       <NotificationToast message={notice} onClose={() => setNotice(null)} title="Application submitted" />
@@ -110,7 +110,7 @@ export default function OrganizerApplicationPage() {
                 )}
                 {application.status === 'approved' && (
                   <Alert variant="success">
-                    Your application was approved. Sign in again if your Organizer workspace does not appear automatically.
+                    Your organizer profile is verified. This badge is a trust signal and does not change your account permissions.
                   </Alert>
                 )}
                 {application.status === 'rejected' && (
@@ -197,13 +197,12 @@ export default function OrganizerApplicationPage() {
         <Col lg={4}>
           <Card className="application-card border-0">
             <Card.Body className="p-4">
-              <p className="eyebrow mb-2">Organizer responsibilities</p>
-              <h2 className="h5">What access includes</h2>
+              <p className="eyebrow mb-2">About verification</p>
+              <h2 className="h5">What the badge means</h2>
               <ul className="text-secondary ps-3 mb-0 d-grid gap-2">
-                <li>Create and update your own events.</li>
-                <li>Review event registrants.</li>
-                <li>Record attendance after an event.</li>
-                <li>Keep event details accurate and appropriate.</li>
+                <li>An Admin reviewed your submitted organizer identity details.</li>
+                <li>Verified profiles show a badge in the public directory.</li>
+                <li>All authenticated members can create and manage their own events.</li>
               </ul>
             </Card.Body>
           </Card>

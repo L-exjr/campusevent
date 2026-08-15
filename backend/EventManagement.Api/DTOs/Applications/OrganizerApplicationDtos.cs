@@ -14,6 +14,7 @@ public sealed record OrganizerApplicationResponse(
     Guid UserId,
     string UserName,
     string UserEmail,
+    VerificationStatus UserVerificationStatus,
     string Reason,
     ApplicationStatus Status,
     string? RejectionReason,

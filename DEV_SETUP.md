@@ -29,6 +29,11 @@ dotnet user-secrets set "Supabase:ServiceRoleKey" "your-service-role-key"
 The key must be the backend service-role key, not the public anon/publishable key.
 See [SUPABASE_SETUP.md](SUPABASE_SETUP.md) before testing uploads or certificates.
 
+For the complete backend integration suite in a restricted or offline environment,
+follow the [canonical runner workaround](backend/README.md#restricted-or-offline-test-environments).
+It covers sandbox socket permissions, PostgreSQL child processes,
+`--no-build --no-restore`, TRX logging, and the expected runtime.
+
 ## Email providers
 
 The outbox supports Mailtrap's Sending API and Gmail SMTP. Mailtrap is the default

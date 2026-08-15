@@ -9,13 +9,13 @@ import { useAuth } from '../../hooks/useAuth'
 import { getInitials } from '../../utils/formatters'
 import { getNavigationGroupsForRole, ROLE_LABELS } from '../../utils/permissions'
 import LinkButton from '../shared/LinkButton'
-import { DEFAULT_PROFILE_IMAGE } from '../../api/imageStorage'
 import AccessibleTooltip from '../shared/AccessibleTooltip'
 
 export default function AppNavbar() {
   const { user, logout } = useAuth()
   const navigate = useNavigate()
   const [expanded, setExpanded] = useState(false)
+  const [failedImageUrl, setFailedImageUrl] = useState<string | null>(null)
   const navigation = user ? getNavigationGroupsForRole(user.role) : {
     primary: [{ label: 'Explore events', to: '/events' }, { label: 'Request an Organizer', to: '/organizers' }],
     secondary: [],
@@ -63,19 +63,19 @@ export default function AppNavbar() {
             <div className="navbar-user d-flex align-items-center gap-3 mt-3 mt-lg-0">
               <Dropdown align="end" className="navbar-account-menu">
                 <Dropdown.Toggle variant="link" className="navbar-account-toggle d-flex align-items-center gap-2">
-              {user.imageUrl ? (
+              {user.imageUrl && failedImageUrl !== user.imageUrl ? (
                 <img
                   src={user.imageUrl}
                   alt={`${user.name} profile`}
                   className="avatar object-fit-cover"
+                  onError={() => setFailedImageUrl(user.imageUrl)}
                 />
               ) : (
                 <div
                   className="avatar"
                   aria-label={`${user.name} profile placeholder`}
-                  style={{ backgroundImage: `url(${DEFAULT_PROFILE_IMAGE})`, backgroundSize: 'cover' }}
                 >
-                  <span className="visually-hidden">{getInitials(user.name)}</span>
+                  <span aria-hidden="true">{getInitials(user.name)}</span>
                 </div>
               )}
               <div className="lh-sm me-auto">

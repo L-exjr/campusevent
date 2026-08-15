@@ -16,11 +16,13 @@ import PageHeader from '../../components/shared/PageHeader'
 import PaginationControls from '../../components/shared/PaginationControls'
 import { useApiResource } from '../../hooks/useApiResource'
 import { useDebouncedValue } from '../../hooks/useDebouncedValue'
-import type { Role, User } from '../../types'
+import type { Role, User, VerificationStatus } from '../../types'
 
 export default function AdminUsersPage() {
   const [search, setSearch] = useState('')
   const [role, setRole] = useState('')
+  const [verificationStatus, setVerificationStatus] = useState('')
+  const [accountStatus, setAccountStatus] = useState('')
   const [busyUserId, setBusyUserId] = useState<string | null>(null)
   const [statusTarget, setStatusTarget] = useState<User | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
@@ -28,8 +30,14 @@ export default function AdminUsersPage() {
   const [page, setPage] = useState(1)
   const debouncedSearch = useDebouncedValue(search)
   const loadUsers = useCallback(
-    (signal: AbortSignal) => api.getUsers(page, 20, debouncedSearch, role ? role as Role : undefined, signal),
-    [debouncedSearch, page, role],
+    (signal: AbortSignal) => api.getUsers(
+      page, 20, debouncedSearch,
+      role ? role as Role : undefined,
+      verificationStatus ? verificationStatus as VerificationStatus : undefined,
+      accountStatus ? accountStatus === 'active' : undefined,
+      signal,
+    ),
+    [accountStatus, debouncedSearch, page, role, verificationStatus],
   )
   const { data: userPage, loading, error, reload } = useApiResource(loadUsers)
 
@@ -61,25 +69,45 @@ export default function AdminUsersPage() {
       <Card className="filter-card border-0 mb-4">
         <Card.Body>
           <Row className="g-3 align-items-end">
-            <Col md={7}>
+            <Col lg={4} md={6}>
               <Form.Group controlId="user-search">
                 <Form.Label>Search accounts</Form.Label>
                 <Form.Control value={search} onChange={(event) => { setSearch(event.target.value); setPage(1) }} placeholder="Name or email address" />
               </Form.Group>
             </Col>
-            <Col md={3}>
+            <Col lg={2} md={3}>
               <Form.Group controlId="user-role-filter">
                 <Form.Label>Role</Form.Label>
                 <Form.Select value={role} onChange={(event) => { setRole(event.target.value); setPage(1) }}>
                   <option value="">All roles</option>
-                  <option value="student">Students</option>
-                  <option value="organizer">Organizers</option>
+                  <option value="student">Ordinary users</option>
                   <option value="admin">Admins</option>
                 </Form.Select>
               </Form.Group>
             </Col>
-            <Col md={2}>
-              <Button variant="light" className="w-100 text-nowrap" onClick={() => { setSearch(''); setRole(''); setPage(1) }}>Reset</Button>
+            <Col lg={2} md={3}>
+              <Form.Group controlId="user-verification-filter">
+                <Form.Label>Verification</Form.Label>
+                <Form.Select value={verificationStatus} onChange={(event) => { setVerificationStatus(event.target.value); setPage(1) }}>
+                  <option value="">All statuses</option>
+                  <option value="unverified">Unverified</option>
+                  <option value="pending">Pending</option>
+                  <option value="verified">Verified</option>
+                </Form.Select>
+              </Form.Group>
+            </Col>
+            <Col lg={2} md={3}>
+              <Form.Group controlId="user-account-status-filter">
+                <Form.Label>Account</Form.Label>
+                <Form.Select value={accountStatus} onChange={(event) => { setAccountStatus(event.target.value); setPage(1) }}>
+                  <option value="">All accounts</option>
+                  <option value="active">Active</option>
+                  <option value="deactivated">Deactivated</option>
+                </Form.Select>
+              </Form.Group>
+            </Col>
+            <Col lg={2} md={3}>
+              <Button variant="light" className="w-100 text-nowrap" onClick={() => { setSearch(''); setRole(''); setVerificationStatus(''); setAccountStatus(''); setPage(1) }}>Reset</Button>
             </Col>
           </Row>
         </Card.Body>

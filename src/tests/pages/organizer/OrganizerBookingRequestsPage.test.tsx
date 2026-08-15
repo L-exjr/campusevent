@@ -8,7 +8,7 @@ import { renderWithAuth } from '../../testUtils'
 
 const apiUrl = 'http://localhost:5080/api'
 
-function assignedRequest(status = 'SentToOrganizer') {
+function assignedRequest(status = 'Quoted') {
   return {
     id: 'booking-1',
     organizationName: 'Engineering Society',
@@ -16,6 +16,9 @@ function assignedRequest(status = 'SentToOrganizer') {
     email: 'casey@example.test',
     phone: '+233 20 000 0000',
     eventType: 'Leadership workshop',
+    requiresTicketing: true,
+    requiresVoting: false,
+    requiresRegistration: true,
     proposedDate: '2030-08-20T14:00:00Z',
     alternativeDates: null,
     flexibilityNote: null,
@@ -29,6 +32,8 @@ function assignedRequest(status = 'SentToOrganizer') {
     draftEventId: null,
     submittedAt: '2026-08-01T12:00:00Z',
     updatedAt: '2026-08-01T12:00:00Z',
+    quote: { id: 'quote-1', proposedFeeMinor: 250000, currency: 'GHS', proposedTimeline: 'Four weeks', message: 'Includes planning and delivery.', submittedAt: '2026-08-01T12:00:00Z' },
+    statusHistory: [{ id: 'history-1', status: 'Quoted', note: 'Organizer submitted a quote.', createdAt: '2026-08-01T12:00:00Z' }],
   }
 }
 

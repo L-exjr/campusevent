@@ -37,7 +37,8 @@ public sealed class OrganizerDirectoryService(AppDbContext dbContext, IImageLife
             .Skip((page - 1) * pageSize).Take(pageSize)
             .Select(user => new PublicOrganizerSummary(user.Id, user.Name, user.ImageUrl,
                 user.OrganizerBannerUrl, user.OrganizerBio,
-                user.OrganizerSpecialties.OrderBy(item => item.Category).Select(item => item.Category).ToList()))
+                user.OrganizerSpecialties.OrderBy(item => item.Category).Select(item => item.Category).ToList(),
+                user.VerificationStatus))
             .ToListAsync(cancellationToken);
         return new(items, page, pageSize, total, Pagination.TotalPages(total, pageSize));
     }
@@ -56,6 +57,7 @@ public sealed class OrganizerDirectoryService(AppDbContext dbContext, IImageLife
             organizer.OrganizerBio, organizer.OrganizerInstagramUrl, organizer.OrganizerTwitterUrl,
             organizer.OrganizerFacebookUrl, organizer.OrganizerWebsiteUrl,
             organizer.OrganizerSpecialties.OrderBy(item => item.Category).Select(item => item.Category).ToList(),
+            organizer.VerificationStatus,
             events.Select(item => item.Event.ToResponse(item.Registrations)).ToList());
     }
 

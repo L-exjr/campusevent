@@ -34,6 +34,20 @@ public sealed class AuthControllerTests(ApiIntegrationFixture fixture)
     }
 
     [Fact]
+    public async Task Csrf_endpoint_issues_readable_secure_cross_site_cookie()
+    {
+        using var client = CookieClient();
+        using var response = await client.GetAsync("/api/auth/csrf");
+
+        response.EnsureSuccessStatusCode();
+        var cookie = response.Headers.GetValues("Set-Cookie")
+            .Single(value => value.StartsWith("campus_events_csrf="));
+        Assert.DoesNotContain("httponly", cookie, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("secure", cookie, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("samesite=none", cookie, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public async Task State_changing_request_rejects_missing_csrf_token()
     {
         await ResetAsync();

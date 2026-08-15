@@ -4,11 +4,11 @@ public static class AuthCookie
 {
     public const string Name = "campus_events_session";
 
-    public static CookieOptions Options(DateTimeOffset expiresAt) => new()
+    public static CookieOptions Options(DateTimeOffset expiresAt, bool secure) => new()
     {
         HttpOnly = true,
-        Secure = true,
-        SameSite = SameSiteMode.None,
+        Secure = secure,
+        SameSite = secure ? SameSiteMode.None : SameSiteMode.Lax,
         Expires = expiresAt,
         Path = "/",
         IsEssential = true

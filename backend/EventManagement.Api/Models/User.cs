@@ -9,6 +9,7 @@ public sealed class User
     public AuthProvider AuthProvider { get; set; } = AuthProvider.Local;
     public string? GoogleSubject { get; set; }
     public UserRole Role { get; set; } = UserRole.Student;
+    public VerificationStatus VerificationStatus { get; set; } = VerificationStatus.Unverified;
     public bool IsActive { get; set; } = true;
     public int SessionVersion { get; set; } = 1;
     public string? ImageUrl { get; set; }
@@ -34,4 +35,5 @@ public sealed class User
     public ICollection<VoteRecord> Votes { get; set; } = [];
     public ICollection<VotingPaymentOrder> VotingPaymentOrders { get; set; } = [];
     public ICollection<Coupon> Coupons { get; set; } = [];
+    public ICollection<EventTeamMember> EventTeamMemberships { get; set; } = [];
 }
