@@ -40,6 +40,25 @@ describe('VenueStep', () => {
     expect(screen.getAllByRole('radio')).toHaveLength(3)
   })
 
+  it('shows a pinnable map before an address has been geocoded', async () => {
+    const user = userEvent.setup()
+    const onValuesChange = vi.fn()
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ display_name: 'Great Hall, KNUST' }),
+    }))
+
+    render(
+      <VenueStep
+        values={{ ...physicalValues, location: '', latitude: null, longitude: null }}
+        onValuesChange={onValuesChange}
+      />,
+    )
+
+    await user.click(screen.getByRole('button', { name: 'Test map point' }))
+    expect(onValuesChange).toHaveBeenCalledWith({ latitude: 5.6037, longitude: -0.187 })
+  })
+
   it('shows and updates the physical venue address', async () => {
     const user = userEvent.setup()
     const onValuesChange = vi.fn()

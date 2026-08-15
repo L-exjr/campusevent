@@ -5,6 +5,8 @@ import Row from 'react-bootstrap/Row'
 import type { EventInput } from '../../../types'
 import InteractiveLocationMap from './InteractiveLocationMap'
 
+const DEFAULT_MAP_LOCATION = { latitude: 6.6745, longitude: -1.5716 }
+
 export interface VenueErrors {
   location?: string
   meetingUrl?: string
@@ -188,10 +190,12 @@ export default function VenueStep({
               </Form.Control.Feedback>
               <Form.Text>Type an address to place the pin automatically, then click the map or drag the pin to refine it.</Form.Text>
               {mapMessage && <div className="small mt-2" role="status">{mapMessage}</div>}
-              {values.latitude != null && values.longitude != null && (
-                <InteractiveLocationMap latitude={values.latitude} longitude={values.longitude}
-                  disabled={disabled || mapBusy} onPick={pickMapLocation} />
-              )}
+              <InteractiveLocationMap
+                latitude={values.latitude ?? DEFAULT_MAP_LOCATION.latitude}
+                longitude={values.longitude ?? DEFAULT_MAP_LOCATION.longitude}
+                disabled={disabled || mapBusy}
+                onPick={pickMapLocation}
+              />
             </Form.Group>
           </Col>
         )}

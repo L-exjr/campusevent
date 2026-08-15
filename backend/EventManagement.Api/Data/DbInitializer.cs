@@ -277,6 +277,24 @@ public static class DbInitializer
             organizer.OrganizerWebsiteUrl = profile.WebsiteUrl;
         }
 
+        foreach (var organizer in organizers.Where(item =>
+                     item.VerificationStatus == VerificationStatus.Pending))
+        {
+            var hasPendingApplication = await dbContext.OrganizerApplications.AnyAsync(application =>
+                application.UserId == organizer.Id && application.Status == ApplicationStatus.Pending);
+            if (!hasPendingApplication)
+            {
+                dbContext.OrganizerApplications.Add(new OrganizerApplication
+                {
+                    UserId = organizer.Id,
+                    User = organizer,
+                    Reason = "Demo verification request for testing the administrator review workflow.",
+                    Status = ApplicationStatus.Pending,
+                    SubmittedAt = now.AddDays(-2)
+                });
+            }
+        }
+
         foreach (var (demoEvent, index) in events.Select((item, index) => (item, index)))
         {
             var assignedOrganizer = organizers[index % organizers.Count];
@@ -295,17 +313,16 @@ public static class DbInitializer
                     Category = demoEvent.Category,
                     OrganizerId = assignedOrganizer.Id,
                     Organizer = assignedOrganizer,
-                    // Demo research records remain drafts and never appear as live public bookings.
-                    IsPublished = false,
+                    // Upcoming demo records are discoverable; historical catalog records remain drafts.
+                    IsPublished = demoEvent.Date > now,
                     RegistrationsEnabled = true
                 };
                 dbContext.Events.Add(eventEntity);
             }
             else
             {
-                // Older seed runs may have published these records. Converge them to
-                // the current safe demo policy without deleting registrations.
-                eventEntity.IsPublished = false;
+                // Converge repeat seed runs as fixed-date records move into the past.
+                eventEntity.IsPublished = demoEvent.Date > now;
                 eventEntity.OrganizerId = assignedOrganizer.Id;
                 eventEntity.Organizer = assignedOrganizer;
             }

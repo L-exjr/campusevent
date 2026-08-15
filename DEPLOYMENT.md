@@ -50,7 +50,7 @@ stored in this repository.
 | `Frontend__BaseUrl` | Exact Vercel production origin used in password-reset links. |
 | `Google__ClientId` | Google OAuth web client ID; must match the Vercel client ID. |
 | `Google__ClientSecret` | Store here if Google issued one; reserved for a future authorization-code flow and unused by the current ID-token flow. |
-| `DemoData__Enabled` | Optional one-time KNUST demonstration dataset switch. Set to `true` only while seeding, then set it back to `false`. |
+| `DemoData__Enabled` | Optional KNUST demonstration dataset switch. Set it to `true` and redeploy/restart Railway to seed idempotently, verify the rows, then set it back to `false`. Upcoming demo events are published; historical records remain drafts. |
 | `DemoData__Password` | Optional 12+ character password for the deliberately created demo accounts; do not reuse a real password. |
 | `SUPABASE_URL` | Supabase project URL used only by the backend upload proxy. |
 | `SUPABASE_SERVICE_ROLE_KEY` | Server-only Supabase service-role key. Never use a `VITE_*` name or expose it to the browser. |
