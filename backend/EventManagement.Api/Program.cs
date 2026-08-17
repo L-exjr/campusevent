@@ -171,6 +171,7 @@ builder.Services.AddScoped<IImageLifecycleService, ImageLifecycleService>();
 builder.Services.AddScoped<ImageCleanupAdministrationService>();
 builder.Services.AddScoped<EmailTemplateRenderer>();
 builder.Services.AddSingleton<EmailDailySendMonitor>();
+builder.Services.AddSingleton<OperationalMetrics>();
 builder.Services.AddScoped<MailtrapEmailService>();
 builder.Services.AddScoped<GmailSmtpEmailService>();
 builder.Services.AddScoped<IEmailService>(services =>

@@ -8,7 +8,8 @@ public sealed class ImageCleanupBackgroundService(
     IServiceScopeFactory scopeFactory,
     IConfiguration configuration,
     ILogger<ImageCleanupBackgroundService> logger,
-    TimeProvider timeProvider) : BackgroundService
+    TimeProvider timeProvider,
+    OperationalMetrics metrics) : BackgroundService
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -135,6 +136,7 @@ public sealed class ImageCleanupBackgroundService(
             upload.DeletionClaimedBy = null;
             upload.LastError = null;
             await dbContext.SaveChangesAsync(cancellationToken);
+            metrics.StorageCleanup(true);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -164,6 +166,7 @@ public sealed class ImageCleanupBackgroundService(
             upload.DeletionClaimedAt = null;
             upload.DeletionClaimedBy = null;
             await dbContext.SaveChangesAsync(cancellationToken);
+            metrics.StorageCleanup(false);
         }
     }
 

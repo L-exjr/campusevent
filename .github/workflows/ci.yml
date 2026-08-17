@@ -148,6 +148,18 @@ jobs:
           --configuration Release
           --no-build
           --logger "console;verbosity=normal"
+          --logger "trx;LogFileName=backend-tests.trx"
+
+      - name: Archive backend verification results
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: backend-verification-${{ github.run_id }}
+          path: |
+            **/TestResults/*.trx
+            nuget-audit.json
+          if-no-files-found: warn
+          retention-days: 30
 
   frontend-tests:
     name: Frontend tests
@@ -254,10 +266,22 @@ jobs:
         run: npm run lint
 
       - name: Run frontend tests
-        run: npm test
+        run: npm test -- --reporter=default --reporter=junit --outputFile.junit=artifacts/test-results/frontend-junit.xml
 
       - name: Build frontend
         run: npm run build
+
+      - name: Archive frontend verification results
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: frontend-verification-${{ github.run_id }}
+          path: |
+            artifacts/test-results/frontend-junit.xml
+            npm-audit.json
+            dist/
+          if-no-files-found: warn
+          retention-days: 30
 
   deploy-backend:
     name: Deploy backend to Railway

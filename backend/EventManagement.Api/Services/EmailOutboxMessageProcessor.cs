@@ -8,7 +8,8 @@ public sealed class EmailOutboxMessageProcessor(
     AppDbContext dbContext,
     IEnumerable<IEmailOutboxHandler> handlers,
     IConfiguration configuration,
-    TimeProvider timeProvider)
+    TimeProvider timeProvider,
+    OperationalMetrics metrics)
 {
     public async Task ProcessAsync(
         EmailOutboxMessage claimedMessage,
@@ -48,6 +49,12 @@ public sealed class EmailOutboxMessageProcessor(
             default:
                 throw new ArgumentOutOfRangeException();
         }
+        metrics.Email(result.Outcome switch
+        {
+            EmailOutboxOutcome.Sent => "sent",
+            EmailOutboxOutcome.Retry when message.Status == EmailOutboxStatus.Failed => "failed",
+            _ => "retry"
+        });
         message.LastError = result.Error;
         message.ClaimedAt = null;
         message.ClaimedBy = null;
@@ -68,6 +75,7 @@ public sealed class EmailOutboxMessageProcessor(
         if (message is null) return;
 
         ApplyRetry(message);
+        metrics.Email(message.Status == EmailOutboxStatus.Failed ? "failed" : "retry");
         var error = $"{exception.GetType().Name}: {exception.Message}";
         message.LastError = error[..Math.Min(error.Length, 2000)];
         message.ClaimedAt = null;

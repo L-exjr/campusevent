@@ -10,7 +10,8 @@ namespace EventManagement.Api.Controllers;
 [Route("api/payments")]
 public sealed class PaymentsController(
     IPaymentService paymentService,
-    IVotingService votingService) : ControllerBase
+    IVotingService votingService,
+    OperationalMetrics metrics) : ControllerBase
 {
     [Authorize(Roles = "Student,Organizer")]
     [HttpPost("events/{eventId:guid}/initialize")]
@@ -52,10 +53,13 @@ public sealed class PaymentsController(
         }
         catch (PaymentProviderException)
         {
+            metrics.PaymentCallback(false);
             throw new ApiException(
                 StatusCodes.Status503ServiceUnavailable,
                 "Payment verification is temporarily unavailable.");
         }
+        catch { metrics.PaymentCallback(false); throw; }
+        metrics.PaymentCallback(true);
         return Ok();
     }
 
@@ -75,9 +79,12 @@ public sealed class PaymentsController(
         }
         catch (PaymentProviderException)
         {
+            metrics.PaymentCallback(false);
             throw new ApiException(StatusCodes.Status503ServiceUnavailable,
                 "Payment verification is temporarily unavailable.");
         }
+        catch { metrics.PaymentCallback(false); throw; }
+        metrics.PaymentCallback(true);
         return Ok();
     }
 

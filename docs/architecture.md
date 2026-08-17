@@ -2,6 +2,11 @@
 
 Campus Events is a React/Vite single-page application backed by an ASP.NET Core API and PostgreSQL through EF Core. Supabase Storage holds images and generated certificates. Email delivery uses the configured Mailtrap or Gmail provider. Paid checkout is routed through Paystack or Flutterwave.
 
+Operational health is observable through structured logs and the Admin-only
+`GET /api/operational-metrics` snapshot. It reports process-lifetime payment
+callback, email-delivery, storage-cleanup and provider-quota warning counters.
+Forward the snapshot or logs to durable monitoring because restarts reset these counters.
+
 ```mermaid
 flowchart LR
   Browser["React/Vite client"] --> API["ASP.NET Core API"]

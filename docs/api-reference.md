@@ -1,5 +1,11 @@
 # API reference
 
+## Operational monitoring
+
+`GET /api/operational-metrics` requires an Admin session and returns
+process-lifetime counters for payment callbacks, email delivery, image cleanup
+and provider quota warnings, plus the process start time.
+
 Auth labels: **Public**, **User** (authenticated ordinary account), **Event capability** (service-enforced owner/Admin/team access), **Owner/Admin**, and **Admin**.
 
 | Method | Route | Auth | Purpose |

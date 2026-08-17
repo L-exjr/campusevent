@@ -31,7 +31,7 @@ export default function RegistrantsPage() {
       const attended = attendance ? attendance === 'attended' : undefined
       return { event, registrants: await api.getEventRegistrants(id, page, 50, debouncedSearch, attended, signal) }
     },
-    [attendance, debouncedSearch, id, page, user],
+    [attendance, debouncedSearch, id, page],
   )
   const { data, loading, error, reload } = useApiResource(loadData)
   const registrants = data?.registrants?.items ?? []

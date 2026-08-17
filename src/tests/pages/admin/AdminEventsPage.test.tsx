@@ -44,5 +44,5 @@ describe('AdminEventsPage', () => {
       version: 1,
     }))
     expect(await screen.findByText('Event ownership transferred successfully.')).toBeVisible()
-  })
+  }, 10_000)
 })

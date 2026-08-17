@@ -8,7 +8,8 @@ namespace EventManagement.Api.Services;
 public sealed class EmailDailySendMonitor(
     IConfiguration configuration,
     TimeProvider timeProvider,
-    ILogger<EmailDailySendMonitor> logger)
+    ILogger<EmailDailySendMonitor> logger,
+    OperationalMetrics metrics)
 {
     private readonly object sync = new();
     private DateOnly utcDay = DateOnly.FromDateTime(timeProvider.GetUtcNow().UtcDateTime);
@@ -38,6 +39,7 @@ public sealed class EmailDailySendMonitor(
             day);
         if (count == warningThreshold || count > warningThreshold && count % 25 == 0)
         {
+            metrics.ProviderQuotaWarning();
             logger.LogWarning(
                 "Gmail daily send warning: {AcceptedCount} messages accepted on {UtcDay} UTC in this process; configured warning threshold is {WarningThreshold}.",
                 count,
